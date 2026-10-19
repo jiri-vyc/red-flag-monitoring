@@ -3,7 +3,8 @@ import type { Transaction } from "../../transaction";
 import { calculateFeatures, type CalculatedFeatures } from "../calculateFeatures";
 import { createFeatureContext } from "../featureContext";
 import { EMPTY_PAYEE_DAY_CLIENT_INDEX, type PayeeDayClientIndex } from "../payeeDayClientIndex";
-import { priceTransactionsChronologically, treatAmountAsCzk } from "../pricedTransaction";
+import { createFxRateTable } from "../fxRates";
+import { priceTransactionsChronologically } from "../pricedTransaction";
 
 export const CLIENT_ID = "K000001";
 export const CLIENT_ACCOUNT = CLIENT_ID;
@@ -83,7 +84,8 @@ export function buildTransaction(
   };
 }
 
-// Calculates features of `evaluatedId` with `history` as the client's whole history (amounts already in CZK).
+// Calculates features of `evaluatedId` with `history` as the client's whole history. Builders default to CZK,
+// so no FX rates are needed.
 export function calculateFeaturesOf(input: {
   featureIds: string[];
   history: Transaction[];
@@ -91,7 +93,7 @@ export function calculateFeaturesOf(input: {
   client?: Client;
   payeeDayClientIndex?: PayeeDayClientIndex;
 }): CalculatedFeatures {
-  const pricedHistory = priceTransactionsChronologically(input.history, treatAmountAsCzk);
+  const pricedHistory = priceTransactionsChronologically(input.history, createFxRateTable([]));
   const transaction = pricedHistory.find((candidate) => candidate.transactionId === input.evaluatedId);
 
   if (!transaction) {

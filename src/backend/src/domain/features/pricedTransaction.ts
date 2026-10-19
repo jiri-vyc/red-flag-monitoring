@@ -6,7 +6,7 @@ import { BASE_CURRENCY, getFxRateOnDate, type FxRateTable } from "./fxRates";
 // A transaction with its CZK amount and calendar keys, computed once per client history (F2, F3).
 export type PricedTransaction = Transaction & {
   amountCzk: number;
-  // The ČNB rate used for the conversion; null when no conversion happened.
+  // The ČNB rate used for the conversion; null for CZK amounts.
   fxRate: FxRateSnapshot | null;
   occurredAtMs: number;
   dateKey: string;
@@ -38,53 +38,44 @@ export function compareChronologically(left: PricedTransaction, right: PricedTra
   return left.transactionId.localeCompare(right.transactionId);
 }
 
-// Turns a transaction amount into CZK. The evaluation picks one for the whole run.
-export type AmountPricer = (
-  transaction: Transaction,
-  dateKey: string,
-) => { amountCzk: number; fxRate: FxRateSnapshot | null };
-
-// V11: converts with the ČNB rate valid on the transaction date. Throws MissingFxRateError without a rate.
-export function createFxRateAmountPricer(fxRates: FxRateTable): AmountPricer {
-  return (transaction, dateKey) => {
-    if (transaction.currency === BASE_CURRENCY) {
-      return { amountCzk: roundCzk(Number(transaction.amount)), fxRate: null };
-    }
-
-    const rate = getFxRateOnDate(fxRates, transaction.currency, dateKey);
-
-    return {
-      amountCzk: roundCzk(Number(transaction.amount) * rate.czkPerUnit),
-      fxRate: { currency: rate.currency, rate_date: rate.rateDate, czk_per_unit: rate.czkPerUnit },
-    };
-  };
-}
-
-// The PoC dataset holds amounts already in CZK whatever the currency column says: the median is the same in all
-// 23 currencies (SVZ-03, Příloha 2). The sample rule counts are computed this way.
-export const treatAmountAsCzk: AmountPricer = (transaction) => ({
-  amountCzk: roundCzk(Number(transaction.amount)),
-  fxRate: null,
-});
-
 export function priceTransactionsChronologically(
   transactions: readonly Transaction[],
-  priceAmount: AmountPricer,
+  fxRates: FxRateTable,
 ): PricedTransaction[] {
   return transactions
-    .map((transaction) => priceTransaction(transaction, priceAmount))
+    .map((transaction) => priceTransaction(transaction, fxRates))
     .sort(compareChronologically);
 }
 
-export function priceTransaction(transaction: Transaction, priceAmount: AmountPricer): PricedTransaction {
+// V11: converts with the ČNB rate valid on the transaction date. Throws MissingFxRateError without a rate.
+export function priceTransaction(transaction: Transaction, fxRates: FxRateTable): PricedTransaction {
   const dateKey = toDateKey(transaction.occurredAt);
 
   return {
     ...transaction,
-    ...priceAmount(transaction, dateKey),
+    ...convertAmountToCzk({ transaction, dateKey, fxRates }),
     occurredAtMs: transaction.occurredAt.getTime(),
     dateKey,
     monthKey: toMonthKey(transaction.occurredAt),
     isoWeekKey: toIsoWeekKey(transaction.occurredAt),
+  };
+}
+
+function convertAmountToCzk(input: {
+  transaction: Transaction;
+  dateKey: string;
+  fxRates: FxRateTable;
+}): Pick<PricedTransaction, "amountCzk" | "fxRate"> {
+  const amount = Number(input.transaction.amount);
+
+  if (input.transaction.currency === BASE_CURRENCY) {
+    return { amountCzk: roundCzk(amount), fxRate: null };
+  }
+
+  const rate = getFxRateOnDate(input.fxRates, input.transaction.currency, input.dateKey);
+
+  return {
+    amountCzk: roundCzk(amount * rate.czkPerUnit),
+    fxRate: { currency: rate.currency, rate_date: rate.rateDate, czk_per_unit: rate.czkPerUnit },
   };
 }

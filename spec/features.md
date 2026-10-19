@@ -12,7 +12,7 @@ Featura je pojmenovaná hodnota, kterou engine spočítá pro jednu vyhodnocovan
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | F1  | **Bez pohledu dopředu.** Každá featura se počítá k okamžiku vyhodnocované transakce `t`. Použije jen transakce s `(occurred_at, transaction_id) <= (t, id)`. Okna jsou tvaru `(t − Δ, t]`.                                                       | Historie obsahuje i pozdější transakce (V4). Zásah padne na transakci, která vzor dokončila. Stejná sémantika půjde použít v live režimu. |
 | F2  | Měsíc, den a ISO týden jsou kalendářní hranice podle hodnoty `ts` tak, jak je uložená (`TIMESTAMP` bez časového pásma = místní čas z CSV). Engine časové pásmo nepřevádí. „Měsíční“ a „denní“ featury jsou tedy _month-to-date_ a _day-to-date_. | Pravidla mluví o kalendářním měsíci a dni. Převod pásma by posunul transakce kolem půlnoci do jiného dne.                                 |
-| F3  | Převod částky do CZK volí běh: kurz ČNB k datu transakce (V11), nebo `volume` beze změny. Použitý kurz se ukládá do `features` jako `tx_fx`. PoC data vyžadují variantu bez převodu, viz [sekce 4](#4-ověření-na-poc-datech).                    | Trace musí jít přečíst bez přepočtu.                                                                                                      |
+| F3  | Částky jsou v CZK přes kurz ČNB k datu transakce, o víkendu a svátku přes poslední vyhlášený kurz (V11). Použitý kurz se ukládá do `features` jako `tx_fx`. Platí i pro PoC data, viz [sekce 4](#4-ověření-na-poc-datech).                       | Trace musí jít přečíst bez přepočtu.                                                                                                      |
 | F4  | „Odchozí“ = `outgoing` nebo `remittance`. „Příchozí“ = `incoming`. Protistrana = `counterparty_account` / `counterparty_country` (generované sloupce).                                                                                           | Společné konvence příkladů.                                                                                                               |
 | F5  | L = 25 000 CZK (1 000 EUR) je **pevný parametr kódu**.                                                                                                                                                                                           | Konvence příkladů.                                                                                                                        |
 | F6  | Featura bez smysluplné hodnoty vrátí `null` (např. Q2 baseline u klienta bez transakcí v Q2). Porovnání s `null` je vždy `false` a trace to ukáže.                                                                                               | Pokrývá „klient bez Q2 se posuzuje jen podle (a)“ (TM-01) a „nevyhodnocuje se“ (PR-07).                                                   |
@@ -107,15 +107,23 @@ Podmínka na `tx_type` u pravidel s kumulativní featurou omezí zásahy na tran
 
 ## 4. Ověření na PoC datech
 
-Všech 17 pravidel ze sekce 3 jsme spustili nad celým datasetem (397 853 transakcí, ~6 s).
+Všech 17 pravidel ze sekce 3 jsme spustili nad celým datasetem (397 853 transakcí, ~6 s). Pole `volume` se v PoC datech chová jako částka už v CZK: medián je stejný ve všech 23 měnách ([SVZ-03, Příloha 2](../knowledgebase/vnitrni-predpisy/svz-03-monitoring-transakci.md)). Engine přesto přepočítává kurzem ČNB (R6), proto se počty u pravidel s částkou liší od README příkladů.
 
-| Výsledek                | Pravidla                                          |
-| ----------------------- | ------------------------------------------------- |
-| Shoda s README příkladů | TM-01, TM-02, TM-03, TM-04, TM-06, PR-01 až PR-11 |
-| Rozdíl                  | TM-05: 35 klientů místo 36                        |
+| Pravidlo | README            | Kurz ČNB (engine)   | `volume` jako CZK |
+| -------- | ----------------- | ------------------- | ----------------- |
+| TM-01    | 4 669 klientů     | 5 493 klientů       | 4 669             |
+| TM-03    | 4 tx, 3 klienti   | 112 tx, 22 klientů  | 4 tx, 3 klienti   |
+| TM-04    | 16 klientů        | 1 077 klientů       | 16                |
+| TM-05    | 36 klientů        | 99 klientů          | 35                |
+| PR-02    | 111 klientů       | 97 klientů          | 111               |
+| PR-05    | 34 klientů        | 152 klientů         | 34                |
+| PR-06    | 33 klientů        | 129 klientů         | 33                |
+| PR-08    | 41 klientů        | 3 033 klientů       | 41                |
+| PR-09    | 18 tx, 17 klientů | 202 tx, 154 klientů | 18 tx, 17 klientů |
 
-- **Částky bez převodu.** Shoda platí jen tehdy, když se `volume` bere jako CZK. Medián částky je stejný ve všech 23 měnách, takže data jsou už v CZK ([SVZ-03, Příloha 2](../knowledgebase/vnitrni-predpisy/svz-03-monitoring-transakci.md)). S kurzem ČNB vyjde TM-01 u všech 5 493 klientů a PR-08 u 3 033 klientů místo 41. Kurzy jsou v `fx_rates` připravené pro reálná data.
-- **TM-05.** Rozdíl dělá klient se smlouvou z 31. 12. 2025. K 1. 7. 2026 má 6 celých kalendářních měsíců vztahu, ale jen 182 dní. Referenční výpočet zřejmě počítal ve dnech. Engine počítá celé kalendářní měsíce.
+Ostatní pravidla nezávisí na částce a dávají stejný výsledek jako README: TM-02 0, TM-06 16 klientů, PR-01 4, PR-03 31 účtů příjemce, PR-04 35, PR-07 280, PR-10 0, PR-11 0.
+
+- **Sloupec „`volume` jako CZK“** ověřuje logiku featur a DSL: odpovídá README kromě TM-05. Tam rozdíl dělá klient se smlouvou z 31. 12. 2025. K 1. 7. 2026 má 6 celých kalendářních měsíců vztahu, ale jen 182 dní. Referenční výpočet zřejmě počítal ve dnech, engine počítá celé měsíce.
 - **F1 (bez pohledu dopředu)** u TM-04 a PR-06 dává stejnou množinu klientů jako znění předpisu.
 
 ## 5. Rozhodnutí z review
@@ -127,16 +135,16 @@ Všech 17 pravidel ze sekce 3 jsme spustili nad celým datasetem (397 853 transa
 | R3  | PR-03: engine na začátku běhu postaví v paměti index `payee_account × den → platby` ze všech odchozích transakcí v DB a předá ho v kontextu. Pravidla se do DB neptají. |
 | R4  | Kurzy ČNB 2025–2026 a referenční seznamy `EU_HRTC`, `FATF_BLACK`, `FATF_GREY`, `HRJ` a `EEA` plní seed migrace. Jsou aplikované na `main`.                              |
 | R5  | Den, týden a měsíc se počítají z `ts` bez převodu časového pásma (F2).                                                                                                  |
+| R6  | Částky se vždy přepočítávají kurzem ČNB (V11), i u PoC dat. Počty zásahů proto nesedí s README příkladů.                                                                |
 
 Zbývá rozhodnout:
 
-- **Převod částek pro demo.** Vyhodnocovací use case musí zvolit `treatAmountAsCzk` (shoda s očekávanými počty), nebo `createFxRateAmountPricer` (V11). Doporučení: `treatAmountAsCzk` pro PoC data.
 - **Seznamy FATF** jsou převzaté ze sekundárních zdrojů (stav 19. 6. 2026), protože fatf-gafi.org nebyl dostupný. Po plenárním zasedání FATF v říjnu 2026 je potřeba přidat novou verzi seznamu.
 - **Granularita alertů.** Zásah padne na každou transakci od splnění podmínky do konce období. Sloučení do alertu „1 na klienta a měsíc“ patří do agregace událostí ([otázka 5 ve spec](spec.md#10-otevřené-otázky)).
 
 ## 6. Compliance poznámky
 
 - **F1 (bez pohledu dopředu)** mění tvar TM-04 a PR-06 oproti textu předpisu. Množina klientů se zásahem je na PoC datech stejná, zásah ale padne na jinou transakci.
-- **Částky bez převodu** odporují definici „částka v CZK“ v SVZ-03. Pro reálná data se musí použít kurz ČNB.
+- **Přepočet PoC dat kurzem** dává mnohem víc zásahů než validace v SVZ-03 (např. TM-01 u všech klientů). Validace v SVZ-03 počítá `volume` jako CZK a čeká na potvrzení od FINREG. Kontrola DQ-4 v SVZ-03 tento stav hlásí jako „datovou výhradu“.
 - **Seznamy FATF ze sekundárních zdrojů** je potřeba před nasazením ověřit proti fatf-gafi.org.
 - **Pevné parametry ve vzorových featurách** (L, okna, pásmo 0,9–1,1) nejsou ve verzi pravidla. Jejich změna v kódu změní detekci bez nové verze pravidla. Zachytí ji jen `engine_version` (V10). Před nasazením je potřeba rozhodnout, zda parametry patří do verze pravidla a do schválení.
