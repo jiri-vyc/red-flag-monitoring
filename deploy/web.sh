@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Usage: [BACKEND_URL=https://...] [NEXT_PUBLIC_API_MODE=mock|live] deploy/web.sh
+# Usage: [BACKEND_URL=https://...] [NEXT_PUBLIC_API_MODE=live|mock] deploy/web.sh
 # Builds the Next.js standalone bundle for Linux arm64 and deploys it to the rfm-web Web Function.
 source "$(dirname "$0")/common.sh"
 
 bundle="$BUILD_DIR/web"
 backend_url="${BACKEND_URL:-$(endpoint_url "$API_FUNCTION")}"
-api_mode="${NEXT_PUBLIC_API_MODE:-mock}"
+api_mode="${NEXT_PUBLIC_API_MODE:-live}"
 image=rfm-web-build
 
 # BACKEND_URL and NEXT_PUBLIC_* are baked into the bundle at build time; changing them needs a redeploy.

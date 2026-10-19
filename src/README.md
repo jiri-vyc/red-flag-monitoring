@@ -177,7 +177,7 @@ component → features/<f>/api/hooks.ts → service.ts (resolveService) → live
 
 ## Deployment
 
-Both apps run as AWS Lambda Web Functions in `eu-central-1`, team account `526983806399`: `rfm-api` (Express) and `rfm-web` (Next.js standalone). Each gets a public HTTPS endpoint `dev`. The web proxies `/api/*` to the API endpoint. Scripts live in [`../deploy/`](../deploy) and need Docker, the AWS CLI with `lambda-web` and the `hackathon` SSO profile. They refuse to run against any other account or region.
+Both apps run as AWS Lambda Web Functions in `eu-central-1`, team account `526983806399`: `rfm-api` (Express) and `rfm-web` (Next.js standalone). Each gets a public HTTPS endpoint `dev`: web https://vkdtj1g7xt7fqkkn.clq.lambda-web.eu-central-1.on.aws, API https://pzrs33rhnqf7x5fm.clq.lambda-web.eu-central-1.on.aws. The web proxies `/api/*` to the API endpoint. Scripts live in [`../deploy/`](../deploy) and need Docker, the AWS CLI with `lambda-web` and the `hackathon` SSO profile. They refuse to run against any other account or region.
 
 ```bash
 cd src
@@ -189,7 +189,7 @@ npm run deploy:web      # web bundle → rfm-web, reads the rfm-api endpoint for
 
 - Roles: least-privilege execution roles instead of the CLI's auto-created `awscli-lambdaweb-*`. Both may write their own log groups `/aws/lambda/web/<name>` and `/aws/lambda/web/<name>.local`. The API role may also `rds-db:connect` as `postgres` on `database-1` and invoke Anthropic models through the `eu.anthropic.*` inference profiles only.
 - API bundle: `tsc` output plus a production-only `npm ci` in a `node:24` arm64 container. Env: `DATABASE_AUTH=iam`, `DATABASE_URL=postgres://postgres@<cluster endpoint>:5432/main` (`RFM_DATABASE=wip_<name> npm run deploy:api` for a work copy). The server listens before it touches the database; the DataSource initializes on the first request that needs it, because Web Functions require a listening server within 10 s and an Aurora resume takes ~15 s. Run `npm run migration:run` against `main` before deploying code that needs a new migration.
-- Web bundle: the `build` stage of `web/Dockerfile` for arm64, then `.next/standalone` plus static assets and `deploy/web/index.js`, which maps `AWS_LAMBDA_HTTP_ENDPOINT` to `HOSTNAME`/`PORT`. `BACKEND_URL` and `NEXT_PUBLIC_*` are baked in at build time, so redeploy the web after changing them or after the API endpoint changes. `NEXT_PUBLIC_API_MODE=live npm run deploy:web` switches the deployed UI to the real backend (default `mock`).
+- Web bundle: the `build` stage of `web/Dockerfile` for arm64, then `.next/standalone` plus static assets and `deploy/web/index.js`, which maps `AWS_LAMBDA_HTTP_ENDPOINT` to `HOSTNAME`/`PORT`. `BACKEND_URL` and `NEXT_PUBLIC_*` are baked in at build time, so redeploy the web after changing them or after the API endpoint changes. The deployed UI calls the real backend (`NEXT_PUBLIC_API_MODE` defaults to `live` here, unlike local dev); `NEXT_PUBLIC_API_MODE=mock npm run deploy:web` switches it to browser-only demo data.
 - Endpoints are public (`ApplicationManaged` auth) and the API has no authentication yet, so it only ever points at synthetic and organiser data.
 - Fallback: the `runtime` stage of `web/Dockerfile` is a plain container image for ECS Express.
 

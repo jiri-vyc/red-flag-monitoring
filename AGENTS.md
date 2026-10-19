@@ -44,6 +44,20 @@ One Aurora PostgreSQL cluster, `database-1` (eu-central-1, Express configuration
 - Point the backend or the TypeORM CLI at Aurora with `DATABASE_AUTH=iam`, `DATABASE_URL=postgres://postgres@<cluster endpoint>:5432/<database>` (no password) and `AWS_REGION=eu-central-1` (see `src/backend/.env.example`).
 - Recreating `main` (drop, `create database main template golden`, metadata fix-up, `migration:run`) destroys whatever is in it. It needs a human's OK. Take a cluster snapshot first.
 
+## Deployment
+
+The shared deployment, the one everyone demos and tests against:
+
+| What | URL |
+| --- | --- |
+| Web | https://vkdtj1g7xt7fqkkn.clq.lambda-web.eu-central-1.on.aws |
+| API | https://pzrs33rhnqf7x5fm.clq.lambda-web.eu-central-1.on.aws |
+| DB probe | https://pzrs33rhnqf7x5fm.clq.lambda-web.eu-central-1.on.aws/api/database-status |
+
+- Lambda Web Functions `rfm-web` and `rfm-api` (endpoint `dev`) in `526983806399`, `eu-central-1`. The API is connected to the database `main`.
+- Deploy with `npm run deploy` from `src/` (or `deploy:api`, `deploy:web`, `deploy:roles`; scripts in `deploy/`, details in [src/README.md](src/README.md#deployment)). The scripts build from the working tree, so deploy only committed `main` from a clean checkout. A deploy replaces what everyone sees.
+- After a deploy, check that `/api/database-status` reports `"databaseName": "main"` and a non-null `auroraVersion`.
+
 ## Schema changes
 
 Schema and data transforms change only through TypeORM migrations in `src/backend/src/infrastructure/database/migrations/` (rules in [src/AGENTS.md](src/AGENTS.md)). That way the change is visible to everyone, and the path from `golden` to the current `main` can be reconstructed from git plus each database's `migrations` table.

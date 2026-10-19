@@ -4,6 +4,16 @@ AML transaction monitoring: triage and red-flag escalation, built for the FinTec
 
 See [AGENTS.md](AGENTS.md) for working rules.
 
+## Deployed app
+
+| What           | URL                                                                                                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web (frontend) | https://vkdtj1g7xt7fqkkn.clq.lambda-web.eu-central-1.on.aws                                                                                                |
+| API (backend)  | https://pzrs33rhnqf7x5fm.clq.lambda-web.eu-central-1.on.aws (e.g. [`/api/health`](https://pzrs33rhnqf7x5fm.clq.lambda-web.eu-central-1.on.aws/api/health)) |
+| Database probe | [`/api/database-status`](https://pzrs33rhnqf7x5fm.clq.lambda-web.eu-central-1.on.aws/api/database-status), also the Database panel in the web sidebar      |
+
+Both run as AWS Lambda Web Functions (`rfm-web`, `rfm-api`) in the team account `526983806399`, `eu-central-1`. The API uses the Aurora database `main`. The web proxies `/api/*` to the API and calls the real backend (`NEXT_PUBLIC_API_MODE=live`). The URLs stay the same across redeploys. Both endpoints are public and have no authentication, so use synthetic and organiser data only. To deploy, see [src/README.md](src/README.md#deployment).
+
 ## Connect to the database with DBeaver
 
 The Aurora cluster `database-1` (team AWS account, `eu-central-1`) has no passwords, only short-lived IAM tokens.
