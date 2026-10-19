@@ -7,6 +7,9 @@ Working rules for AI agents and humans on this repo. Hackathon project: AML tran
 - AWS, primarily Amazon Bedrock. Prefer Bedrock-hosted models and AWS-native services over external APIs.
 - Use the AWS CLI (`aws`) for AWS operations. Do not hardcode credentials; rely on the configured profile or environment.
 
+## Code style
+- follow strictly https://github.com/jiri-vyc/ai-clean-code-best-practices 
+
 ## Data handling (strict)
 
 - It is strictly forbidden to move data outside the hackathon environment without explicit human authorisation. This covers uploading to third-party APIs, public repos, paste sites, external LLM endpoints, personal cloud storage, and local copies outside the project.
