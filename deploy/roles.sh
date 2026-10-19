@@ -13,15 +13,21 @@ trust_policy='{
   "Statement": [{ "Effect": "Allow", "Principal": { "Service": "lambda.amazonaws.com" }, "Action": "sts:AssumeRole" }]
 }'
 
+# The runtime writes to the configured group and to a sibling "<group>.local".
 logs_statements() {
   local log_group="arn:aws:logs:$AWS_REGION:$ACCOUNT_ID:log-group:/aws/lambda/web/$1"
   cat <<JSON
-    { "Sid": "CreateLogGroup", "Effect": "Allow", "Action": "logs:CreateLogGroup", "Resource": "$log_group" },
+    {
+      "Sid": "CreateLogGroups",
+      "Effect": "Allow",
+      "Action": "logs:CreateLogGroup",
+      "Resource": ["$log_group", "$log_group:*", "$log_group.local", "$log_group.local:*"]
+    },
     {
       "Sid": "WriteLogs",
       "Effect": "Allow",
       "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
-      "Resource": "$log_group:*"
+      "Resource": ["$log_group:*", "$log_group.local:*"]
     }
 JSON
 }
@@ -84,7 +90,9 @@ ensure_log_group() {
   aws logs put-retention-policy --log-group-name "$log_group" --retention-in-days 14
 }
 
-ensure_log_group "$API_FUNCTION"
-ensure_log_group "$WEB_FUNCTION"
+for function_name in "$API_FUNCTION" "$WEB_FUNCTION"; do
+  ensure_log_group "$function_name"
+  ensure_log_group "$function_name.local"
+done
 ensure_role "$API_FUNCTION-execution" "$api_policy" "rfm-api Web Function: logs, Aurora IAM auth, Bedrock EU Anthropic"
 ensure_role "$WEB_FUNCTION-execution" "$web_policy" "rfm-web Web Function: logs only"
