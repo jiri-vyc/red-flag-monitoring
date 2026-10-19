@@ -12,6 +12,7 @@ import {
 import {
   DEFAULT_HIT_THRESHOLD,
   type ImportRowError,
+  type RunScope,
   RUN_STATUSES,
   type RunStatus,
 } from "../../../domain/evaluation";
@@ -36,6 +37,10 @@ export class EvaluationRunEntity {
 
   @Column({ name: "status", type: "text" })
   status!: RunStatus;
+
+  // Null for a run over an uploaded CSV.
+  @Column({ name: "scope", type: "jsonb", nullable: true })
+  scope!: RunScope | null;
 
   @Column({ name: "file_name", type: "text" })
   fileName!: string;

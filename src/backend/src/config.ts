@@ -15,7 +15,20 @@ export type IamDatabaseConfig = {
 };
 export type DatabaseConfig = PasswordDatabaseConfig | IamDatabaseConfig;
 
-export type AppConfig = { host?: string; port: number; database: DatabaseConfig };
+// Where started evaluation runs execute: in the API process, or in a separate Lambda function (#3).
+export type EvaluationWorkerConfig =
+  { mode: "in_process" } | { mode: "lambda"; functionName: string; region: string };
+
+export type AppConfig = {
+  host?: string;
+  port: number;
+  database: DatabaseConfig;
+  // V10: the code version stored on each evaluation run, the git commit in deployments.
+  engineVersion: string;
+  evaluationWorker: EvaluationWorkerConfig;
+};
+
+const LOCAL_ENGINE_VERSION = "local";
 
 // apiKey is null when no Bedrock API key is configured; a short-term key is then generated from AWS credentials.
 export type BedrockConfig = { region: string; modelId: string; apiKey: string | null };
@@ -34,7 +47,23 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
   return {
     ...parseListenAddress(environment),
     database: parseDatabaseConfig(environment),
+    engineVersion: environment.ENGINE_VERSION || LOCAL_ENGINE_VERSION,
+    evaluationWorker: parseEvaluationWorkerConfig(environment),
   };
+}
+
+function parseEvaluationWorkerConfig(environment: NodeJS.ProcessEnv): EvaluationWorkerConfig {
+  const functionName = environment.EVALUATION_WORKER_FUNCTION;
+
+  if (!functionName) {
+    return { mode: "in_process" };
+  }
+
+  if (!environment.AWS_REGION) {
+    throw new InvalidConfigError("AWS_REGION is required when EVALUATION_WORKER_FUNCTION is set");
+  }
+
+  return { mode: "lambda", functionName, region: environment.AWS_REGION };
 }
 
 function parseListenAddress(environment: NodeJS.ProcessEnv): { host?: string; port: number } {

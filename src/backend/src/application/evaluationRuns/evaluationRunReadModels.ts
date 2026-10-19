@@ -13,6 +13,8 @@ export type RunRuleVersionSummary = {
   alertType: string;
   versionNo: number;
   hitCount: number;
+  // Distinct clients with a hit; the policies count alerts per client and month (e.g. R-01).
+  hitClientCount: number;
 };
 
 export type RunReferenceListVersionSummary = {
@@ -25,6 +27,7 @@ export type RunReferenceListVersionSummary = {
 export type EvaluationRunSummary = {
   run: EvaluationRun;
   verdictCounts: Record<Verdict, number>;
+  flaggedClientCount: number;
   ruleVersions: RunRuleVersionSummary[];
   referenceListVersions: RunReferenceListVersionSummary[];
 };
@@ -36,7 +39,18 @@ export type TransactionEvaluationFilter = {
   hitRuleVersionId: string | null;
 };
 
-export type TransactionEvaluationListItem = TransactionEvaluation & { transaction: Transaction };
+export type HitRuleSummary = {
+  ruleVersionId: string;
+  ruleCode: string;
+  alertType: string;
+  adjustedScore: number;
+};
+
+// `hitRules` answers "which rules did this transaction fail" without opening the detail.
+export type TransactionEvaluationListItem = TransactionEvaluation & {
+  transaction: Transaction;
+  hitRules: HitRuleSummary[];
+};
 
 export type LegalBasisDetail = {
   regulationId: string;

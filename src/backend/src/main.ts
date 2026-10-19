@@ -6,14 +6,14 @@ import { systemClock } from "./application/clock";
 import { DatabaseStatusQueries } from "./application/databaseStatus/databaseStatusQueries";
 import { DraftingUseCases } from "./application/drafting/draftingUseCases";
 import { EvaluationRunQueries } from "./application/evaluationRuns/evaluationRunQueries";
-import { EvaluationRunUseCases } from "./application/evaluationRuns/evaluationRunUseCases";
 import { InternalPolicyUseCases } from "./application/internalPolicies/internalPolicyUseCases";
 import { ReferenceListUseCases } from "./application/referenceLists/referenceListUseCases";
 import { RegulationUseCases } from "./application/regulations/regulationUseCases";
 import { RuleUseCases } from "./application/rules/ruleUseCases";
 import { WhitelistUseCases } from "./application/whitelist/whitelistUseCases";
-import { parseAppConfig } from "./config";
+import { type AppConfig, parseAppConfig } from "./config";
 import { type AppUseCases, createApp } from "./delivery/http/createApp";
+import { createEvaluationRunUseCases } from "./evaluationRunComposition";
 import { createDataSource } from "./infrastructure/database/createDataSource";
 import { DummyDraftGenerator } from "./infrastructure/drafting/DummyDraftGenerator";
 import { memoizeInitialization } from "./infrastructure/database/memoizeInitialization";
@@ -30,7 +30,7 @@ function startServer(): void {
   const appConfig = parseAppConfig(process.env);
   const dataSource = createDataSource(appConfig.database);
   const ensureDatabaseReady = memoizeInitialization(dataSource);
-  const app = createApp(createUseCases(dataSource), ensureDatabaseReady);
+  const app = createApp(createUseCases(dataSource, appConfig), ensureDatabaseReady);
 
   app.listen({ host: appConfig.host, port: appConfig.port }, (error?: Error) => {
     if (error) {
@@ -45,7 +45,7 @@ function startServer(): void {
   });
 }
 
-function createUseCases(dataSource: DataSource): AppUseCases {
+function createUseCases(dataSource: DataSource, appConfig: AppConfig): AppUseCases {
   const ruleRepository = new TypeOrmRuleRepository(dataSource);
   const internalPolicyRepository = new TypeOrmInternalPolicyRepository(dataSource);
   const regulations = new RegulationUseCases(new TypeOrmRegulationRepository(dataSource));
@@ -66,7 +66,7 @@ function createUseCases(dataSource: DataSource): AppUseCases {
     whitelist: new WhitelistUseCases(new TypeOrmWhitelistRepository(dataSource), ruleRepository),
     referenceLists: new ReferenceListUseCases(new TypeOrmReferenceListRepository(dataSource)),
     evaluationRuns: new EvaluationRunQueries(new TypeOrmEvaluationRunReadRepository(dataSource)),
-    evaluationRunUseCases: new EvaluationRunUseCases(),
+    evaluationRunUseCases: createEvaluationRunUseCases(dataSource, appConfig),
     databaseStatus: new DatabaseStatusQueries(new TypeOrmDatabaseStatusProbe(dataSource)),
   };
 }

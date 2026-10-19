@@ -72,14 +72,33 @@ Things to know:
 
 There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or review data pass the actor in the body as `createdBy` / `reviewedBy`; the `SeedAdminUser` migration creates the single admin `00000000-0000-4000-8000-000000000001`.
 
-| Resource             | Endpoints                                                                                                                                                                     |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/regulations`       | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions`, `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                      |
-| `/internal-policies` | as regulations, plus `POST /:id/versions/:versionId/submit` and `POST /:id/versions/:versionId/review`                                                                        |
-| `/rules`             | as internal policies, plus `POST /:id/enable`, `POST /:id/disable`, `PUT /:id/active-version`, `GET` / `POST /:id/whitelist`, `DELETE /:id/whitelist/:clientId`               |
-| `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                       |
-| `/evaluation-runs`   | read only: `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&limit=&offset=`, `GET /:runId/transactions/:transactionId` (detail with trace) |
-| `/database-status`   | `GET /`: the connected database (`current_database()`, `version()`, `aurora_version()` or `null`, server address and time, latest migration, `clients` count)                 |
+| Resource             | Endpoints                                                                                                                                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/regulations`       | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions`, `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                                              |
+| `/internal-policies` | as regulations, plus `POST /:id/versions/:versionId/submit` and `POST /:id/versions/:versionId/review`                                                                                                |
+| `/rules`             | as internal policies, plus `POST /:id/enable`, `POST /:id/disable`, `PUT /:id/active-version`, `GET` / `POST /:id/whitelist`, `DELETE /:id/whitelist/:clientId`                                       |
+| `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                               |
+| `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&limit=&offset=`, `GET /:runId/transactions/:transactionId` (detail with trace) |
+| `/database-status`   | `GET /`: the connected database (`current_database()`, `version()`, `aurora_version()` or `null`, server address and time, latest migration, `clients` count)                                         |
+
+### Evaluation runs
+
+`POST /api/evaluation-runs` runs the active approved versions of all enabled deterministic rules over transactions that are already in the database (agentic rules are not evaluated yet). Body:
+
+```json
+{
+  "createdBy": "00000000-0000-4000-8000-000000000001",
+  "hitThreshold": 50,
+  "scope": { "from": "2026-07-01", "to": "2026-07-08T12:00", "clientIds": ["K000001"], "limit": 1000 }
+}
+```
+
+- Everything except `createdBy` is optional. An empty `scope` evaluates all ~400k transactions. `from` is inclusive, `to` exclusive, both local time like `transactions.ts`. `limit` keeps the first transactions in chronological order.
+- The response is `202` with the run in status `running`. Poll `GET /:runId`: `run.txProcessed` grows in steps of 1,000 until `status` is `completed` or `failed` (`errorMessage`). The whole dataset takes ~45 s against local Docker.
+- The summary has `verdictCounts`, `flaggedClientCount` and, per rule version, `hitCount` and `hitClientCount`. `GET /:runId/transactions?verdict=flagged` lists flagged transactions with `hitRules`. The detail has the trace, features (including the ČNB rate) and `contextRefs` of each hit.
+- Only rule results other than `pass` are stored ([V16](../spec/datovy-model.md#rozhodnutí-vyhodnocení)). A passed transaction has its verdict and score, but no per-rule rows.
+- Where the run executes: in the API process by default. With `EVALUATION_WORKER_FUNCTION` set, the API invokes that Lambda function asynchronously instead (`backend/src/evaluationWorker.ts`, export `handler`), because a Web Function may remove its environment after the response.
+- The `SeedSampleRules` migration adds the sample rules R-01 to R-17 from `knowledgebase/pravidla-priklady` as active versions.
 
 Versions are immutable. A version goes `draft` → `pending_review` → `approved` / `rejected`; an approved version becomes `superseded` when a newer one replaces it (rules: on `active-version`, policies: on approval of a newer version). Errors: 400 invalid input, 404 not found, 409 state conflict or duplicate, 422 business rule or unknown reference.
 
@@ -106,6 +125,8 @@ Copy `.env.example` to `.env` in each package if you need to override defaults. 
 | backend | `DATABASE_URL`               | required                | Postgres connection string; no password when `DATABASE_AUTH=iam`                                        |
 | backend | `DATABASE_AUTH`              | `password`              | `iam` for Aurora `database-1`: fresh IAM token per connection, TLS verified                             |
 | backend | `AWS_REGION`                 | none                    | Required with `DATABASE_AUTH=iam` (`eu-central-1`)                                                      |
+| backend | `ENGINE_VERSION`             | `local`                 | Code version stored on each evaluation run (V10); `deploy/api.sh` sets the git commit                   |
+| backend | `EVALUATION_WORKER_FUNCTION` | (unset)                 | Lambda function that executes evaluation runs; unset = in the API process. Needs `AWS_REGION`           |
 | web     | `BACKEND_URL`                | `http://localhost:4000` | Server-only. Backend base URL for the `/api/*` proxy; baked into the rewrite at build time              |
 | web     | `NEXT_PUBLIC_API_MODE`       | `mock`                  | Default data source (`mock` or `live`); the sidebar switch overrides it per browser                     |
 | web     | `NEXT_PUBLIC_API_MODE_<SVC>` | (unset)                 | Per-service override, `<SVC>` is `REGULATIONS`, `POLICIES`, `RULES`, `BATCHES`, `WIZARD` or `DASHBOARD` |

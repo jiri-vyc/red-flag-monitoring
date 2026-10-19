@@ -20,6 +20,7 @@ Hackathon shortcut, see [spec D18](../spec/spec.md#2-klíčová-rozhodnutí).
 - One transaction triggers one evaluation. Deterministic rule checkers are pure functions of the transaction, the client, the client's transaction history and the rule config. They never query the database.
 - The evaluation use case loads the client's whole transaction history into memory once, or takes it from the caller, and passes the same history to every rule. Don't add per-rule windowed SQL, streaming or pagination; the dataset has at most 107 transactions per client.
 - The history is every transaction of the client in the database at run time ([V4](../spec/datovy-model.md#rozhodnutí-vyhodnocení)), including ones after the evaluated transaction. Rules that must not look ahead filter by `occurredAt` themselves.
+- The run engine: `application/evaluationRuns/` (`EvaluationRunUseCases.startRun`, `EvaluationRunExecutor`) on top of the pure `domain/transactionEvaluator.ts` and `domain/evaluateTransaction.ts`. Rule results with outcome `pass` are not stored (V16).
 - Deterministic rules compare features from the catalogue in `backend/src/domain/features/`. Read its [README](backend/src/domain/features/README.md) before adding a feature or wiring the evaluation use case.
 
 ## Web (`web/`)

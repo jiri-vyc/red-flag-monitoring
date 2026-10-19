@@ -2,7 +2,6 @@ import { type DataSource, type FindOptionsSelect, In } from "typeorm";
 
 import type { Client } from "../../../domain/client";
 import {
-  type EvaluationRun,
   type RuleEvaluation,
   type TransactionEvaluation,
   type Verdict,
@@ -12,6 +11,7 @@ import type { Transaction } from "../../../domain/transaction";
 import type {
   EvaluationRunListItem,
   EvaluationRunSummary,
+  HitRuleSummary,
   LegalBasisDetail,
   RuleEvaluationDetail,
   RunReferenceListVersionSummary,
@@ -28,6 +28,7 @@ import { RuleEvaluationEntity } from "../entities/RuleEvaluationEntity";
 import { RuleLegalBasisEntity } from "../entities/RuleLegalBasisEntity";
 import type { TransactionEntity } from "../entities/TransactionEntity";
 import { TransactionEvaluationEntity } from "../entities/TransactionEvaluationEntity";
+import { toEvaluationRun, toEvaluationRunListItem } from "./evaluationRunMapping";
 
 const COUNT_VERDICTS = `
   -- Number of evaluated transactions per verdict in one run
@@ -41,12 +42,13 @@ const LIST_RUN_RULE_VERSIONS = `
   -- Rule versions fixed for the run (V5) with the number of hits each produced
   SELECT rv."id" AS "ruleVersionId", rv."rule_id" AS "ruleId", r."code" AS "ruleCode",
          r."alert_type" AS "alertType", rv."version_no" AS "versionNo",
-         coalesce(hits."hitCount", 0)::int AS "hitCount"
+         coalesce(hits."hitCount", 0)::int AS "hitCount",
+         coalesce(hits."hitClientCount", 0)::int AS "hitClientCount"
   FROM "run_rule_versions" rrv
   JOIN "rule_versions" rv ON rv."id" = rrv."rule_version_id"
   JOIN "rules" r ON r."id" = rv."rule_id"
   LEFT JOIN (
-    SELECT re."rule_version_id", count(*) AS "hitCount"
+    SELECT re."rule_version_id", count(*) AS "hitCount", count(DISTINCT te."client_id") AS "hitClientCount"
     FROM "rule_evaluations" re
     JOIN "transaction_evaluations" te ON te."id" = re."transaction_evaluation_id"
     WHERE te."run_id" = $1 AND re."outcome" = 'hit'
@@ -54,6 +56,24 @@ const LIST_RUN_RULE_VERSIONS = `
   ) hits ON hits."rule_version_id" = rv."id"
   WHERE rrv."run_id" = $1
   ORDER BY r."code"
+`;
+
+const COUNT_FLAGGED_CLIENTS = `
+  -- Number of distinct clients with at least one flagged transaction in one run
+  SELECT count(DISTINCT "client_id")::int AS "count"
+  FROM "transaction_evaluations"
+  WHERE "run_id" = $1 AND "verdict" = 'flagged'
+`;
+
+const LIST_HIT_RULES = `
+  -- Rules that hit the listed transaction evaluations, highest score first
+  SELECT re."transaction_evaluation_id" AS "transactionEvaluationId", re."rule_version_id" AS "ruleVersionId",
+         r."code" AS "ruleCode", r."alert_type" AS "alertType", re."adjusted_score" AS "adjustedScore"
+  FROM "rule_evaluations" re
+  JOIN "rule_versions" rv ON rv."id" = re."rule_version_id"
+  JOIN "rules" r ON r."id" = rv."rule_id"
+  WHERE re."transaction_evaluation_id" = ANY($1::uuid[]) AND re."outcome" = 'hit'
+  ORDER BY re."adjusted_score" DESC, r."code"
 `;
 
 const LIST_RUN_REFERENCE_LIST_VERSIONS = `
@@ -70,6 +90,7 @@ const LIST_RUN_REFERENCE_LIST_VERSIONS = `
 const RUN_LIST_COLUMNS: FindOptionsSelect<EvaluationRunEntity> = {
   id: true,
   status: true,
+  scope: true,
   fileName: true,
   fileSha256: true,
   rowsTotal: true,
@@ -146,8 +167,9 @@ export class TypeOrmEvaluationRunReadRepository implements EvaluationRunReadRepo
       return null;
     }
 
-    const [verdictRows, ruleVersions, referenceListVersions] = await Promise.all([
+    const [verdictRows, flaggedClientRows, ruleVersions, referenceListVersions] = await Promise.all([
       this.dataSource.query<{ verdict: Verdict; count: number }[]>(COUNT_VERDICTS, [runId]),
+      this.dataSource.query<{ count: number }[]>(COUNT_FLAGGED_CLIENTS, [runId]),
       this.dataSource.query<RunRuleVersionSummary[]>(LIST_RUN_RULE_VERSIONS, [runId]),
       this.dataSource.query<RunReferenceListVersionSummary[]>(LIST_RUN_REFERENCE_LIST_VERSIONS, [runId]),
     ]);
@@ -155,6 +177,7 @@ export class TypeOrmEvaluationRunReadRepository implements EvaluationRunReadRepo
     return {
       run: toEvaluationRun(entity),
       verdictCounts: toVerdictCounts(verdictRows),
+      flaggedClientCount: flaggedClientRows[0]?.count ?? 0,
       ruleVersions,
       referenceListVersions,
     };
@@ -188,9 +211,11 @@ export class TypeOrmEvaluationRunReadRepository implements EvaluationRunReadRepo
       .offset(page.offset)
       .limit(page.limit)
       .getManyAndCount();
+    const hitRulesByEvaluationId = await this.loadHitRules(entities.map((entity) => entity.id));
     const items = entities.map((entity) => ({
       ...toTransactionEvaluation(entity),
       transaction: toTransaction(entity.transaction),
+      hitRules: hitRulesByEvaluationId.get(entity.id) ?? [],
     }));
 
     return { ...page, items, total };
@@ -215,6 +240,22 @@ export class TypeOrmEvaluationRunReadRepository implements EvaluationRunReadRepo
       client: toClient(evaluation.client),
       ruleEvaluations: await this.loadRuleEvaluationDetails(evaluation.id),
     };
+  }
+
+  private async loadHitRules(transactionEvaluationIds: string[]): Promise<Map<string, HitRuleSummary[]>> {
+    const rows = await this.dataSource.query<(HitRuleSummary & { transactionEvaluationId: string })[]>(
+      LIST_HIT_RULES,
+      [transactionEvaluationIds],
+    );
+    const hitRulesByEvaluationId = new Map<string, HitRuleSummary[]>();
+
+    for (const { transactionEvaluationId, ...hitRule } of rows) {
+      const hitRules = hitRulesByEvaluationId.get(transactionEvaluationId) ?? [];
+      hitRules.push(hitRule);
+      hitRulesByEvaluationId.set(transactionEvaluationId, hitRules);
+    }
+
+    return hitRulesByEvaluationId;
   }
 
   // "Cesta k regulaci" from spec/datovy-model.md, extended to every outcome so the UI shows all rules.
@@ -258,32 +299,6 @@ function toVerdictCounts(rows: { verdict: Verdict; count: number }[]): Record<Ve
   }
 
   return counts;
-}
-
-function toEvaluationRun(entity: EvaluationRunEntity): EvaluationRun {
-  return { ...toEvaluationRunListItem(entity), importErrors: entity.importErrors };
-}
-
-function toEvaluationRunListItem(entity: EvaluationRunEntity): EvaluationRunListItem {
-  return {
-    id: entity.id,
-    status: entity.status,
-    fileName: entity.fileName,
-    fileSha256: entity.fileSha256,
-    rowsTotal: entity.rowsTotal,
-    rowsImported: entity.rowsImported,
-    rowsRejected: entity.rowsRejected,
-    hitThreshold: entity.hitThreshold,
-    engineVersion: entity.engineVersion,
-    txProcessed: entity.txProcessed,
-    txPassed: entity.txPassed,
-    txFlagged: entity.txFlagged,
-    txError: entity.txError,
-    createdBy: entity.createdBy,
-    createdAt: entity.createdAt,
-    finishedAt: entity.finishedAt,
-    errorMessage: entity.errorMessage,
-  };
 }
 
 function toTransactionEvaluation(entity: TransactionEvaluationEntity): TransactionEvaluation {

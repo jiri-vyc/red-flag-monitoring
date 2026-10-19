@@ -1,11 +1,10 @@
 import request from "supertest";
 
 import { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
-import { EvaluationRunUseCases } from "../../application/evaluationRuns/evaluationRunUseCases";
 import type { DatabaseStatus } from "../../application/databaseStatus/databaseStatusProbe";
 import { RuleUseCases } from "../../application/rules/ruleUseCases";
 import { InMemoryRuleRepository } from "../../application/testing/InMemoryRuleRepository";
-import { fixedClock } from "../../application/testing/fixtures";
+import { ADMIN_ID, fixedClock } from "../../application/testing/fixtures";
 import { type AppUseCases, createApp } from "./createApp";
 
 const RULE_ID = "6f1c2f9e-4a8b-4c1d-9e2f-0a1b2c3d4e5f";
@@ -124,11 +123,21 @@ describe("HTTP app", () => {
     expect(response.status).toBe(422);
   });
 
-  it("answers 501 when starting an evaluation run, the engine is not implemented yet", async () => {
-    const useCases = { evaluationRunUseCases: new EvaluationRunUseCases() } as AppUseCases;
+  it.each([
+    ["without createdBy", {}],
+    [
+      "with scope.from after scope.to",
+      { createdBy: ADMIN_ID, scope: { from: "2026-07-10", to: "2026-07-01" } },
+    ],
+    ["with a timestamp that has an offset", { createdBy: ADMIN_ID, scope: { from: "2026-07-01T00:00:00Z" } }],
+  ])("rejects starting an evaluation run %s", async (_case, body) => {
+    // Validation fails before the use case is called.
+    const useCases = { evaluationRunUseCases: {} } as AppUseCases;
 
-    const response = await request(createApp(useCases, databaseReady)).post("/api/evaluation-runs");
+    const response = await request(createApp(useCases, databaseReady))
+      .post("/api/evaluation-runs")
+      .send(body);
 
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(400);
   });
 });

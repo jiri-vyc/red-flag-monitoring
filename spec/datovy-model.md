@@ -349,7 +349,7 @@ Cesta pokračuje přes `rule_versions.derived_from_policy_version_id` na verzi i
 | V3 | Samotný soubor CSV systém neukládá. Běh drží `file_name`, `file_sha256` a `source_row_no`. | Data zůstávají v databázi. Hash prokáže, který soubor se vyhodnotil. |
 | V4 | Běh vyhodnotí **jen transakce z nahraného CSV**. Kontext (historie klienta) tvoří všechny transakce klienta v databázi v okamžiku běhu. | Odpovídá D6. |
 | V5 | Běh **fixuje** verze pravidel (`RUN_RULE_VERSION`) a referenčních seznamů (`RUN_REFERENCE_LIST_VERSION`) při startu. Změna pravidla během běhu výsledek neovlivní. | Rekonstruovatelnost. M9 říká „poslední verze“, běh ale musí vědět, kterou použil. |
-| V6 | `RULE_EVALUATION` vzniká pro **každou** dvojici transakce × verze pravidla, i pro `not_applicable`. | UI ukáže u každé transakce všechna pravidla. Whitelist se při odebrání maže (M16), důvod přeskočení proto musí být v záznamu. |
+| V6 | `RULE_EVALUATION` vzniká pro **každou** dvojici transakce × verze pravidla, i pro `not_applicable`. Zúženo ve [V16](#rozhodnutí-vyhodnocení): `pass` se neukládá. | UI ukáže u každé transakce všechna pravidla. Whitelist se při odebrání maže (M16), důvod přeskočení proto musí být v záznamu. |
 | V7 | Hranice `hit` je **`hit_threshold` na běhu**, výchozí 50. Skóre transakce je **maximum** skóre pravidel. | Řeší otázky 7 a 8 ve spec pro MVP. Maximum je vysvětlitelné jedním pravidlem. |
 | V8 | `features` ukládá vstupní hodnoty včetně použitého kurzu. `context_refs` ukládá ID transakcí, ze kterých pravidlo počítalo. U `pass` může být `context_refs` prázdné. | Trace je čitelný bez přepočtu. Plný seznam u `pass` by zbytečně zvětšil data (~400 000 transakcí × počet pravidel). |
 | V9 | `client_risk_profile` je snapshot na `TRANSACTION_EVALUATION`. | Risk profil rozhoduje o `not_applicable`. |
@@ -358,6 +358,9 @@ Cesta pokračuje přes `rule_versions.derived_from_policy_version_id` na verzi i
 | V12 | Souhrnné počty (`tx_passed`, `tx_flagged`, `tx_error`) a `tx_processed` jsou sloupce běhu. Počty per pravidlo UI počítá dotazem. | Dashboard ukazuje průběh bez agregace 400 000 řádků. |
 | V13 | AML událost **nevzniká**. Výsledek běhu je `TRANSACTION_EVALUATION.verdict`. | Lidské review je mimo rozsah. Agregaci do událostí per klient (pravidla A, C) řeší otázka 5 ve spec. |
 | V14 | Běh a jeho výsledky jsou neměnné. Systém je nemaže. | Záznam vyhodnocení slouží jako audit log vyhodnocení (spec 7.7). |
+| V15 | Běh může místo CSV vyhodnotit **transakce, které už jsou v databázi**. Rozsah určuje `scope` na běhu (`from`, `to`, `clientIds`, `limit`; prázdný = všechny). `file_name` popisuje rozsah, `file_sha256` je hash seřazených ID vyhodnocených transakcí, `source_row_no` je pořadí transakce v běhu. | Data jsou v DB, upload CSV zatím není (#3). Hash prokáže, které transakce se vyhodnotily. |
+| V16 | `RULE_EVALUATION` se ukládá jen pro výsledek **jiný než `pass`** (`hit`, `error`, `not_applicable`). `TRANSACTION_EVALUATION` se ukládá pro každou transakci. Zužuje V6. | Celý dataset × 17 pravidel = ~7 mil. řádků. R-01 sám zasáhne ~55 % transakcí. Zajímá nás hlavně, co neprošlo. |
+| V17 | Běh se spouští asynchronně: `POST /api/evaluation-runs` vrátí `202` s během ve stavu `running`, výpočet běží mimo request. Lokálně v procesu API, v AWS v samostatné Lambda funkci (`EVALUATION_WORKER_FUNCTION`). | Lambda Web Function může prostředí po odpovědi kdykoli zrušit. Celý dataset trvá lokálně ~45 s, na Auroře déle. |
 
 ### Obrazovky
 
@@ -387,4 +390,7 @@ Před reálným nasazením je musí zkontrolovat compliance officer nebo právn�
 - **`verdict = pass` není AML rozhodnutí.** Je to podklad. Transakce s `error` musí jít k člověku.
 - **Historie klienta** závisí na tom, co je v databázi v okamžiku běhu. Dva běhy nad stejným CSV mohou dát jiný výsledek, pokud mezi nimi přibyly transakce. `context_refs` u zásahu to zdokumentuje, u `pass` ne.
 - **Kurz ČNB k datu transakce** je náš předpoklad. Instituce může mít jiný interní kurz.
+- **`pass` bez záznamu pravidla (V16).** U transakce s `verdict = pass` nejde z databáze ukázat trace jednotlivých pravidel. Rekonstrukce vyžaduje nový běh se stejným `engine_version` a stejnými daty.
+- **Whitelist běhu** se čte při startu výpočtu, ne při založení běhu. Zachycený je jen jako `not_applicable` se `skip_reason = whitelist`.
+- **`base_score` ukázkových pravidel** (seed R-01 až R-17) je `50 + základ priority / 2` podle tabulky P v SVZ-03 a čl. 5–15 SVZ-06. Každá shoda je tak se citlivostí 100 zásah, pořadí priorit zůstává. Modifikátory priority (risk profil, PEP, …) engine nepočítá.
 - **Agentní pravidlo nad celým datasetem** znamená stovky tisíc volání LLM. Pro demo je potřeba omezit CSV nebo spouštět agentní pravidlo jen po deterministickém zásahu.

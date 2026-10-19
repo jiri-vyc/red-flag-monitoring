@@ -18,6 +18,16 @@ export type SkipReason = (typeof SKIP_REASONS)[number];
 
 export const DEFAULT_HIT_THRESHOLD = 50;
 
+// Which transactions in the database a run evaluates, all of them when every field is null. `from` is
+// inclusive and `to` exclusive, both local timestamps like transactions.ts. The scoped transactions are taken
+// in chronological order, `limit` keeps the first ones. A run over an uploaded CSV has no scope.
+export type RunScope = {
+  from: string | null;
+  to: string | null;
+  clientIds: string[] | null;
+  limit: number | null;
+};
+
 // Shape of evaluation_runs.import_errors; the import keeps at most this many rejected rows.
 export const MAX_IMPORT_ERRORS = 1000;
 export type ImportRowError = { row_no: number; column: string | null; message: string };
@@ -75,6 +85,7 @@ export type LlmResponse = {
 export type EvaluationRun = {
   id: string;
   status: RunStatus;
+  scope: RunScope | null;
   fileName: string;
   fileSha256: string;
   rowsTotal: number;

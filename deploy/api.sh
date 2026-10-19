@@ -28,6 +28,7 @@ aws lambda-web deploy --name "$API_FUNCTION" --create --code "$bundle" --entry-p
   --endpoint-name "$ENDPOINT_NAME" --timeout-seconds 900 \
   --env NODE_ENV=production \
   --env DATABASE_AUTH=iam \
+  --env "ENGINE_VERSION=$(git -C "$SRC_DIR" rev-parse --short HEAD)" \
   --env "DATABASE_URL=postgres://postgres@$cluster_endpoint:5432/$database" \
   --tags project=red-flag-monitoring \
   --query endpointUrl --output text

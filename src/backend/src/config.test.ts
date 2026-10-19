@@ -8,6 +8,8 @@ describe("parseAppConfig", () => {
     expect(parseAppConfig({ DATABASE_URL })).toEqual({
       port: 4000,
       database: { authMode: "password", url: DATABASE_URL },
+      engineVersion: "local",
+      evaluationWorker: { mode: "in_process" },
     });
   });
 
@@ -85,6 +87,28 @@ describe("parseAppConfig", () => {
         DATABASE_AUTH: "iam",
         AWS_REGION: "eu-central-1",
       };
+
+      expect(() => parseAppConfig(environment)).toThrow(InvalidConfigError);
+    });
+  });
+
+  describe("evaluation worker", () => {
+    it("runs evaluations in a Lambda function when EVALUATION_WORKER_FUNCTION is set", () => {
+      const environment = {
+        DATABASE_URL,
+        EVALUATION_WORKER_FUNCTION: "rfm-evaluation",
+        AWS_REGION: "eu-central-1",
+      };
+
+      expect(parseAppConfig(environment).evaluationWorker).toEqual({
+        mode: "lambda",
+        functionName: "rfm-evaluation",
+        region: "eu-central-1",
+      });
+    });
+
+    it("requires AWS_REGION with EVALUATION_WORKER_FUNCTION", () => {
+      const environment = { DATABASE_URL, EVALUATION_WORKER_FUNCTION: "rfm-evaluation" };
 
       expect(() => parseAppConfig(environment)).toThrow(InvalidConfigError);
     });

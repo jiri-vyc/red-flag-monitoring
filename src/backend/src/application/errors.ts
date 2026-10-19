@@ -16,3 +16,7 @@ export class NotImplementedError extends Error {}
 
 // The request points at a row that does not exist, e.g. an unknown user or regulation version.
 export class MissingReferenceError extends Error {}
+
+export function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
