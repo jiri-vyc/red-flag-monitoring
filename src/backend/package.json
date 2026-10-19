@@ -15,10 +15,15 @@
     "migration:revert": "npm run typeorm -- migration:revert -d src/infrastructure/database/cliDataSource.ts",
     "migration:show": "npm run typeorm -- migration:show -d src/infrastructure/database/cliDataSource.ts",
     "migration:generate": "sh -c 'npm run typeorm -- migration:generate -d src/infrastructure/database/cliDataSource.ts --pretty src/infrastructure/database/migrations/\"$0\"'",
-    "migration:create": "sh -c 'npm run typeorm -- migration:create src/infrastructure/database/migrations/\"$0\"'"
+    "migration:create": "sh -c 'npm run typeorm -- migration:create src/infrastructure/database/migrations/\"$0\"'",
+    "demo:rule-extraction": "tsx --env-file-if-exists=.env src/delivery/cli/demoRuleExtraction.ts",
+    "demo:policy-drafting": "tsx --env-file-if-exists=.env src/delivery/cli/demoPolicyDrafting.ts",
+    "demo:hello-world": "tsx --env-file-if-exists=.env src/delivery/cli/demoHelloWorld.ts"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.35.0",
     "@aws-sdk/rds-signer": "^3.1152.0",
+    "@aws/bedrock-token-generator": "^1.1.0",
     "express": "^5.3.0",
     "pg": "^8.23.1",
     "pg-copy-streams": "^7.0.0",

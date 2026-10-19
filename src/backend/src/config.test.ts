@@ -1,4 +1,4 @@
-import { InvalidConfigError, parseAppConfig } from "./config";
+import { InvalidConfigError, parseAppConfig, parseBedrockConfig } from "./config";
 
 const DATABASE_URL = "postgres://user:password@localhost:5434/database";
 const AURORA_URL = "postgres://postgres@database-1.cluster-x.eu-central-1.rds.amazonaws.com:5432/wip_alice";
@@ -88,5 +88,41 @@ describe("parseAppConfig", () => {
 
       expect(() => parseAppConfig(environment)).toThrow(InvalidConfigError);
     });
+  });
+});
+
+describe("parseBedrockConfig", () => {
+  it("defaults to Claude Opus 4.5 through the EU inference profile in Frankfurt", () => {
+    expect(parseBedrockConfig({})).toEqual({
+      region: "eu-central-1",
+      modelId: "eu.anthropic.claude-opus-4-5-20251101-v1:0",
+      apiKey: null,
+    });
+  });
+
+  it("prefers BEDROCK_REGION over AWS_REGION", () => {
+    expect(parseBedrockConfig({ BEDROCK_REGION: "eu-west-1", AWS_REGION: "eu-north-1" }).region).toBe(
+      "eu-west-1",
+    );
+  });
+
+  it("falls back to AWS_REGION", () => {
+    expect(parseBedrockConfig({ AWS_REGION: "eu-north-1" }).region).toBe("eu-north-1");
+  });
+
+  it("uses the configured model and Bedrock API key", () => {
+    const config = parseBedrockConfig({
+      BEDROCK_MODEL_ID: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+      AWS_BEARER_TOKEN_BEDROCK: "bedrock-api-key",
+    });
+
+    expect(config).toMatchObject({
+      modelId: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+      apiKey: "bedrock-api-key",
+    });
+  });
+
+  it("treats an empty Bedrock API key as not configured", () => {
+    expect(parseBedrockConfig({ AWS_BEARER_TOKEN_BEDROCK: "" }).apiKey).toBeNull();
   });
 });

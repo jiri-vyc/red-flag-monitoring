@@ -1,5 +1,8 @@
 const DEFAULT_PORT = 4000;
 const DEFAULT_POSTGRES_PORT = 5432;
+const DEFAULT_BEDROCK_REGION = "eu-central-1";
+// EU cross-region inference profile keeps processing inside the EU.
+const DEFAULT_BEDROCK_MODEL_ID = "eu.anthropic.claude-opus-4-5-20251101-v1:0";
 
 export type PasswordDatabaseConfig = { authMode: "password"; url: string };
 export type IamDatabaseConfig = {
@@ -14,7 +17,18 @@ export type DatabaseConfig = PasswordDatabaseConfig | IamDatabaseConfig;
 
 export type AppConfig = { host?: string; port: number; database: DatabaseConfig };
 
+// apiKey is null when no Bedrock API key is configured; a short-term key is then generated from AWS credentials.
+export type BedrockConfig = { region: string; modelId: string; apiKey: string | null };
+
 export class InvalidConfigError extends Error {}
+
+export function parseBedrockConfig(environment: NodeJS.ProcessEnv): BedrockConfig {
+  return {
+    region: environment.BEDROCK_REGION || environment.AWS_REGION || DEFAULT_BEDROCK_REGION,
+    modelId: environment.BEDROCK_MODEL_ID || DEFAULT_BEDROCK_MODEL_ID,
+    apiKey: environment.AWS_BEARER_TOKEN_BEDROCK || null,
+  };
+}
 
 export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
   return {
