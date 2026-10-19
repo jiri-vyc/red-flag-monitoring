@@ -11,7 +11,14 @@
     "lint": "npm run lint --workspaces",
     "test": "npm test --workspaces",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "migration:run": "npm run migration:run -w backend",
+    "migration:revert": "npm run migration:revert -w backend",
+    "migration:show": "npm run migration:show -w backend",
+    "migration:generate": "npm run migration:generate -w backend --",
+    "migration:create": "npm run migration:create -w backend --"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",

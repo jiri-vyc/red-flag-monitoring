@@ -9,10 +9,17 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/main.js",
     "lint": "eslint .",
-    "test": "jest"
+    "test": "jest",
+    "typeorm": "tsx --env-file-if-exists=.env \"$(command -v typeorm)\"",
+    "migration:run": "npm run typeorm -- migration:run -d src/infrastructure/database/cliDataSource.ts",
+    "migration:revert": "npm run typeorm -- migration:revert -d src/infrastructure/database/cliDataSource.ts",
+    "migration:show": "npm run typeorm -- migration:show -d src/infrastructure/database/cliDataSource.ts",
+    "migration:generate": "sh -c 'npm run typeorm -- migration:generate -d src/infrastructure/database/cliDataSource.ts --pretty src/infrastructure/database/migrations/\"$0\"'",
+    "migration:create": "sh -c 'npm run typeorm -- migration:create src/infrastructure/database/migrations/\"$0\"'"
   },
   "dependencies": {
     "express": "^5.3.0",
+    "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.31"
   },

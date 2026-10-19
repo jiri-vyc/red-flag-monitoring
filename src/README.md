@@ -2,16 +2,21 @@
 
 npm workspace with two packages:
 
-- `backend/` – REST API. Node.js 24, TypeScript, Express 5. TypeORM is installed but not wired yet: no database for now.
+- `backend/` – REST API. Node.js 24, TypeScript, Express 5, TypeORM with PostgreSQL 17.
 - `web/` – UI. Next.js 16 (App Router), React 19, TypeScript, CSS Modules.
 
 Tooling: ESLint, Prettier, Jest (`ts-jest` in backend, `next/jest` + Testing Library in web).
 
 ## Run locally
 
+Requires Docker for the local database.
+
 ```bash
 cd src
 npm install
+cp backend/.env.example backend/.env
+npm run db:up          # Postgres in Docker on localhost:5434
+npm run migration:run
 npm run dev
 ```
 
@@ -48,12 +53,14 @@ AWS (Bedrock) access uses the standard AWS credential chain (profile / env). No 
 ```
 src/
 ├── package.json            workspace root, shared scripts
+├── docker-compose.yml      local Postgres for development
 ├── backend/src/
 │   ├── main.ts             entry point: config + server start
 │   ├── config.ts           env parsing, fails fast on invalid values
 │   ├── domain/             entities and pure business rules
 │   ├── application/        use cases and ports (interfaces)
 │   ├── infrastructure/     TypeORM, Bedrock and file adapters
+│   │   └── database/       DataSource, entities/, migrations/
 │   └── delivery/http/      Express app, routers, central error handler
 └── web/
     ├── app/                routes (App Router), global styles
@@ -64,6 +71,7 @@ src/
 ## Where to edit
 
 - New API endpoint: add a router in `backend/src/delivery/http/`, mount it in `createApp.ts`. Business logic goes to `application/` and `domain/`, not into routers.
+- Database schema: add or change an entity in `backend/src/infrastructure/database/entities/`, then `npm run migration:generate -- <Name>`, review the generated SQL, and run `npm run migration:run`.
 - New page: add a folder with `page.tsx` under `web/app/`.
 - Theme (colors, spacing, radius, shadows): CSS custom properties in `web/app/globals.css`.
 - Component styles: the `*.module.css` file next to the component.
@@ -71,4 +79,4 @@ src/
 ## Deployment
 
 - Web: deploy `src/web` to Vercel (set Root Directory to `src/web`) and set `BACKEND_URL` to the deployed API.
-- Backend: long-running Node server; within the AWS stack (see root `AGENTS.md`), e.g. App Runner, ECS or Lambda behind API Gateway. `npm run build -w backend` then `node dist/main.js`.
+- Backend: long-running Node server; within the AWS stack (see root `AGENTS.md`), e.g. App Runner, ECS or Lambda behind API Gateway. `npm run build -w backend` then `node dist/main.js`. Needs `DATABASE_URL` (e.g. RDS, with the password from AWS Secrets Manager) and `npm run migration:run -w backend` before each release.

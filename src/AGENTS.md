@@ -9,6 +9,8 @@ Dependencies point inward: `delivery` → `application` → `domain`. `infrastru
 - `domain/` must not import Express, TypeORM, AWS SDK or any other layer.
 - Routers only parse/validate input, call a use case and map the result to HTTP. No business logic in routers.
 - Map expected application errors to HTTP status codes in `delivery/http/errorHandler.ts` only.
+- Database: PostgreSQL via TypeORM. `synchronize` is off; every schema change is a migration in `infrastructure/database/migrations/`. Never edit a migration that is already on `main`, add a new one.
+- TypeORM entities live in `infrastructure/database/entities/` and are mapped to domain types in repositories. They must not be imported from `domain/` or `application/`.
 - Wire dependencies by hand in `createApp` / `main.ts`. No DI container until wiring gets large.
 
 ## Web (`web/`)
