@@ -40,6 +40,7 @@ app/ (thin route pages)
 ```
 
 - **Features:** `dashboard`, `regulations`, `policies`, `rules` (incl. `domain/ruleLifecycle.ts`, the pure state machine for statuses and versions), `batches` (CSV upload, OK / TO CHECK / ALERT buckets, transaction detail), `wizard` (regulation source → policy draft → rules → review).
+- **Evaluation run start and polling:** "Run evaluation" sends `POST /api/evaluation-runs` (optional scope: limit, from, to) and opens the run detail. `useBatch` and `useBatches` poll with React Query `refetchInterval` (2 s live, 400 ms mock) while a run is `processing` (`importing` or `running`) and stop once it is `completed` or `failed`.
 - **Mode selection:** `config/apiMode.ts`. `NEXT_PUBLIC_API_MODE` sets the global default (`mock`), and `NEXT_PUBLIC_API_MODE_<SVC>` overrides it per service. Live mode never falls back to mocks.
 - **Mock-only code:** everything lives in `mocks/`, including the browser evaluation engine (`mocks/evaluation`) and the generation templates (`mocks/generation`).
 - **i18n:** `i18n/en.ts` and `i18n/cs.ts` are typed dictionaries. The locale is stored in a cookie and read in the root layout, so the server and client render the same text. Only UI strings are translated, not data.

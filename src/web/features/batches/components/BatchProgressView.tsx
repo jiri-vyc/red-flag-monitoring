@@ -3,6 +3,7 @@
 import { ListChecks } from "lucide-react";
 
 import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
+import { LoadingRing } from "@/components/ui/LoadingRing";
 import { ProgressBar, ProgressRing } from "@/components/ui/Progress";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatNumber } from "@/lib/format";
@@ -13,21 +14,28 @@ import styles from "./BatchDetail.module.css";
 
 export function BatchProgressView({ batch }: { batch: Batch }) {
   const { t, locale } = useI18n();
-  const percent =
-    batch.evaluatedRowCount === 0 ? 0 : (batch.processedRowCount / batch.evaluatedRowCount) * 100;
+  // A run whose total is not known yet (e.g. still importing) shows an indeterminate ring and the count only.
+  const isTotalKnown = batch.evaluatedRowCount > 0;
+  const percent = isTotalKnown ? (batch.processedRowCount / batch.evaluatedRowCount) * 100 : 0;
   return (
     <section className={`${styles.progressPanel} rf-fade-in`} aria-live="polite">
-      <ProgressRing percent={percent} label={t.batches.evaluating} />
+      {isTotalKnown ? (
+        <ProgressRing percent={percent} label={t.batches.evaluating} />
+      ) : (
+        <LoadingRing label={t.batches.evaluating} />
+      )}
       <div className={styles.progressText}>
         <h2>{t.batches.evaluating}</h2>
         <p className={styles.progressCount}>
           <AnimatedCounter value={batch.processedRowCount} format={(value) => formatNumber(value, locale)} />
           <span className={styles.progressTotal}>
             {" "}
-            / {formatNumber(batch.evaluatedRowCount, locale)} {t.batches.processedOf}
+            {isTotalKnown
+              ? `/ ${formatNumber(batch.evaluatedRowCount, locale)} ${t.batches.processedOf}`
+              : t.batches.processedSoFar}
           </span>
         </p>
-        <ProgressBar percent={percent} label={t.batches.evaluating} />
+        {isTotalKnown && <ProgressBar percent={percent} label={t.batches.evaluating} />}
         <p className={styles.progressMeta}>
           <ListChecks aria-hidden="true" />
           {t.batches.activeRulesUsed}: <strong>{batch.activeRuleCount}</strong>

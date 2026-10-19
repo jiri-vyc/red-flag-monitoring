@@ -2,6 +2,7 @@ import type {
   Batch,
   BatchTransactionPage,
   LoadBatchTransactionsInput,
+  RunScope,
   TransactionEvaluation,
 } from "../types";
 
@@ -19,8 +20,8 @@ export interface BatchesService {
   loadBatch(batchId: string): Promise<Batch>;
   /** Every upload creates a new batch, even for an identical file. Evaluation starts immediately. */
   uploadBatch(input: { file: File; uploadedBy: string }): Promise<Batch>;
-  /** Starts a new evaluation run (a batch) with the active enabled rules. */
-  startRun(input: { startedBy: string }): Promise<Batch>;
+  /** Starts a new evaluation run (a batch) with the active enabled rules; it is `processing` until it finishes. */
+  startRun(input: { startedBy: string; scope: RunScope }): Promise<Batch>;
   loadBatchTransactions(input: LoadBatchTransactionsInput): Promise<BatchTransactionPage>;
   loadTransactionEvaluation(input: {
     batchId: string;

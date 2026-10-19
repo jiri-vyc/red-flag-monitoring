@@ -1,5 +1,5 @@
 import type { BatchesService } from "@/features/batches/api/contract";
-import type { Batch, Transaction } from "@/features/batches/types";
+import type { Batch, RunScope, Transaction } from "@/features/batches/types";
 import type { MockBatchRecord } from "../store/mockDatabase";
 import { ApiError } from "@/lib/apiError";
 
@@ -40,6 +40,14 @@ async function parseUploadedFile(file: File) {
 function parseCursor(cursor: string | null): number {
   const offset = Number(cursor ?? 0);
   return Number.isInteger(offset) && offset >= 0 ? offset : 0;
+}
+
+/** Applies the run scope like the backend: `from` inclusive, `to` exclusive, then the first `limit` in time order. */
+function selectScopedSeedTransactions({ from, to, limit }: RunScope): Transaction[] {
+  const scopedTransactions = SEED_TRANSACTIONS.map(mapCsvRowToTransaction)
+    .filter(({ bookedAt }) => (from === undefined || bookedAt >= from) && (to === undefined || bookedAt < to))
+    .sort((left, right) => left.bookedAt.localeCompare(right.bookedAt));
+  return scopedTransactions.slice(0, limit);
 }
 
 /** Evaluates the transactions with the active rules and stores the batch with a simulated processing window. */
@@ -110,12 +118,16 @@ export const mockBatchesService: BatchesService = {
 
   // Stands in for POST /evaluation-runs: the backend evaluates the transactions it already holds, the mock
   // evaluates the seed transactions with the current active rules.
-  async startRun({ startedBy }) {
+  async startRun({ startedBy, scope }) {
     await simulateLatency();
+    const transactions = selectScopedSeedTransactions(scope);
+    if (transactions.length === 0) {
+      throw new ApiError({ kind: "validation", message: "The run scope matches no transactions." });
+    }
     return persistEvaluatedBatch({
       fileName: SEED_RUN_NAME,
-      fileRowCount: SEED_TRANSACTIONS.length,
-      transactions: SEED_TRANSACTIONS.map(mapCsvRowToTransaction),
+      fileRowCount: transactions.length,
+      transactions,
       uploadedBy: startedBy,
     });
   },

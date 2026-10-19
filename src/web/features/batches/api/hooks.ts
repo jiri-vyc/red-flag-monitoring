@@ -2,16 +2,18 @@
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { selectServiceImplementation } from "@/config/apiMode";
+import { getServiceMode, selectServiceImplementation, type ApiMode } from "@/config/apiMode";
 import { CURRENT_USER } from "@/config/currentUser";
 import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
-import type { Bucket } from "../types";
+import type { Batch, Bucket, RunScope } from "../types";
 import type { BatchesCapabilities } from "./contract";
 import { batchesImplementations, batchesService } from "./service";
 
-const PROCESSING_POLL_INTERVAL_MS = 400;
+// The mock's simulated run lasts a few seconds, so it is polled often for a smooth progress; a live run over
+// the database takes minutes and is polled every 2 s.
+const PROCESSING_POLL_INTERVAL_MS: Record<ApiMode, number> = { mock: 400, live: 2000 };
 const FIRST_PAGE_CURSOR: string | null = null;
 
 export const batchQueryKeys = {
@@ -22,24 +24,42 @@ export const batchQueryKeys = {
     ["batches", batchId, "evaluation", transactionId] as const,
 };
 
+/** The data source batches use: the sidebar choice, unless the env pins batches to a mode. */
+export function useBatchesMode(): ApiMode {
+  const { apiMode } = useApiMode();
+  return getServiceMode("batches", apiMode);
+}
+
 /** Follows the data source selected in the sidebar. */
 export function useBatchesCapabilities(): BatchesCapabilities {
   const { apiMode } = useApiMode();
   return selectServiceImplementation("batches", batchesImplementations, apiMode).capabilities;
 }
 
+/** Polls while any of the batches is still processing and stops once all of them are completed or failed. */
+export function findProcessingPollInterval(batches: Batch[] | undefined, apiMode: ApiMode): number | false {
+  const isAnyProcessing = batches?.some((batch) => batch.status === "processing") ?? false;
+  return isAnyProcessing ? PROCESSING_POLL_INTERVAL_MS[apiMode] : false;
+}
+
 export function useBatches() {
   useServiceUsage("batches");
-  return useQuery({ queryKey: batchQueryKeys.all, queryFn: () => batchesService.loadBatches() });
+  const batchesMode = useBatchesMode();
+  return useQuery({
+    queryKey: batchQueryKeys.all,
+    queryFn: () => batchesService.loadBatches(),
+    refetchInterval: (query) => findProcessingPollInterval(query.state.data, batchesMode),
+  });
 }
 
 export function useBatch(batchId: string) {
   useServiceUsage("batches");
+  const batchesMode = useBatchesMode();
   return useQuery({
     queryKey: batchQueryKeys.detail(batchId),
     queryFn: () => batchesService.loadBatch(batchId),
     refetchInterval: (query) =>
-      query.state.data?.status === "processing" ? PROCESSING_POLL_INTERVAL_MS : false,
+      findProcessingPollInterval(query.state.data && [query.state.data], batchesMode),
   });
 }
 
@@ -58,7 +78,7 @@ export function useUploadBatch() {
 export function useStartEvaluationRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => batchesService.startRun({ startedBy: CURRENT_USER.name }),
+    mutationFn: (scope: RunScope) => batchesService.startRun({ startedBy: CURRENT_USER.name, scope }),
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: batchQueryKeys.all }),

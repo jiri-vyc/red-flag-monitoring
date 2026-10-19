@@ -76,6 +76,12 @@ function BatchDetail({ batch, selectedBucket }: { batch: Batch; selectedBucket: 
         <BatchProgressView batch={batch} />
       ) : (
         <>
+          {/* Results evaluated before the failure stay listed below the reason. */}
+          {batch.status === "failed" && (
+            <Notice tone="compliance" title={t.batches.runFailedTitle}>
+              {batch.failureReason ?? t.batches.runFailedUnknownReason}
+            </Notice>
+          )}
           <Card title={t.batches.resultTitle}>
             <BucketCards batch={batch} selectedBucket={selectedBucket} />
             <Notice tone="ai">{t.batches.decisionAid}</Notice>

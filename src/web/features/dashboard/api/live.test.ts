@@ -59,6 +59,7 @@ function createRunDto(id: string): EvaluationRunListItemDto {
   return {
     id,
     status: "completed",
+    scope: null,
     fileName: `${id}.csv`,
     rowsTotal: 10,
     rowsImported: 10,
@@ -66,6 +67,7 @@ function createRunDto(id: string): EvaluationRunListItemDto {
     txPassed: 7,
     txFlagged: 2,
     txError: 1,
+    hitThreshold: 50,
     createdBy: CURRENT_USER.id,
     createdAt: CREATED_AT,
     errorMessage: null,

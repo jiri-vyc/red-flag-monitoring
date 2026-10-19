@@ -1,3 +1,4 @@
+import { CURRENT_USER } from "@/config/currentUser";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
 
@@ -10,13 +11,15 @@ const requestJsonMock = jest.mocked(requestJson);
 const RUN = {
   id: "run-1",
   status: "running",
-  fileName: "transactions.csv",
+  scope: { from: null, to: null, clientIds: null, limit: null },
+  fileName: "database: all transactions",
   rowsTotal: 10,
   rowsImported: 10,
   txProcessed: 3,
   txPassed: 2,
   txFlagged: 1,
   txError: 0,
+  hitThreshold: 50,
   createdBy: "user-1",
   createdAt: "2026-10-19T10:00:00.000Z",
   errorMessage: null,
@@ -33,19 +36,7 @@ describe("liveBatchesService", () => {
     expect(requestJson).not.toHaveBeenCalled();
   });
 
-  it("hides starting a run (BE-01) and passes the backend's 501 on as unsupported", async () => {
-    requestJsonMock.mockRejectedValue(new ApiError({ kind: "unsupported", status: 501, message: "501" }));
-
-    expect(liveBatchesService.capabilities.canStartRun).toBe(false);
-    await expect(liveBatchesService.startRun({ startedBy: "analyst" })).rejects.toMatchObject({
-      kind: "unsupported",
-    });
-    expect(requestJsonMock).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "/evaluation-runs", method: "POST" }),
-    );
-  });
-
-  it("opens a started run by its summary once the backend implements it", async () => {
+  it("offers starting a run and posts only the creator for a full run", async () => {
     requestJsonMock.mockImplementation(async ({ path, method = "GET" }) => {
       if (method === "POST" && path === "/evaluation-runs") {
         return { id: "run-1" };
@@ -56,9 +47,73 @@ describe("liveBatchesService", () => {
       throw new Error(`Unexpected request ${method} ${path}`);
     });
 
-    const batch = await liveBatchesService.startRun({ startedBy: "analyst" });
+    expect(liveBatchesService.capabilities.canStartRun).toBe(true);
+    const batch = await liveBatchesService.startRun({ startedBy: "analyst", scope: {} });
 
-    expect(batch).toMatchObject({ id: "run-1", status: "processing", activeRuleCount: 1 });
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/evaluation-runs",
+        method: "POST",
+        jsonBody: { createdBy: CURRENT_USER.id },
+      }),
+    );
+    expect(batch).toMatchObject({
+      id: "run-1",
+      status: "processing",
+      processedRowCount: 3,
+      evaluatedRowCount: 10,
+      activeRuleCount: 1,
+    });
+  });
+
+  it("sends only the scope fields that are set", async () => {
+    requestJsonMock.mockImplementation(async ({ method = "GET" }) =>
+      method === "POST" ? { id: "run-1" } : { run: RUN, ruleVersions: [] },
+    );
+
+    await liveBatchesService.startRun({
+      startedBy: "analyst",
+      scope: { limit: 1000, from: "2026-07-01", to: undefined },
+    });
+
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "POST",
+        jsonBody: { createdBy: CURRENT_USER.id, scope: { limit: 1000, from: "2026-07-01" } },
+      }),
+    );
+  });
+
+  it("passes a rejected run start on as a validation error", async () => {
+    requestJsonMock.mockRejectedValue(
+      new ApiError({ kind: "validation", status: 422, message: "The run scope matches no transactions" }),
+    );
+
+    await expect(
+      liveBatchesService.startRun({ startedBy: "analyst", scope: { from: "2030-01-01" } }),
+    ).rejects.toMatchObject({ kind: "validation" });
+  });
+
+  it.each([
+    ["importing", "processing"],
+    ["running", "processing"],
+    ["completed", "completed"],
+    ["failed", "failed"],
+  ] as const)("maps a polled %s run to a %s batch", async (runStatus, batchStatus) => {
+    requestJsonMock.mockResolvedValue({
+      run: {
+        ...RUN,
+        status: runStatus,
+        errorMessage: runStatus === "failed" ? "Rule engine crashed" : null,
+      },
+      ruleVersions: [],
+    });
+
+    const batch = await liveBatchesService.loadBatch("run-1");
+
+    expect(batch.status).toBe(batchStatus);
+    expect(batch.failureReason).toBe(runStatus === "failed" ? "Rule engine crashed" : null);
+    expect(requestJsonMock).toHaveBeenCalledWith(expect.objectContaining({ path: "/evaluation-runs/run-1" }));
   });
 
   it("flattens nested condition groups of a deterministic trace", async () => {

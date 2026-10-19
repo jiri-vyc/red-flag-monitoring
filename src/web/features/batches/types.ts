@@ -98,4 +98,11 @@ export const transactionEvaluationSchema = z.object({
 });
 export type TransactionEvaluation = z.infer<typeof transactionEvaluationSchema>;
 
+/**
+ * Which transactions already in the system a run evaluates; every field is optional and an empty scope means
+ * all of them. Dates are local "YYYY-MM-DD", `from` inclusive and `to` exclusive. `limit` keeps the first
+ * transactions in chronological order.
+ */
+export type RunScope = { limit?: number; from?: string; to?: string };
+
 export type LoadBatchTransactionsInput = { batchId: string; bucket: Bucket; cursor: string | null };

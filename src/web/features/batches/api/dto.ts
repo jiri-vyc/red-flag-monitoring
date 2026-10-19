@@ -8,9 +8,18 @@ import { BACKEND_RISK_PROFILES } from "@/features/rules/api/dto";
 export const VERDICTS = ["pass", "flagged", "error"] as const;
 export type VerdictDto = (typeof VERDICTS)[number];
 
+/** Backend RunScope: which database transactions a run evaluates; null on a run over an uploaded CSV. */
+const runScopeDtoSchema = z.object({
+  from: z.string().nullable(),
+  to: z.string().nullable(),
+  clientIds: z.array(z.string()).nullable(),
+  limit: z.number().int().nullable(),
+});
+
 export const evaluationRunListItemDtoSchema = z.object({
   id: z.string(),
   status: z.enum(["importing", "running", "completed", "failed"]),
+  scope: runScopeDtoSchema.nullable(),
   fileName: z.string(),
   rowsTotal: z.number().int(),
   rowsImported: z.number().int(),
@@ -18,6 +27,7 @@ export const evaluationRunListItemDtoSchema = z.object({
   txPassed: z.number().int(),
   txFlagged: z.number().int(),
   txError: z.number().int(),
+  hitThreshold: z.number().int(),
   createdBy: z.string(),
   createdAt: z.string(),
   errorMessage: z.string().nullable(),
@@ -29,7 +39,13 @@ export const evaluationRunPageDtoSchema = z.object({
   total: z.number().int(),
 });
 
-/** Response of POST /evaluation-runs (backend EvaluationRun); the web reloads the run summary by its id. */
+/** Body of POST /evaluation-runs; the backend defaults every omitted field. */
+export type StartRunBodyDto = {
+  createdBy: string;
+  scope?: { from?: string; to?: string; limit?: number };
+};
+
+/** 202 response of POST /evaluation-runs (backend EvaluationRun); the web reloads the run summary by its id. */
 export const startedRunDtoSchema = z.object({ id: z.string() });
 
 export const evaluationRunSummaryDtoSchema = z.object({

@@ -1,4 +1,4 @@
-import { formatUserName } from "@/config/currentUser";
+import { CURRENT_USER, formatUserName } from "@/config/currentUser";
 import { formatRuleName } from "@/features/rules/api/dto";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
@@ -8,6 +8,7 @@ import type {
   BatchStatus,
   Bucket,
   RuleEvaluation,
+  RunScope,
   SkipReason,
   TraceStep,
   TransactionView,
@@ -24,6 +25,7 @@ import {
   type EvaluatedOperandDto,
   type EvaluationRunListItemDto,
   type RuleEvaluationDetailDto,
+  type StartRunBodyDto,
   type TransactionDto,
   type VerdictDto,
 } from "./dto";
@@ -66,6 +68,16 @@ function toBatch(run: EvaluationRunListItemDto, activeRuleCount: number): Batch 
 async function loadBatch(batchId: string): Promise<Batch> {
   const summary = await requestJson({ path: runPath(batchId), schema: evaluationRunSummaryDtoSchema });
   return toBatch(summary.run, summary.ruleVersions.length);
+}
+
+/** Sends only the scope fields that are set; an empty scope runs over every transaction in the database. */
+function toStartRunBody(scope: RunScope): StartRunBodyDto {
+  const setScopeEntries = Object.entries(scope).filter(([, value]) => value !== undefined);
+  // CURRENT_USER.id is the backend's default creator (DEMO_ADMIN_USER_ID), sent so the run names its starter.
+  return {
+    createdBy: CURRENT_USER.id,
+    ...(setScopeEntries.length > 0 && { scope: Object.fromEntries(setScopeEntries) }),
+  };
 }
 
 function toTransaction(transaction: TransactionDto, amountCzk: number | null): TransactionView {
@@ -157,7 +169,7 @@ function toRuleEvaluation(ruleEvaluation: RuleEvaluationDetailDto): RuleEvaluati
 export const liveBatchesService: BatchesService = {
   capabilities: {
     canUploadBatch: false, // BE-01
-    canStartRun: false, // BE-01
+    canStartRun: true,
   },
 
   async loadBatches() {
@@ -171,12 +183,13 @@ export const liveBatchesService: BatchesService = {
 
   loadBatch,
 
-  // The endpoint exists, but the backend has no evaluation engine yet and answers 501 (BE-01). Hidden in the UI;
-  // the 501 reaches the caller as an `unsupported` ApiError.
-  async startRun() {
+  // 202 with the run created as `running`; the batch detail then polls GET /evaluation-runs/:runId until the
+  // run is completed or failed.
+  async startRun({ scope }) {
     const run = await requestJson({
       path: "/evaluation-runs",
       method: "POST",
+      jsonBody: toStartRunBody(scope),
       schema: startedRunDtoSchema,
     });
     return loadBatch(run.id);
