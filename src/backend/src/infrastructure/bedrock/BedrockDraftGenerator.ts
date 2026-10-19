@@ -61,6 +61,13 @@ type ModelRequest = {
 };
 
 // Claude on Amazon Bedrock drafts (#1) internal policies from a regulation and (#2) rules from a policy.
+//
+// Audit trail of a draft (vyhláška 67/2018 § 18): the draft is stored as a `draft` version with `created_via =
+// wizard`, its author and creation time, and takes effect only after a human review (M11). A policy draft points at
+// the regulation version it was drafted from (policy_legal_bases), a rule draft at its policy version
+// (derived_from_policy_version_id) and the regulation provisions it implements (rule_legal_bases). The drafting job
+// row links the input to the drafted version IDs and keeps warnings and errors. Model ID, token usage, call duration
+// and unusable model output are logged to CloudWatch
 export class BedrockDraftGenerator implements DraftGenerator {
   constructor(private readonly dependencies: BedrockDraftGeneratorDependencies) {}
 

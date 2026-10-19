@@ -75,7 +75,6 @@ Odpověď `202 Accepted`: stejný tvar jako položka `GET /api/evaluation-runs` 
 Zbývá:
 
 - **Generátor (hotovo, commit `2bcf6a8`):** `BedrockDraftGenerator` píše předpis přes Claude na Amazon Bedrock, zapne ho `DRAFT_GENERATOR=bedrock` (`draftingJobComposition.ts`). Výchozí zůstává `DummyDraftGenerator` (`[DUMMY]` v názvu, `ref: "neurčeno"`). Nasazený drafting worker běží s `bedrock` (`deploy/drafting-worker.sh`, `BEDROCK_AUTH=iam`, commit `3d2ded4`), lokální vývoj má výchozí `dummy`. Výstup je návrh AI, musí ho schválit člověk (compliance review).
-- **Stav (commit `77feb9f`):** `BedrockInternalPolicyDrafter` (`application/draftInternalPolicy.ts`, kontrola citací v `domain/policyDraftReview.ts`) už existuje, ale běží jen z CLI (`delivery/cli/demoPolicyDrafting.ts`). Zbývá ho zapojit do `DraftGenerator.draftPolicies` v `main.ts`. Bedrock vstup potřebuje navíc vzorový předpis (`examplePolicy`) a `firstRuleNumber`, backend je musí doplnit sám, web je neposílá. Pro web se tím nemění tvar API, odpověď `draft-policies` zůstává stejná.
 - ~~**Načtení regulace z URL (P2)**~~ hotovo přes drafting jobs (viz Stav výše). Metadata z URL jsou zástupná (kód `URL-<host>-<hash>`, titulek stránky, druh `guidance`), jejich odvození přes Bedrock zbývá. Původní zadání: backend regulaci z URL nenačítá. Web má v kroku Regulace záložku URL, kde uživatel zadá jen URL (bez kódu, názvu, druhu a označení znění). V live režimu je záložka vidět, ale ukáže upozornění a odeslat nejde (`canFetchUrl: false`). Mock metadata odvodí z URL sám. Backend má:
   1. stáhnout stránku nebo dokument z URL (jen `http`/`https`, limit velikosti, timeout, ochrana proti SSRF, tedy žádné interní a privátní adresy),
   2. vytáhnout z něj text znění,
@@ -103,7 +102,6 @@ Zbývá:
 Zbývá:
 
 - **Generátor (hotovo, commit `2bcf6a8`):** `BedrockDraftGenerator` navrhuje pravidla přes Bedrock (`ruleProposal.ts`, `ruleDraftingPrompt.ts`), zapne ho `DRAFT_GENERATOR=bedrock`. Výchozí `DummyDraftGenerator` vrací dvě zástupná pravidla (`[DUMMY]` v textu). Neplatnou definici backend odmítne, ne web.
-- **Stav (commit `77feb9f`):** `BedrockRuleCandidateExtractor` (`application/extractRuleCandidates.ts`, `domain/ruleCandidate.ts`) vytahuje kandidáty pravidel z předpisu, zatím jen z CLI (`delivery/cli/demoRuleExtraction.ts`). Zbývá převod `RuleCandidate` na `RuleDraft` (definice podle katalogu featur) a zapojení do `DraftGenerator.draftRules`. Tvar API pro web se nemění.
 - Předpis bez právního základu dnes žádná pravidla nedostane (M5). Web to v kroku review oznámí.
 - Úprava draftu pravidla v kroku review potřebuje BE-05 (rozhodnuto: `PATCH` draftu). Do té doby web tlačítko „Upravit“ skryje a zbývá schválit, nebo zamítnout.
 - ~~Generování běží synchronně v requestu schválení.~~ Hotovo: schválení uloží úlohu `rules_from_policy` ve stejné transakci a vrátí ji jako `rulesJob`, pravidla vzniknou asynchronně (`ruleVersions` úlohy). Neplatné návrhy pravidel worker přeskočí a uvede ve `warnings`.

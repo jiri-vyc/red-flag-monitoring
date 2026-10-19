@@ -13,8 +13,7 @@ const UNSPECIFIED_PROVISION = "neurčeno";
 
 // Placeholder so the minimal flow runs end to end without an LLM. Codes get a random suffix because they
 // are unique and the same regulation or policy can be drafted repeatedly.
-// TODO(#1): replace draftPolicies with Bedrock generation from the regulation text.
-// TODO(#2): replace draftRules with Bedrock generation from the approved policy and the feature catalogue.
+// Default for local development and tests; DRAFT_GENERATOR=bedrock switches to BedrockDraftGenerator (#1, #2).
 export class DummyDraftGenerator implements DraftGenerator {
   draftPolicies(regulation: Regulation, version: RegulationVersion): Promise<PolicyDraft[]> {
     return Promise.resolve(

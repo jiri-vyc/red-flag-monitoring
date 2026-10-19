@@ -35,6 +35,9 @@ export class RuleUseCases {
     return rule;
   }
 
+  // COMPLIANCE REVIEW: enabling, disabling and activating a version keep only the current state on `rules`, with no
+  // actor and no timestamp, so who switched a rule on or off is not reconstructable yet (spec 8, audit log #5).
+  // What a run evaluated is reconstructable: each run fixes its rule versions (V5).
   async enableRule(ruleId: string): Promise<Rule> {
     const rule = await this.getRule(ruleId);
 

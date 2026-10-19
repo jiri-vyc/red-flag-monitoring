@@ -4,14 +4,14 @@ Status: **implemented up to the `DraftGenerator` port**. Jobs, API, worker Lambd
 
 ## Related issues
 
-- **#1** (regulation → policy drafts) and **#2** (policy approval → rule drafts): this design is the async plumbing both need. Jiri's Bedrock code (`draftInternalPolicy.ts`, `extractRuleCandidates.ts`) is the LLM half; the worker calls it.
+- **#1** (regulation → policy drafts) and **#2** (policy approval → rule drafts): this design is the async plumbing both need. The LLM half is `BedrockDraftGenerator` behind the `DraftGenerator` port (`DRAFT_GENERATOR=bedrock`); the worker calls it.
 - **#2** asks what happens when generation fails after the approval is written. Here: the approval and the `rules_from_policy` job are inserted in one transaction, a failure ends as a `failed` job, and `POST /api/drafting-jobs/:id/retry` regenerates.
 - **#1** keeps `POST /api/regulations/:regulationId/versions/:versionId/draft-policies` as the entry point. Here it becomes an alias that returns `202` with a job (see [API](#api)).
 - **#3** (evaluation engine, Filip, `67806b0`): out of scope, but it already solved the same problem for evaluation runs: `EvaluationRunLauncher` port, `InProcessEvaluationRunLauncher` / `LambdaEvaluationRunLauncher`, worker entry point `evaluationWorker.ts`, composition in `evaluationRunComposition.ts`, `EVALUATION_WORKER_FUNCTION`. The drafting worker below copies that pattern and its names.
 
 ## Problem
 
-Both LLM steps are too slow for a synchronous HTTP request. A full policy draft is 10–12k output tokens on Opus, non-streaming (`BedrockInternalPolicyDrafter`), i.e. minutes. Before drafting jobs:
+Both LLM steps are too slow for a synchronous HTTP request. A full policy draft is 10–12k output tokens on Opus, non-streaming (`BedrockDraftGenerator`), i.e. minutes. Before drafting jobs:
 
 - `POST /api/regulations/:id/versions/:versionId/draft-policies` and the approve branch of `POST /api/internal-policies/:id/versions/:vid/review` call the generator inline (Filip's stub, `DummyDraftGenerator`).
 - Jiri's Bedrock drafter and rule extractor run only from the CLI.
@@ -179,14 +179,14 @@ Mirrors Filip's evaluation worker (`evaluationWorker.ts`, `LambdaEvaluationRunLa
 ### `policy_from_regulation`
 
 1. For `url`: fetch (`HttpRegulationSourceFetcher`), convert HTML to text (`htmlToText`), resolve or create the regulation, insert `regulation_versions` and set `regulation_id` and `regulation_version_id` on the job.
-2. `draftInternalPolicyFromRegulation` (Jiri). Example policy from `knowledgebase/vnitrni-predpisy`. A full regulation text can reach ~400 kB (#1), too much for one prompt with Czech tokenization. Either `scope` is required when the text exceeds a size threshold, or the worker first selects the AML-relevant sections; decide with Jiri.
-3. Map the result to `internal_policies` + `internal_policy_versions` (`status=draft`, `created_via=wizard`) + `policy_legal_bases` with `ref` to the cited sections.
+2. `BedrockDraftGenerator.draftPolicies`. Example policy SVZ-06 from the database. Decided: the optional `scope` narrows the text to one heading; without it the whole text is used up to 400 000 characters (~150k tokens of Czech, covers every seeded regulation), longer text fails the job with a request to set a scope.
+3. Map the result to `internal_policies` + `internal_policy_versions` (`status=draft`, `created_via=wizard`) + `policy_legal_bases` on the source regulation version, `ref` = the scope or `null` for the whole regulation. The cited provisions are quoted verbatim in the policy body.
 4. Planned: store `unverifiedQuotes` in `warnings`. The web shows them in the review.
 
 ### `rules_from_policy`
 
-1. `extractRuleCandidates` (Jiri) on the approved policy version. Input per #2: the version body, its legal bases, `describeFeatureCatalog()` and the reference lists.
-2. **Gap:** `RuleCandidate.definition` is prose; `rule_versions.definition` is the DSL (`match`, `features`, `conditions`, M14). A second Bedrock call with the feature catalogue JSON schema (M10) turns each candidate into a DSL definition, validated by `findRuleDefinitionViolation`. The executor already skips drafts that fail `findRuleLogicViolation` or have no legal basis and lists them in `warnings`. Candidates without a deterministic mapping become agentic versions (`agent_prompt`, `agent_model_id`, M13).
+1. `BedrockDraftGenerator.draftRules` on the approved policy version. Input per #2: the version body, its legal bases, `describeFeatureCatalog()` and the reference lists.
+2. One Bedrock call returns the rules with the DSL definition (`match`, `features`, `conditions`, M14) over the feature catalogue (M10), written flat to stay within the Bedrock structured-output limits and rebuilt by `buildRuleDefinition`. A definition that fails validation is stored as an agentic rule with the reason in `threshold_rationale`. The executor already skips drafts that fail `findRuleLogicViolation` or have no legal basis and lists them in `warnings`. Candidates without a deterministic mapping become agentic versions (`agent_prompt`, `agent_model_id`, M13).
 3. Insert `rules` (`enabled=false`) + `rule_versions` (`status=draft`, `derived_from_policy_version_id`) + `rule_legal_bases` (M5; `ref` required).
 
 ## Infrastructure
