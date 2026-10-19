@@ -20,6 +20,18 @@ export const en = {
     resetConfirm: "Reset all demo data to the initial state? Uploaded batches and changes will be lost.",
     resetDone: "Demo data restored",
   },
+  databaseStatus: {
+    title: "Database",
+    checking: "Checking database…",
+    unreachable: "Database unreachable",
+    aurora: "Aurora PostgreSQL {version}",
+    notAurora: "{version}, not Aurora",
+    database: "Database",
+    clients: "Clients",
+    migration: "Migration",
+    checkedAt: "Checked",
+    recheck: "Check database again",
+  },
   common: {
     retry: "Retry",
     loading: "Loading…",

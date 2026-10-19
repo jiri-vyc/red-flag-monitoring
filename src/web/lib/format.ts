@@ -13,6 +13,10 @@ export function formatDateTime(isoDate: string, locale: Locale): string {
   );
 }
 
+export function formatTime(isoDate: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(INTL_LOCALES[locale], { timeStyle: "medium" }).format(new Date(isoDate));
+}
+
 export function formatDate(isoDate: string, locale: Locale): string {
   return new Intl.DateTimeFormat(INTL_LOCALES[locale], { dateStyle: "medium" }).format(new Date(isoDate));
 }

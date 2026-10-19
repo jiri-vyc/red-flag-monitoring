@@ -1,0 +1,114 @@
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  font-size: var(--font-size-xs);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.header strong {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+}
+
+.indicator {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.checking {
+  background: var(--color-border-strong);
+}
+
+.connected {
+  background: var(--color-success);
+  box-shadow: 0 0 0 0.2rem var(--color-success-soft);
+}
+
+.unreachable {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 0.2rem var(--color-danger-soft);
+}
+
+.recheckButton {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.recheckButton:hover:not(:disabled) {
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.recheckButton:disabled {
+  cursor: progress;
+}
+
+.recheckButton svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.spinning {
+  animation: spin 900ms linear infinite;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.detailRow dt {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.detailRow dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.errorMessage {
+  margin: 0;
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -29,6 +29,45 @@ The web works without the backend (default mock mode): `npm run dev -w web` is e
 
 The web proxies `/api/*` to the backend, so browser code calls relative `/api/...` URLs.
 
+### Against Aurora instead of Docker
+
+Only the backend talks to the database, so only `backend/.env` changes. The backend never runs migrations on start, so pointing it at the shared `main` database doesn't change the schema.
+
+1. Sign in to the team account and check that it is `526983806399`:
+
+   ```bash
+   aws sso login --sso-session hackathon
+   AWS_PROFILE=hackathon aws sts get-caller-identity --query Account --output text
+   ```
+
+2. In `backend/.env`, swap the Docker `DATABASE_URL` for the Aurora block (it's in `backend/.env.example`, commented out):
+
+   ```dotenv
+   DATABASE_AUTH=iam
+   DATABASE_URL=postgres://postgres@database-1.cluster-c9m6a2a047k1.eu-central-1.rds.amazonaws.com:5432/main
+   AWS_REGION=eu-central-1
+   AWS_PROFILE=hackathon
+   ```
+
+   The URL has no password. The backend signs a fresh IAM token for every connection and verifies TLS. Use `wip_<name>` instead of `main` for your own copy (`../db/create-wip.sh <name>`).
+
+3. Start it with `npm run dev`. You don't need `npm run db:up` or `npm run migration:run`.
+
+4. Check it. The **Database** panel in the sidebar should show `Aurora PostgreSQL <version>`, the database name, the `clients` row count (5,493), the latest applied migration and the server time of the check. Click the refresh icon to query again. Or call the endpoint directly:
+
+   ```bash
+   curl -s localhost:4000/api/database-status
+   ```
+
+   A local Docker Postgres shows `PostgreSQL <version>, not Aurora`. A red "Database unreachable" means the backend or the database didn't answer.
+
+Things to know:
+
+- **Migrations:** while `.env` points at `main`, every `npm run migration:*` from `src/` hits `main` too. Use `migration:run` there only to apply reviewed migrations. Never run `migration:generate` against `main`, only against your `wip_<name>` (see `../AGENTS.md`).
+- **Slow first request:** the first database request can take up to 45 s while Aurora resumes. An expired SSO session shows up as a 500 on the first request that needs the database. Run `aws sso login` again.
+- **Mock screens:** the screens stay on mock data until you set `NEXT_PUBLIC_API_MODE=live` in `web/.env.local` (see [Web: mock and live data](#web-mock-and-live-data)). The Database panel always calls the backend.
+- **Switching back to Docker:** restore the Docker `DATABASE_URL` and drop `DATABASE_AUTH`.
+
 ## API
 
 There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or review data pass the actor in the body as `createdBy` / `reviewedBy`; the `SeedAdminUser` migration creates the single admin `00000000-0000-4000-8000-000000000001`.
@@ -40,6 +79,7 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 | `/rules`             | as internal policies, plus `POST /:id/enable`, `POST /:id/disable`, `PUT /:id/active-version`, `GET` / `POST /:id/whitelist`, `DELETE /:id/whitelist/:clientId`               |
 | `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                       |
 | `/evaluation-runs`   | read only: `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&limit=&offset=`, `GET /:runId/transactions/:transactionId` (detail with trace) |
+| `/database-status`   | `GET /`: the connected database (`current_database()`, `version()`, `aurora_version()` or `null`, server address and time, latest migration, `clients` count)                 |
 
 Versions are immutable. A version goes `draft` → `pending_review` → `approved` / `rejected`; an approved version becomes `superseded` when a newer one replaces it (rules: on `active-version`, policies: on approval of a newer version). Errors: 400 invalid input, 404 not found, 409 state conflict or duplicate, 422 business rule or unknown reference.
 
@@ -115,7 +155,7 @@ component → features/<f>/api/hooks.ts → service.ts (resolveService) → live
 
 - The mode comes from `NEXT_PUBLIC_API_MODE` (default `mock`) and optional per-service overrides. There is no runtime toggle.
 - Live mode calls relative `/api/...` (proxied to `BACKEND_URL`) and fails explicitly with an error state and Retry. It never falls back to mocks.
-- Mock state lives in the browser's localStorage. "Reset demo data" in the sidebar restores the deterministic seed. While a screen uses a mocked service, the sidebar shows "Mock data, not connected to API".
+- Mock state lives in the browser's localStorage. "Reset demo data" in the sidebar restores the deterministic seed. While a screen uses a mocked service, the sidebar shows "Mock data, not connected to API". The sidebar's Database panel (`features/databaseStatus/`) has no mock and always calls `/api/database-status`.
 - Seed data (`mocks/seed/`) is sampled from the synthetic vendor datasets (30 clients, 150 transactions) plus regulations from `knowledgebase/regulace/seznam_regulaci.md`, 8 policies and 14 rules. Provision references and the high-risk country list are illustrative demo values.
 - Batches in mock mode: the CSV is parsed and evaluated in the browser. Only the first 2,000 rows are stored (localStorage is ~5 MB); the UI shows evaluated vs. file rows. Progress is simulated (3–8 s). Score thresholds (fail ≥ 40, alert ≥ 75 after sensitivity) are demo values that need compliance review.
 

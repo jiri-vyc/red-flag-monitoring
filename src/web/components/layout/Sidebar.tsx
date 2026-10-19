@@ -19,6 +19,7 @@ import { useState } from "react";
 import { isAnyServiceMocked } from "@/config/apiMode";
 import { CURRENT_USER } from "@/config/currentUser";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { DatabaseStatusPanel } from "@/features/databaseStatus/components/DatabaseStatusPanel";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/dictionaries";
 import { resetMockDatabase } from "@/mocks/store/mockDatabase";
@@ -115,6 +116,7 @@ export function Sidebar() {
       </nav>
 
       <div className={styles.footer}>
+        <DatabaseStatusPanel />
         {isAnyServiceMocked() && <MockDataPanel />}
         <div className={styles.footerRow}>
           <span className={styles.footerLabel}>{t.sidebar.language}</span>

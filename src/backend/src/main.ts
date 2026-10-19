@@ -3,6 +3,7 @@ import "reflect-metadata";
 import type { DataSource } from "typeorm";
 
 import { systemClock } from "./application/clock";
+import { DatabaseStatusQueries } from "./application/databaseStatus/databaseStatusQueries";
 import { EvaluationRunQueries } from "./application/evaluationRuns/evaluationRunQueries";
 import { InternalPolicyUseCases } from "./application/internalPolicies/internalPolicyUseCases";
 import { ReferenceListUseCases } from "./application/referenceLists/referenceListUseCases";
@@ -13,6 +14,7 @@ import { parseAppConfig } from "./config";
 import { type AppUseCases, createApp } from "./delivery/http/createApp";
 import { createDataSource } from "./infrastructure/database/createDataSource";
 import { memoizeInitialization } from "./infrastructure/database/memoizeInitialization";
+import { TypeOrmDatabaseStatusProbe } from "./infrastructure/database/TypeOrmDatabaseStatusProbe";
 import { TypeOrmEvaluationRunReadRepository } from "./infrastructure/database/repositories/TypeOrmEvaluationRunReadRepository";
 import { TypeOrmInternalPolicyRepository } from "./infrastructure/database/repositories/TypeOrmInternalPolicyRepository";
 import { TypeOrmReferenceListRepository } from "./infrastructure/database/repositories/TypeOrmReferenceListRepository";
@@ -53,6 +55,7 @@ function createUseCases(dataSource: DataSource): AppUseCases {
     whitelist: new WhitelistUseCases(new TypeOrmWhitelistRepository(dataSource), ruleRepository),
     referenceLists: new ReferenceListUseCases(new TypeOrmReferenceListRepository(dataSource)),
     evaluationRuns: new EvaluationRunQueries(new TypeOrmEvaluationRunReadRepository(dataSource)),
+    databaseStatus: new DatabaseStatusQueries(new TypeOrmDatabaseStatusProbe(dataSource)),
   };
 }
 

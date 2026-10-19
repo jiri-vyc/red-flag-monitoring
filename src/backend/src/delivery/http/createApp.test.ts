@@ -1,5 +1,7 @@
 import request from "supertest";
 
+import { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
+import type { DatabaseStatus } from "../../application/databaseStatus/databaseStatusProbe";
 import { RuleUseCases } from "../../application/rules/ruleUseCases";
 import { InMemoryRuleRepository } from "../../application/testing/InMemoryRuleRepository";
 import { fixedClock } from "../../application/testing/fixtures";
@@ -8,6 +10,22 @@ import { type AppUseCases, createApp } from "./createApp";
 const RULE_ID = "6f1c2f9e-4a8b-4c1d-9e2f-0a1b2c3d4e5f";
 
 const databaseReady = async () => undefined;
+
+const AURORA_STATUS: DatabaseStatus = {
+  databaseName: "main",
+  serverAddress: "10.0.1.23",
+  serverVersion: "PostgreSQL 17.5 on aarch64-unknown-linux-gnu",
+  auroraVersion: "17.5.1",
+  serverTime: new Date("2026-10-19T12:00:00Z"),
+  latestMigration: "SeedAdminUser1792430445133",
+  clientCount: 5493,
+};
+
+function createDatabaseStatusApp(loadDatabaseStatus: () => Promise<DatabaseStatus>) {
+  const useCases = { databaseStatus: new DatabaseStatusQueries({ loadDatabaseStatus }) } as AppUseCases;
+
+  return createApp(useCases, databaseReady);
+}
 
 function createTestApp(ensureDatabaseReady = databaseReady) {
   const ruleRepository = new InMemoryRuleRepository();
@@ -47,6 +65,25 @@ describe("HTTP app", () => {
     const failingDatabase = () => Promise.reject(new Error("Aurora unavailable"));
 
     const response = await request(createTestApp(failingDatabase)).get(`/api/rules/${RULE_ID}`);
+    consoleError.mockRestore();
+
+    expect(response.status).toBe(500);
+  });
+
+  it("reports which database server the backend is connected to", async () => {
+    const response = await request(createDatabaseStatusApp(async () => AURORA_STATUS)).get(
+      "/api/database-status",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ...AURORA_STATUS, serverTime: "2026-10-19T12:00:00.000Z" });
+  });
+
+  it("returns 500 when the database status query fails", async () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+    const failingProbe = () => Promise.reject(new Error('relation "clients" does not exist'));
+
+    const response = await request(createDatabaseStatusApp(failingProbe)).get("/api/database-status");
     consoleError.mockRestore();
 
     expect(response.status).toBe(500);

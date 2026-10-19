@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 
+import type { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
 import type { InternalPolicyUseCases } from "../../application/internalPolicies/internalPolicyUseCases";
 import type { ReferenceListUseCases } from "../../application/referenceLists/referenceListUseCases";
@@ -7,6 +8,7 @@ import type { RegulationUseCases } from "../../application/regulations/regulatio
 import type { RuleUseCases } from "../../application/rules/ruleUseCases";
 import type { WhitelistUseCases } from "../../application/whitelist/whitelistUseCases";
 import type { EnsureDatabaseReady } from "../../infrastructure/database/memoizeInitialization";
+import { createDatabaseStatusRouter } from "./databaseStatusRouter";
 import { errorHandler, notFoundHandler } from "./errorHandler";
 import { createEvaluationRunsRouter } from "./evaluationRunsRouter";
 import { createHealthRouter } from "./healthRouter";
@@ -25,6 +27,7 @@ export type AppUseCases = {
   whitelist: WhitelistUseCases;
   referenceLists: ReferenceListUseCases;
   evaluationRuns: EvaluationRunQueries;
+  databaseStatus: DatabaseStatusQueries;
 };
 
 export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureDatabaseReady): Express {
@@ -41,6 +44,7 @@ export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureData
   app.use("/api/rules", createRulesRouter(useCases.rules, useCases.whitelist));
   app.use("/api/reference-lists", createReferenceListsRouter(useCases.referenceLists));
   app.use("/api/evaluation-runs", createEvaluationRunsRouter(useCases.evaluationRuns));
+  app.use("/api/database-status", createDatabaseStatusRouter(useCases.databaseStatus));
   app.use(notFoundHandler);
   app.use(errorHandler);
 

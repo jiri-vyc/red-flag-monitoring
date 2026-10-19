@@ -22,6 +22,18 @@ export const cs: Dictionary = {
     resetConfirm: "Obnovit všechna demo data do výchozího stavu? Nahrané dávky a změny se ztratí.",
     resetDone: "Demo data obnovena",
   },
+  databaseStatus: {
+    title: "Databáze",
+    checking: "Ověřuji databázi…",
+    unreachable: "Databáze nedostupná",
+    aurora: "Aurora PostgreSQL {version}",
+    notAurora: "{version}, ne Aurora",
+    database: "Databáze",
+    clients: "Klienti",
+    migration: "Migrace",
+    checkedAt: "Ověřeno",
+    recheck: "Ověřit databázi znovu",
+  },
   common: {
     retry: "Zkusit znovu",
     loading: "Načítám…",
