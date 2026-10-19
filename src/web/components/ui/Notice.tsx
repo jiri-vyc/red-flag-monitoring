@@ -7,7 +7,15 @@ type NoticeTone = "ai" | "compliance" | "info";
 
 const NOTICE_ICONS = { ai: Sparkles, compliance: ShieldAlert, info: ShieldAlert } as const;
 
-export function Notice({ tone, title, children }: { tone: NoticeTone; title?: string; children: ReactNode }) {
+type NoticeProps = {
+  tone: NoticeTone;
+  title?: string;
+  children: ReactNode;
+  /** Rendered under the message, e.g. buttons that act on it. */
+  actions?: ReactNode;
+};
+
+export function Notice({ tone, title, children, actions }: NoticeProps) {
   const NoticeIcon = NOTICE_ICONS[tone];
   return (
     <aside className={`${styles.notice} ${styles[tone]}`}>
@@ -15,6 +23,7 @@ export function Notice({ tone, title, children }: { tone: NoticeTone; title?: st
       <div className={styles.body}>
         {title && <strong>{title}</strong>}
         <p>{children}</p>
+        {actions && <div className={styles.actions}>{actions}</div>}
       </div>
     </aside>
   );

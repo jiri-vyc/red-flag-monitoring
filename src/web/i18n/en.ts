@@ -496,6 +496,26 @@ export const en = {
     newWordingTitle: "New wording of an existing regulation",
     newWordingBody:
       "The text is stored as a new wording of {name} ({code}) and the policies are drafted from it.",
+    documentMetadata: {
+      title: "Found in the document",
+      fields: {
+        title: "Title",
+        regulationKind: "Type",
+        code: "Code",
+        sourceUrl: "Source URL",
+        versionLabel: "Wording label",
+      },
+      overwrites: "Filling overwrites the current value of: {fields}.",
+      matchHint:
+        "The document matches the existing regulation {code} ({name}). Add it as a new wording instead of creating a duplicate.",
+      fill: "Fill in the fields",
+      useExisting: "Use existing regulation {code}",
+      dismiss: "Dismiss",
+      filledTitle: "Filled from the document",
+      filledBody: "Filled fields: {fields}.",
+      undo: "Undo",
+    },
+    createNewRegulationInstead: "Create a new regulation instead",
     fileLabel: "Regulation file",
     fileHint: "Markdown (.md), read as text in the browser.",
     urlLabel: "Regulation URL",

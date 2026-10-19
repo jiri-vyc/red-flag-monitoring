@@ -54,7 +54,7 @@ export function areRegulationFieldsShown(kind: SourceKind): boolean {
   return kind !== "url";
 }
 
-function isHttpUrl(value: string): boolean {
+export function isHttpUrl(value: string): boolean {
   return httpUrlSchema.safeParse(value).success;
 }
 

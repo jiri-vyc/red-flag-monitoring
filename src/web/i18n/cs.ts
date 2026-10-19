@@ -496,6 +496,26 @@ export const cs: Dictionary = {
     newWordingTitle: "Nové znění existující regulace",
     newWordingBody:
       "Text se uloží jako nové znění regulace {name} ({code}) a z něj vzniknou návrhy předpisů.",
+    documentMetadata: {
+      title: "Nalezeno v dokumentu",
+      fields: {
+        title: "Název",
+        regulationKind: "Druh",
+        code: "Kód",
+        sourceUrl: "URL zdroje",
+        versionLabel: "Označení znění",
+      },
+      overwrites: "Vyplnění přepíše aktuální hodnotu polí: {fields}.",
+      matchHint:
+        "Dokument odpovídá existující regulaci {code} ({name}). Přidejte ho jako její nové znění, ať nevznikne duplicita.",
+      fill: "Vyplnit pole",
+      useExisting: "Použít existující regulaci {code}",
+      dismiss: "Zavřít",
+      filledTitle: "Vyplněno z dokumentu",
+      filledBody: "Vyplněná pole: {fields}.",
+      undo: "Vrátit zpět",
+    },
+    createNewRegulationInstead: "Vytvořit raději novou regulaci",
     fileLabel: "Soubor regulace",
     fileHint: "Markdown (.md), načte se v prohlížeči jako text.",
     urlLabel: "URL regulace",

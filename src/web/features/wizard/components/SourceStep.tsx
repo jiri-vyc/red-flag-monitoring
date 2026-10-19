@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, Sparkles } from "lucide-react";
+import { FilePlus, FileUp, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -24,6 +24,7 @@ import {
   type SourceFormValues,
 } from "../sourceForm";
 import type { DraftPoliciesInput } from "../types";
+import { DocumentMetadataSuggestion, useDocumentMetadataDetection } from "./DocumentMetadataSuggestion";
 import styles from "./Wizard.module.css";
 
 type SourceStepProps = {
@@ -121,7 +122,12 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
   const [defaultVersionLabel] = useState(() =>
     formatMessage(t.wizard.versionLabelDefault, { date: new Date().toISOString().slice(0, 10) }),
   );
-  const [values, setValues] = useState<SourceFormValues>(() => createInitialValues(defaultVersionLabel));
+  const [initialValues] = useState(() => createInitialValues(defaultVersionLabel));
+  const [values, setValues] = useState<SourceFormValues>(initialValues);
+  /** An existing regulation the user picked from the document suggestion, like opening the wizard with `?regulationId=`. */
+  const [suggestedRegulation, setSuggestedRegulation] = useState<Regulation | null>(null);
+  const targetRegulation = existingRegulation ?? suggestedRegulation;
+  const metadataDetection = useDocumentMetadataDetection(values);
   const [errors, setErrors] = useState<SourceFormErrors>({});
   const updateValues = (changes: Partial<SourceFormValues>) =>
     setValues((current) => ({ ...current, ...changes }));
@@ -131,7 +137,7 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
 
   const submitSource = () => {
     const result = buildDraftPoliciesInput(values, {
-      existingRegulationId: existingRegulation?.id ?? null,
+      existingRegulationId: targetRegulation?.id ?? null,
       capabilities,
       defaultVersionLabel,
     });
@@ -153,11 +159,25 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
           submitSource();
         }}
       >
-        {existingRegulation && (
-          <Notice tone="info" title={t.wizard.newWordingTitle}>
+        {targetRegulation && (
+          <Notice
+            tone="info"
+            title={t.wizard.newWordingTitle}
+            actions={
+              !existingRegulation && (
+                <Button
+                  variant="ghost"
+                  icon={<FilePlus aria-hidden="true" />}
+                  onClick={() => setSuggestedRegulation(null)}
+                >
+                  {t.wizard.createNewRegulationInstead}
+                </Button>
+              )
+            }
+          >
             {formatMessage(t.wizard.newWordingBody, {
-              name: existingRegulation.name,
-              code: existingRegulation.shortName,
+              name: targetRegulation.name,
+              code: targetRegulation.shortName,
             })}
           </Notice>
         )}
@@ -220,7 +240,21 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
             />
           </Field>
         )}
-        {isRegulationFormShown && !existingRegulation && (
+        {isRegulationFormShown && metadataDetection && (
+          <DocumentMetadataSuggestion
+            key={metadataDetection.id}
+            detected={metadataDetection.detected}
+            values={values}
+            initialValues={initialValues}
+            isNewRegulation={!targetRegulation}
+            onChange={updateValues}
+            onUseRegulation={(regulation) => {
+              setErrors({});
+              setSuggestedRegulation(regulation);
+            }}
+          />
+        )}
+        {isRegulationFormShown && !targetRegulation && (
           <NewRegulationFields values={values} errors={errors} onChange={updateValues} />
         )}
         {isRegulationFormShown && (
