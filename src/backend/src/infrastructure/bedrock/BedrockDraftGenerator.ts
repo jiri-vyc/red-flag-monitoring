@@ -29,10 +29,11 @@ import {
 
 // The approved policy every draft imitates in structure and tone (seeded from the knowledge base).
 const EXAMPLE_POLICY_CODE = "SVZ-06";
-// ~100k input tokens of Czech legal text, e.g. the whole AML Act (~255k characters). With the example policy
-// (~10k) and the output (16k) it stays inside the 200k-token context of Claude Opus 4.5; a longer regulation
-// must be narrowed with a scope, which also keeps the cost predictable.
-const MAX_REGULATION_CHARACTERS = 300_000;
+// Czech legal text has ~2.7 characters per token (English ~4.9), so 400k characters stay under ~150k tokens.
+// With the example policy (~10k), the system prompt and the output (16k) that fits the 200k-token context of
+// Claude Opus 4.5 and covers every seeded regulation, the longest being AMLD6 (358k characters, 133k tokens).
+// A longer regulation must be narrowed with a scope, which also keeps the cost predictable.
+const MAX_REGULATION_CHARACTERS = 400_000;
 // A full policy draft or all rules of a policy is ~10–12k tokens; 16k stays under the SDK limit for
 // non-streaming requests.
 const MAX_OUTPUT_TOKENS = 16_000;
