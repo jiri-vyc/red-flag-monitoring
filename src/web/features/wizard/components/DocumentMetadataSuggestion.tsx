@@ -14,6 +14,7 @@ import {
   detectRegulationMetadata,
   findMatchingRegulation,
   findOverwrittenFields,
+  findUndoChanges,
   METADATA_FORM_FIELDS,
   pickMetadataValues,
   toMetadataFormChanges,
@@ -114,17 +115,20 @@ export function DocumentMetadataSuggestion({
   const texts = t.wizard.documentMetadata;
   const regulationsQuery = useRegulations();
   const [isDismissed, setIsDismissed] = useState(false);
-  /** The values before filling, set while the filled fields can be restored. */
-  const [valuesBeforeFill, setValuesBeforeFill] = useState<MetadataFormChanges | null>(null);
+  /** The values before and after filling, set while the filled fields can be restored. */
+  const [fill, setFill] = useState<{
+    previousValues: MetadataFormChanges;
+    filledValues: MetadataFormChanges;
+  } | null>(null);
 
   const changes = toMetadataFormChanges(detected, { isNewRegulation });
   const changedFields = METADATA_FORM_FIELDS.filter((field) => changes[field] !== undefined);
   const fieldNames = (fields: MetadataFormField[]) => fields.map((field) => texts.fields[field]).join(", ");
 
-  if (valuesBeforeFill !== null) {
+  if (fill !== null) {
     const restoreValues = () => {
-      onChange(valuesBeforeFill);
-      setValuesBeforeFill(null);
+      onChange(findUndoChanges(values, fill));
+      setFill(null);
     };
     return (
       <Notice
@@ -137,7 +141,7 @@ export function DocumentMetadataSuggestion({
         }
       >
         {formatMessage(texts.filledBody, {
-          fields: fieldNames(Object.keys(valuesBeforeFill) as MetadataFormField[]),
+          fields: fieldNames(Object.keys(fill.filledValues) as MetadataFormField[]),
         })}
       </Notice>
     );
@@ -150,7 +154,7 @@ export function DocumentMetadataSuggestion({
     isNewRegulation && regulationsQuery.data ? findMatchingRegulation(detected, regulationsQuery.data) : null;
   const overwrittenFields = findOverwrittenFields(values, changes, initialValues);
   const fillFields = () => {
-    setValuesBeforeFill(pickMetadataValues(values, changes));
+    setFill({ previousValues: pickMetadataValues(values, changes), filledValues: changes });
     onChange(changes);
   };
   const displayValue = (field: MetadataFormField) => {

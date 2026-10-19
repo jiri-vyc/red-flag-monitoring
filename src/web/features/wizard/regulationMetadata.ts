@@ -17,8 +17,12 @@ export const METADATA_FORM_FIELDS = ["title", "regulationKind", "code", "sourceU
 export type MetadataFormField = (typeof METADATA_FORM_FIELDS)[number];
 export type MetadataFormChanges = Partial<Pick<SourceFormValues, MetadataFormField>>;
 
-// The metadata sits in the document header; the rest of a full regulation text is not scanned.
+// The metadata sits in the document header; the rest of a full regulation text is not scanned. The text and each
+// line are cut before any regex runs, so a huge or pathological paste cannot block the main thread.
+const MAX_SCANNED_TEXT_LENGTH = 64 * 1024;
 const SCANNED_LINE_COUNT = 60;
+const MAX_SCANNED_LINE_LENGTH = 2 * 1024;
+const MAX_WORDING_TO_DATE_DISTANCE = 200;
 const MAX_PLAIN_TEXT_TITLE_LENGTH = 250;
 const MAX_ABBREVIATION_LENGTH = 40;
 const MAX_ABBREVIATION_WORDS = 3;
@@ -26,12 +30,13 @@ const MAX_CODE_LENGTH = 40;
 
 const MARKDOWN_H1_PATTERN = /^#\s+(.+)$/;
 const URL_PATTERN = /https?:\/\/[^\s<>"'`\])]+/gi;
-const TRAILING_URL_PUNCTUATION_PATTERN = /[.,;:!?]+$/;
+const TRAILING_URL_PUNCTUATION = ".,;:!?";
+const TRAILING_TITLE_CHARACTERS = " .,;:";
 const DATE_PATTERN_SOURCE = String.raw`(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})`;
 // A wording line ("Znění: … účinné od 11. 1. 2026", "… účinnost od …") is preferred; elsewhere only "účinné od"
 // counts, so a note such as "S účinností od 10. 7. 2027 ji nahrazuje AMLR" is not taken for the wording date.
 const WORDING_EFFECTIVE_FROM_PATTERN = new RegExp(
-  String.raw`znění.*účinn\p{L}*\s+od\s+${DATE_PATTERN_SOURCE}`,
+  String.raw`znění[^\n]{0,${MAX_WORDING_TO_DATE_DISTANCE}}?účinn\p{L}*\s+od\s+${DATE_PATTERN_SOURCE}`,
   "iu",
 );
 const EFFECTIVE_FROM_PATTERN = new RegExp(String.raw`účinné\s+od\s+${DATE_PATTERN_SOURCE}`, "iu");
@@ -71,6 +76,15 @@ const SOURCE_LINE_PATTERNS: readonly RegExp[] = [
   /^[>\s*_]*(?:zdroj|source)(?!\p{L})/iu,
   /(?:zdroj|source)/i,
 ];
+
+/** Drops the given trailing characters with a loop; an anchored `[…]+$` regex backtracks quadratically. */
+function trimTrailingCharacters(value: string, characters: string): string {
+  let end = value.length;
+  while (end > 0 && characters.includes(value[end - 1])) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
 
 function stripDiacritics(value: string): string {
   return value.normalize("NFD").replace(/\p{M}/gu, "");
@@ -151,7 +165,7 @@ function findCode(title: string): string | undefined {
 
 function findHttpUrls(line: string): string[] {
   return [...line.matchAll(URL_PATTERN)]
-    .map((match) => match[0].replace(TRAILING_URL_PUNCTUATION_PATTERN, ""))
+    .map((match) => trimTrailingCharacters(match[0], TRAILING_URL_PUNCTUATION))
     .filter(isHttpUrl);
 }
 
@@ -181,7 +195,10 @@ function findVersionLabel(lines: string[]): string | undefined {
 
 /** Reads the regulation metadata from the header (the first lines) of a Markdown or plain regulation text. */
 export function detectRegulationMetadata(text: string): DetectedRegulationMetadata {
-  const lines = text.split(/\r?\n/).slice(0, SCANNED_LINE_COUNT);
+  const lines = text
+    .slice(0, MAX_SCANNED_TEXT_LENGTH)
+    .split("\n", SCANNED_LINE_COUNT)
+    .map((line) => trimTrailingCharacters(line.slice(0, MAX_SCANNED_LINE_LENGTH), "\r"));
   const title = findTitle(lines);
   const detected: DetectedRegulationMetadata = {
     title,
@@ -196,12 +213,8 @@ export function detectRegulationMetadata(text: string): DetectedRegulationMetada
 }
 
 function normalizeTitle(title: string): string {
-  return stripDiacritics(title)
-    .toLowerCase()
-    .replace(/[–—]/g, "-")
-    .replace(/\s+/g, " ")
-    .replace(/[\s.,;:]+$/, "")
-    .trim();
+  const normalizedTitle = stripDiacritics(title).toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ");
+  return trimTrailingCharacters(normalizedTitle, TRAILING_TITLE_CHARACTERS).trim();
 }
 
 /** Ignores the scheme, `www.`, a trailing slash and the fragment, which do not change the document. */
@@ -293,5 +306,23 @@ export function pickMetadataValues(
       field,
       values[field],
     ]),
+  ) as MetadataFormChanges;
+}
+
+/**
+ * The previous values to restore on an undo: only fields that still hold the filled value, so an edit the user
+ * made after filling is kept.
+ */
+export function findUndoChanges(
+  values: Pick<SourceFormValues, MetadataFormField>,
+  {
+    previousValues,
+    filledValues,
+  }: { previousValues: MetadataFormChanges; filledValues: MetadataFormChanges },
+): MetadataFormChanges {
+  return Object.fromEntries(
+    METADATA_FORM_FIELDS.filter(
+      (field) => previousValues[field] !== undefined && values[field] === filledValues[field],
+    ).map((field) => [field, previousValues[field]]),
   ) as MetadataFormChanges;
 }

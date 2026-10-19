@@ -4,6 +4,7 @@ import {
   detectRegulationMetadata,
   findMatchingRegulation,
   findOverwrittenFields,
+  findUndoChanges,
   pickMetadataValues,
   toMetadataFormChanges,
   toRegulationCode,
@@ -297,5 +298,41 @@ describe("filling the form from the detected metadata", () => {
     expect(
       pickMetadataValues({ ...EMPTY_METADATA_VALUES, code: "OLD" }, { code: "NEW", versionLabel: "Znění" }),
     ).toEqual({ code: "OLD", versionLabel: EMPTY_METADATA_VALUES.versionLabel });
+  });
+});
+
+describe("findUndoChanges", () => {
+  it("restores only the fields that still hold the filled value", () => {
+    const fill = {
+      previousValues: { code: "", title: "", versionLabel: "Znění k 2026-10-20" },
+      filledValues: { code: "V-67-2018", title: "Vyhláška", versionLabel: "Znění od 30. 12. 2024" },
+    };
+    const values = {
+      ...EMPTY_METADATA_VALUES,
+      code: "VYHL67",
+      title: "Vyhláška",
+      versionLabel: "Znění od 30. 12. 2024",
+    };
+
+    expect(findUndoChanges(values, fill)).toEqual({ title: "", versionLabel: "Znění k 2026-10-20" });
+  });
+});
+
+describe("detectRegulationMetadata performance", () => {
+  const ONE_MEGABYTE = 1024 * 1024;
+  const PATHOLOGICAL_TEXTS = {
+    "wording without a date": `# Text\n${"znění účinné od ".repeat(ONE_MEGABYTE / 16)}`,
+    "one huge line": "znění ".repeat(ONE_MEGABYTE / 6),
+    "trailing punctuation in a URL": `Zdroj: https://example.org/${".".repeat(ONE_MEGABYTE)}x`,
+    "punctuation and spaces": `# ${". ,".repeat(ONE_MEGABYTE / 3)}x`,
+    "unclosed parentheses": `# ${"(A".repeat(ONE_MEGABYTE / 2)}`,
+  };
+
+  it.each(Object.entries(PATHOLOGICAL_TEXTS))("handles 1 MB of %s in under 100 ms", (_name, text) => {
+    const startedAt = performance.now();
+    const detected = detectRegulationMetadata(text);
+    findMatchingRegulation(detected, [createRegulation({ name: `${" .".repeat(ONE_MEGABYTE / 2)}x` })]);
+
+    expect(performance.now() - startedAt).toBeLessThan(100);
   });
 });

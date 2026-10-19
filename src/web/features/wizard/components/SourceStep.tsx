@@ -124,10 +124,20 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
   );
   const [initialValues] = useState(() => createInitialValues(defaultVersionLabel));
   const [values, setValues] = useState<SourceFormValues>(initialValues);
-  /** An existing regulation the user picked from the document suggestion, like opening the wizard with `?regulationId=`. */
-  const [suggestedRegulation, setSuggestedRegulation] = useState<Regulation | null>(null);
-  const targetRegulation = existingRegulation ?? suggestedRegulation;
   const metadataDetection = useDocumentMetadataDetection(values);
+  /**
+   * An existing regulation the user picked from a document's suggestion, like opening the wizard with
+   * `?regulationId=`. It holds only for that document: another file or text, or another tab, drops it.
+   */
+  const [regulationChoice, setRegulationChoice] = useState<{
+    detectionId: number;
+    regulation: Regulation;
+  } | null>(null);
+  const suggestedRegulation =
+    regulationChoice !== null && regulationChoice.detectionId === metadataDetection?.id
+      ? regulationChoice.regulation
+      : null;
+  const targetRegulation = existingRegulation ?? suggestedRegulation;
   const [errors, setErrors] = useState<SourceFormErrors>({});
   const updateValues = (changes: Partial<SourceFormValues>) =>
     setValues((current) => ({ ...current, ...changes }));
@@ -168,7 +178,7 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
                 <Button
                   variant="ghost"
                   icon={<FilePlus aria-hidden="true" />}
-                  onClick={() => setSuggestedRegulation(null)}
+                  onClick={() => setRegulationChoice(null)}
                 >
                   {t.wizard.createNewRegulationInstead}
                 </Button>
@@ -187,6 +197,7 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
           value={values.kind}
           onChange={(kind) => {
             setErrors({});
+            setRegulationChoice(null);
             updateValues({ kind });
           }}
         />
@@ -250,7 +261,7 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
             onChange={updateValues}
             onUseRegulation={(regulation) => {
               setErrors({});
-              setSuggestedRegulation(regulation);
+              setRegulationChoice({ detectionId: metadataDetection.id, regulation });
             }}
           />
         )}
