@@ -8,29 +8,29 @@ Priority: **P1** = bez toho chybí hlavní tok demo (nahrát transakce, vytvoři
 
 ## Přehled
 
-| ID    | Co                                                                                                           | Odemkne ve webu                                 | Priorita |
-| ----- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | -------- |
-| BE-01 | Nahrání CSV dávky (engine běhu nad transakcemi v DB je hotový)                                               | `batches.canUploadBatch`, `batches.canStartRun` | P1       |
-| BE-02 | Wizard: načtení regulace z URL a generování předpisů přes Bedrock (text a MD už fungují, generátor je dummy) | `wizard.canFetchUrl`                            | P1       |
-| BE-03 | Wizard: generování pravidel ze schváleného předpisu přes Bedrock (tok už funguje, generátor je dummy)        | kvalita návrhů pravidel                         | P1       |
-| BE-04 | Generování definice deterministického pravidla z popisu                                                      | `rules.canCreateDeterministicRule`              | P1       |
-| BE-05 | Úprava draftu pravidla, nebo rozhodnutí, že verze zůstanou neměnné                                           | `rules.canEditDraftContent`                     | P2       |
-| BE-06 | Seznam klientů pro návrhy ve whitelistu                                                                      | `rules.canSuggestWhitelistClients`              | P3       |
-| BE-07 | Souhrnný endpoint pro dashboard (volitelné)                                                                  | rychlejší dashboard                             | P3       |
-| BE-08 | Popis regulace                                                                                               | text v detailu regulace                         | P2       |
-| BE-09 | Částka v CZK v seznamu transakcí běhu                                                                        | sloupec částky v CZK                            | P2       |
-| BE-10 | Právní základ v detailu transakce                                                                            | proklik pravidlo → paragraf                     | P2       |
-| BE-11 | Stavy verzí interního předpisu                                                                               | správný stav předpisu                           | P2       |
-| BE-12 | Agregované endpointy s verzemi (N+1)                                                                         | rychlost seznamů                                | P2       |
-| BE-13 | Audit log                                                                                                    | nová sekce Audit log                            | P2       |
-| BE-14 | AML události                                                                                                 | nová sekce AML události                         | P3       |
-| BE-15 | Detail klienta                                                                                               | nová obrazovka klienta                          | P3       |
-| BE-16 | Kontrola aktualizací regulací                                                                                | tlačítko „Zkontrolovat aktualizace“             | P3       |
-| BE-17 | Prahy a konfigurace vyhodnocení z API                                                                        | prahy a kurzy bez demo hodnot                   | P3       |
-| BE-18 | Atomické založení regulace, znění a návrhů předpisů                                                          | opakování průvodce po chybě                     | P2       |
-| BE-19 | Návrhy pravidel po selhání generátoru při schválení předpisu                                                 | předpis nezůstane bez pravidel                  | P2       |
-| BE-20 | Vytvořená pravidla v odpovědi schválení předpisu                                                             | počet návrhů bez porovnávání seznamů            | P3       |
-| BE-21 | Filtr `GET /rules?policyId=`                                                                                 | méně requestů v průvodci                        | P3       |
+| ID    | Co                                                                                                                                               | Odemkne ve webu                                 | Priorita |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | -------- |
+| BE-01 | Nahrání CSV dávky (engine běhu nad transakcemi v DB je hotový)                                                                                   | `batches.canUploadBatch`, `batches.canStartRun` | P1       |
+| BE-02 | Wizard: načtení regulace z URL a generování předpisů přes Bedrock (text a MD už fungují, generátor je dummy, Bedrock drafter existuje jen v CLI) | `wizard.canFetchUrl`                            | P1       |
+| BE-03 | Wizard: generování pravidel ze schváleného předpisu přes Bedrock (tok už funguje, generátor je dummy, Bedrock extrakce existuje jen v CLI)       | kvalita návrhů pravidel                         | P1       |
+| BE-04 | Generování definice deterministického pravidla z popisu                                                                                          | `rules.canCreateDeterministicRule`              | P1       |
+| BE-05 | Úprava draftu pravidla, nebo rozhodnutí, že verze zůstanou neměnné                                                                               | `rules.canEditDraftContent`                     | P2       |
+| BE-06 | Seznam klientů pro návrhy ve whitelistu                                                                                                          | `rules.canSuggestWhitelistClients`              | P3       |
+| BE-07 | Souhrnný endpoint pro dashboard (volitelné)                                                                                                      | rychlejší dashboard                             | P3       |
+| BE-08 | Popis regulace                                                                                                                                   | text v detailu regulace                         | P2       |
+| BE-09 | Částka v CZK v seznamu transakcí běhu                                                                                                            | sloupec částky v CZK                            | P2       |
+| BE-10 | Právní základ v detailu transakce                                                                                                                | proklik pravidlo → paragraf                     | P2       |
+| BE-11 | Stavy verzí interního předpisu                                                                                                                   | správný stav předpisu                           | P2       |
+| BE-12 | Agregované endpointy s verzemi (N+1)                                                                                                             | rychlost seznamů                                | P2       |
+| BE-13 | Audit log                                                                                                                                        | nová sekce Audit log                            | P2       |
+| BE-14 | AML události                                                                                                                                     | nová sekce AML události                         | P3       |
+| BE-15 | Detail klienta                                                                                                                                   | nová obrazovka klienta                          | P3       |
+| BE-16 | Kontrola aktualizací regulací                                                                                                                    | tlačítko „Zkontrolovat aktualizace“             | P3       |
+| BE-17 | Prahy a konfigurace vyhodnocení z API                                                                                                            | prahy a kurzy bez demo hodnot                   | P3       |
+| BE-18 | Atomické založení regulace, znění a návrhů předpisů                                                                                              | opakování průvodce po chybě                     | P2       |
+| BE-19 | Návrhy pravidel po selhání generátoru při schválení předpisu                                                                                     | předpis nezůstane bez pravidel                  | P2       |
+| BE-20 | Vytvořená pravidla v odpovědi schválení předpisu                                                                                                 | počet návrhů bez porovnávání seznamů            | P3       |
+| BE-21 | Filtr `GET /rules?policyId=`                                                                                                                     | méně requestů v průvodci                        | P3       |
 
 ## BE-01: Nahrání CSV dávky, spuštění běhu a průběh
 
@@ -71,6 +71,7 @@ Odpověď `202 Accepted`: stejný tvar jako položka `GET /api/evaluation-runs` 
 Zbývá:
 
 - **Generátor:** `DummyDraftGenerator.draftPolicies` vrací dva zástupné předpisy (`[DUMMY]` v názvu, `ref: "neurčeno"`). Nahradit extrakcí povinností přes Bedrock z textu znění (TODO #1), s `ref` na konkrétní paragrafy (M3). Výstup je návrh AI, musí ho schválit člověk (compliance review).
+- **Stav (commit `77feb9f`):** `BedrockInternalPolicyDrafter` (`application/draftInternalPolicy.ts`, kontrola citací v `domain/policyDraftReview.ts`) už existuje, ale běží jen z CLI (`delivery/cli/demoPolicyDrafting.ts`). Zbývá ho zapojit do `DraftGenerator.draftPolicies` v `main.ts`. Bedrock vstup potřebuje navíc vzorový předpis (`examplePolicy`) a `firstRuleNumber`, backend je musí doplnit sám, web je neposílá. Pro web se tím nemění tvar API, odpověď `draft-policies` zůstává stejná.
 - **Načtení regulace z URL (P2):** backend regulaci z URL nenačítá. Web má v kroku Regulace záložku URL, kde uživatel zadá jen URL (bez kódu, názvu, druhu a označení znění). V live režimu je záložka vidět, ale ukáže upozornění a odeslat nejde (`canFetchUrl: false`). Mock metadata odvodí z URL sám. Backend má:
   1. stáhnout stránku nebo dokument z URL (jen `http`/`https`, limit velikosti, timeout, ochrana proti SSRF, tedy žádné interní a privátní adresy),
   2. vytáhnout z něj text znění,
@@ -98,6 +99,7 @@ Zbývá:
 Zbývá:
 
 - **Generátor:** `DummyDraftGenerator.draftRules` vrací dvě zástupná deterministická pravidla (částka nad 1 000 000 CZK, `[DUMMY]` v textu). Nahradit generováním přes Bedrock s JSON schématem z katalogu featur (M10), včetně agentních pravidel (`agentPrompt`, `agentModelId`, M13) a vnořených skupin podmínek (TODO #2). Neplatnou definici backend odmítne, ne web.
+- **Stav (commit `77feb9f`):** `BedrockRuleCandidateExtractor` (`application/extractRuleCandidates.ts`, `domain/ruleCandidate.ts`) vytahuje kandidáty pravidel z předpisu, zatím jen z CLI (`delivery/cli/demoRuleExtraction.ts`). Zbývá převod `RuleCandidate` na `RuleDraft` (definice podle katalogu featur) a zapojení do `DraftGenerator.draftRules`. Tvar API pro web se nemění.
 - Předpis bez právního základu dnes žádná pravidla nedostane (M5). Web to v kroku review oznámí.
 - Úprava draftu pravidla v kroku review potřebuje BE-05. Bez něj web tlačítko „Upravit“ skryje a zbude schválit nebo zamítnout.
 - Generování běží synchronně v requestu schválení. S Bedrockem to může trvat desítky sekund, zvážit asynchronní zpracování a stav generování.
