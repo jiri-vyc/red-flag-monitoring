@@ -6,3 +6,13 @@ export type ClientType = (typeof CLIENT_TYPES)[number];
 
 export const AML_RISK_SCORES = ["low", "medium", "high"] as const;
 export type AmlRiskScore = (typeof AML_RISK_SCORES)[number];
+
+export type Client = {
+  clientId: string;
+  country: string;
+  contractDate: string;
+  contractChannel: ContractChannel;
+  isPep: boolean;
+  clientType: ClientType;
+  amlRiskScore: AmlRiskScore;
+};
