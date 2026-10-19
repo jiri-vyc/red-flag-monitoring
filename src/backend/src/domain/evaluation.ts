@@ -40,9 +40,19 @@ export type EvaluatedCondition = {
   result: boolean;
 };
 
+export type EvaluatedConditionGroup = {
+  id: string;
+  label: string;
+  match: ConditionLogic;
+  conditions: EvaluatedConditionNode[];
+  result: boolean;
+};
+
+export type EvaluatedConditionNode = EvaluatedCondition | EvaluatedConditionGroup;
+
 export type DeterministicTrace = {
   logic: ConditionLogic;
-  conditions: EvaluatedCondition[];
+  conditions: EvaluatedConditionNode[];
   matched: boolean;
   summary: string;
 };

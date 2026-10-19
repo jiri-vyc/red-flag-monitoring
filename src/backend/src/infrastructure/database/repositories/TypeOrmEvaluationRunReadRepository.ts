@@ -326,6 +326,11 @@ function toClient(entity: ClientEntity): Client {
     contractChannel: entity.contractChannel,
     isPep: entity.isPep,
     clientType: entity.clientType,
+    projectedMonthlyVolumeCzk: entity.projectedMonthlyVolumeCzk,
+    projectedMonthlyTxCount: entity.projectedMonthlyTxCount,
+    q2VolumeCzk: entity.q2VolumeCzk,
+    q2TxCount: entity.q2TxCount,
+    q2MaxTxCzk: entity.q2MaxTxCzk,
     amlRiskScore: entity.amlRiskScore,
   };
 }

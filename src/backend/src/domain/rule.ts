@@ -1,6 +1,7 @@
 import { AML_RISK_SCORES, type AmlRiskScore } from "./client";
 import type { RuleLegalBasis } from "./regulation";
 import type { RuleDefinition } from "./ruleDefinition";
+import { findRuleDefinitionViolation } from "./ruleDefinitionValidation";
 import type { ReviewableVersion } from "./versionStatus";
 
 export const RULE_KINDS = ["deterministic", "agentic"] as const;
@@ -61,7 +62,7 @@ function findDeterministicLogicViolation(logic: RuleLogic): string | null {
     return "A deterministic rule version must not have an agent prompt or model";
   }
 
-  return null;
+  return findRuleDefinitionViolation(logic.definition);
 }
 
 function findAgenticLogicViolation(logic: RuleLogic): string | null {

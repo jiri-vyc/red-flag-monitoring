@@ -13,12 +13,12 @@ export function buildDeterministicVersion(
     derivedFromPolicyVersionId: null,
     definition: {
       match: "any",
-      features: ["amount_czk"],
+      features: ["tx_amount_czk"],
       conditions: [
         {
           id: "a",
           label: "Amount over 1M CZK",
-          left: { feature: "amount_czk" },
+          left: { feature: "tx_amount_czk" },
           op: ">",
           right: { value: 1_000_000 },
         },
