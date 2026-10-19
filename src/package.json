@@ -24,9 +24,9 @@
     "deploy:api": "../deploy/api.sh",
     "deploy:drafting-worker": "../deploy/drafting-worker.sh",
     "deploy:web": "../deploy/web.sh",
-    "demo:rule-extraction": "npm run demo:rule-extraction -w backend --",
     "demo:policy-drafting": "npm run demo:policy-drafting -w backend --",
-    "demo:hello-world": "npm run demo:hello-world -w backend"
+    "demo:hello-world": "npm run demo:hello-world -w backend",
+    "demo:rule-drafting": "npm run demo:rule-drafting -w backend --"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",

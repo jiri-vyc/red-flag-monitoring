@@ -11,7 +11,23 @@ describe("parseAppConfig", () => {
       engineVersion: "local",
       evaluationWorker: { mode: "in_process" },
       draftingWorker: { mode: "in_process" },
+      draftGenerator: { mode: "dummy" },
     });
+  });
+
+  it("drafts with Bedrock when DRAFT_GENERATOR=bedrock", () => {
+    expect(parseAppConfig({ DATABASE_URL, DRAFT_GENERATOR: "bedrock" }).draftGenerator).toEqual({
+      mode: "bedrock",
+      bedrock: {
+        region: "eu-central-1",
+        modelId: "eu.anthropic.claude-opus-4-5-20251101-v1:0",
+        apiKey: null,
+      },
+    });
+  });
+
+  it("rejects an unknown DRAFT_GENERATOR", () => {
+    expect(() => parseAppConfig({ DATABASE_URL, DRAFT_GENERATOR: "openai" })).toThrow(InvalidConfigError);
   });
 
   it("reads PORT from the environment", () => {

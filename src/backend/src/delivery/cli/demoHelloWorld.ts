@@ -1,8 +1,8 @@
 import { parseBedrockConfig } from "../../config";
-import { BedrockRuleCandidateExtractor } from "../../infrastructure/bedrock/BedrockRuleCandidateExtractor";
 import { createBedrockClient } from "../../infrastructure/bedrock/createBedrockClient";
+import { sayHelloWorld } from "../../infrastructure/bedrock/helloWorld";
 
-// Smoke test of Bedrock access: one tiny model call (a few dozen tokens), no regulation text.
+// Smoke test of Bedrock access: one tiny model call (a few dozen tokens), no database.
 async function runHelloWorld(): Promise<void> {
   const bedrockConfig = parseBedrockConfig(process.env);
   const apiKeySource = bedrockConfig.apiKey
@@ -12,9 +12,8 @@ async function runHelloWorld(): Promise<void> {
   console.log(`Model: ${bedrockConfig.modelId} (${bedrockConfig.region}), API key: ${apiKeySource}`);
 
   const client = await createBedrockClient(bedrockConfig);
-  const extractor = new BedrockRuleCandidateExtractor(client, bedrockConfig.modelId);
 
-  console.log(`Model says: ${await extractor.helloWorld()}`);
+  console.log(`Model says: ${await sayHelloWorld(client, bedrockConfig.modelId)}`);
 }
 
 runHelloWorld().catch((error: unknown) => {

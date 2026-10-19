@@ -26,12 +26,16 @@ export type AppConfig = {
   engineVersion: string;
   evaluationWorker: WorkerConfig;
   draftingWorker: WorkerConfig;
+  draftGenerator: DraftGeneratorConfig;
 };
 
 const LOCAL_ENGINE_VERSION = "local";
 
 // apiKey is null when no Bedrock API key is configured; a short-term key is then generated from AWS credentials.
 export type BedrockConfig = { region: string; modelId: string; apiKey: string | null };
+
+// Who writes the wizard drafts (#1, #2): a placeholder without an LLM, or Claude on Amazon Bedrock.
+export type DraftGeneratorConfig = { mode: "dummy" } | { mode: "bedrock"; bedrock: BedrockConfig };
 
 export class InvalidConfigError extends Error {}
 
@@ -50,7 +54,22 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
     engineVersion: environment.ENGINE_VERSION || LOCAL_ENGINE_VERSION,
     evaluationWorker: parseWorkerConfig(environment, "EVALUATION_WORKER_FUNCTION"),
     draftingWorker: parseWorkerConfig(environment, "DRAFTING_WORKER_FUNCTION"),
+    draftGenerator: parseDraftGeneratorConfig(environment),
   };
+}
+
+function parseDraftGeneratorConfig(environment: NodeJS.ProcessEnv): DraftGeneratorConfig {
+  const mode = environment.DRAFT_GENERATOR ?? "dummy";
+
+  if (mode === "dummy") {
+    return { mode };
+  }
+
+  if (mode === "bedrock") {
+    return { mode, bedrock: parseBedrockConfig(environment) };
+  }
+
+  throw new InvalidConfigError(`DRAFT_GENERATOR must be "dummy" or "bedrock", got "${mode}"`);
 }
 
 function parseWorkerConfig(environment: NodeJS.ProcessEnv, functionVariable: string): WorkerConfig {

@@ -1,5 +1,15 @@
-import type { PolicyDraftingRequest } from "../../application/draftInternalPolicy";
 import { AVAILABLE_DATA_FIELDS } from "./datasetFields";
+
+export type PolicyDraftingRequest = {
+  // sourceReference is how the draft cites the regulation in its header, e.g. a markdown link.
+  regulation: { title: string; sourceReference: string; body: string };
+  // The part of the regulation the policy implements, e.g. "Obecný pokyn č. 9"; null means the whole text.
+  scope: string | null;
+  // An existing policy the draft imitates in structure and tone.
+  examplePolicy: { title: string; body: string };
+  // Rule IDs continue the institution-wide numbering, so a draft never reuses an existing ID.
+  firstRuleNumber: number;
+};
 
 export const POLICY_DRAFTING_SYSTEM_PROMPT = `
 Jsi specialista na AML compliance a transakční monitoring v české finanční instituci.
