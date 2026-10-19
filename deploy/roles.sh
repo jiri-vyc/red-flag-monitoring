@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Usage: deploy/roles.sh
-# Creates or updates the least-privilege execution roles rfm-api-execution and rfm-web-execution.
+# Creates or updates the least-privilege execution roles rfm-api-execution and rfm-web-execution
+# and their log groups with 14-day retention.
 source "$(dirname "$0")/common.sh"
 
 cluster_resource_id="$(aws rds describe-db-clusters --db-cluster-identifier "$CLUSTER" \
@@ -72,5 +73,18 @@ ensure_role() {
   echo "role $(role_arn "$role_name") is up to date"
 }
 
+ensure_log_group() {
+  local log_group="/aws/lambda/web/$1"
+
+  if [ "$(aws logs describe-log-groups --log-group-name-prefix "$log_group" \
+    --query "length(logGroups[?logGroupName=='$log_group'])" --output text)" = 0 ]; then
+    aws logs create-log-group --log-group-name "$log_group" --tags project=red-flag-monitoring
+  fi
+
+  aws logs put-retention-policy --log-group-name "$log_group" --retention-in-days 14
+}
+
+ensure_log_group "$API_FUNCTION"
+ensure_log_group "$WEB_FUNCTION"
 ensure_role "$API_FUNCTION-execution" "$api_policy" "rfm-api Web Function: logs, Aurora IAM auth, Bedrock EU Anthropic"
 ensure_role "$WEB_FUNCTION-execution" "$web_policy" "rfm-web Web Function: logs only"

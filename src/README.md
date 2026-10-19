@@ -153,4 +153,4 @@ npm run deploy:web      # web bundle → rfm-web, reads the rfm-api endpoint for
 - Endpoints are public (`ApplicationManaged` auth) and the API has no authentication yet, so it only ever points at synthetic and organiser data.
 - Fallback: the `runtime` stage of `web/Dockerfile` is a plain container image for ECS Express.
 
-Endpoint URLs: `aws lambda-web get-web-function-endpoint --function-name rfm-web --endpoint-name dev --query domainName --output text` (same for `rfm-api`). Logs: CloudWatch log group `/aws/lambda/web/rfm-api` or `/aws/lambda/web/rfm-web`.
+Endpoint URLs: `aws lambda-web get-web-function-endpoint --function-name rfm-web --endpoint-name dev --query domainName --output text` (same for `rfm-api`). Logs: CloudWatch log groups `/aws/lambda/web/rfm-api` and `/aws/lambda/web/rfm-web` (created by `deploy:roles`, 14-day retention). As of 2026-10-19 no log streams arrive in them, although the policy simulator allows the roles to write there. Not solved yet.
