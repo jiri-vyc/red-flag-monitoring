@@ -62,14 +62,15 @@ Copy `.env.example` to `.env` in each package if you need to override defaults. 
 | Package | Variable                     | Default                 | Meaning                                                                                                 |
 | ------- | ---------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
 | backend | `PORT`                       | `4000`                  | API port                                                                                                |
+| backend | `AWS_LAMBDA_HTTP_ENDPOINT`   | (unset)                 | Set by Lambda Web Functions as `host:port`; overrides `PORT`                                            |
 | backend | `DATABASE_URL`               | required                | Postgres connection string; no password when `DATABASE_AUTH=iam`                                        |
 | backend | `DATABASE_AUTH`              | `password`              | `iam` for Aurora `database-1`: fresh IAM token per connection, TLS verified                             |
 | backend | `AWS_REGION`                 | none                    | Required with `DATABASE_AUTH=iam` (`eu-central-1`)                                                      |
-| web     | `BACKEND_URL`                | `http://localhost:4000` | Server-only. Backend base URL for the `/api/*` proxy                                                    |
+| web     | `BACKEND_URL`                | `http://localhost:4000` | Server-only. Backend base URL for the `/api/*` proxy; baked into the rewrite at build time              |
 | web     | `NEXT_PUBLIC_API_MODE`       | `mock`                  | Default data source for all feature services: `mock` or `live`                                          |
 | web     | `NEXT_PUBLIC_API_MODE_<SVC>` | (unset)                 | Per-service override, `<SVC>` is `REGULATIONS`, `POLICIES`, `RULES`, `BATCHES`, `WIZARD` or `DASHBOARD` |
 
-Web env is validated with Zod in `web/config/env.client.ts` (`NEXT_PUBLIC_*` only, inlined at build time) and `web/config/env.server.ts` (`server-only`). Future secrets (API keys) must never use the `NEXT_PUBLIC_` prefix; on Vercel set them under Project → Settings → Environment Variables.
+Web env is validated with Zod in `web/config/env.client.ts` (`NEXT_PUBLIC_*` only, inlined at build time) and `web/config/env.server.ts` (`server-only`). Future secrets (API keys) must never use the `NEXT_PUBLIC_` prefix; on AWS pass them to the Web Function with `--env` in `deploy/web.sh` (or keep them in Secrets Manager).
 
 AWS (Bedrock) access uses the standard AWS credential chain (profile / env). No credentials in code or `.env.example`.
 
@@ -136,5 +137,20 @@ component → features/<f>/api/hooks.ts → service.ts (resolveService) → live
 
 ## Deployment
 
-- Web: deploy `src/web` to Vercel (set Root Directory to `src/web`), set `BACKEND_URL` to the deployed API and `NEXT_PUBLIC_API_MODE` as needed. `NEXT_PUBLIC_*` values are inlined at build time, so redeploy after changing them.
-- Backend: long-running Node server; within the AWS stack (see root `AGENTS.md`), e.g. App Runner, ECS or Lambda behind API Gateway. `npm run build -w backend` then `node dist/main.js`. Needs `DATABASE_AUTH=iam`, `DATABASE_URL` without a password, `AWS_REGION` and an IAM role allowed `rds-db:connect`, plus `npm run migration:run -w backend` before each release.
+Both apps run as AWS Lambda Web Functions in `eu-central-1`, team account `526983806399`: `rfm-api` (Express) and `rfm-web` (Next.js standalone). Each gets a public HTTPS endpoint `dev`. The web proxies `/api/*` to the API endpoint. Scripts live in [`../deploy/`](../deploy) and need Docker, the AWS CLI with `lambda-web` and the `hackathon` SSO profile. They refuse to run against any other account or region.
+
+```bash
+cd src
+npm run deploy          # roles, then API, then web
+npm run deploy:roles    # rfm-api-execution, rfm-web-execution
+npm run deploy:api      # backend bundle → rfm-api
+npm run deploy:web      # web bundle → rfm-web, reads the rfm-api endpoint for BACKEND_URL
+```
+
+- Roles: least-privilege execution roles instead of the CLI's auto-created `awscli-lambdaweb-*`. Both may write their own log group `/aws/lambda/web/<name>`. The API role may also `rds-db:connect` as `postgres` on `database-1` and invoke Anthropic models through the `eu.anthropic.*` inference profiles only.
+- API bundle: `tsc` output plus a production-only `npm ci` in a `node:24` arm64 container. Env: `DATABASE_AUTH=iam`, `DATABASE_URL=postgres://postgres@<cluster endpoint>:5432/main` (`RFM_DATABASE=wip_<name> npm run deploy:api` for a work copy). The server listens before it touches the database; the DataSource initializes on the first request that needs it, because Web Functions require a listening server within 10 s and an Aurora resume takes ~15 s. Run `npm run migration:run` against `main` before deploying code that needs a new migration.
+- Web bundle: the `build` stage of `web/Dockerfile` for arm64, then `.next/standalone` plus static assets and `deploy/web/index.js`, which maps `AWS_LAMBDA_HTTP_ENDPOINT` to `HOSTNAME`/`PORT`. `BACKEND_URL` and `NEXT_PUBLIC_*` are baked in at build time, so redeploy the web after changing them or after the API endpoint changes. `NEXT_PUBLIC_API_MODE=live npm run deploy:web` switches the deployed UI to the real backend (default `mock`).
+- Endpoints are public (`ApplicationManaged` auth) and the API has no authentication yet, so it only ever points at synthetic and organiser data.
+- Fallback: the `runtime` stage of `web/Dockerfile` is a plain container image for ECS Express.
+
+Endpoint URLs: `aws lambda-web get-web-function-endpoint --function-name rfm-web --endpoint-name dev --query domainName --output text` (same for `rfm-api`). Logs: CloudWatch log group `/aws/lambda/web/rfm-api` or `/aws/lambda/web/rfm-web`.

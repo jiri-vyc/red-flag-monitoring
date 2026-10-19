@@ -1,3 +1,4 @@
 spec/audio/
 .venv/
 .DS_Store
+deploy/.build/

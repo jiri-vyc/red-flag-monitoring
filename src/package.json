@@ -18,7 +18,11 @@
     "migration:revert": "npm run migration:revert -w backend",
     "migration:show": "npm run migration:show -w backend",
     "migration:generate": "npm run migration:generate -w backend --",
-    "migration:create": "npm run migration:create -w backend --"
+    "migration:create": "npm run migration:create -w backend --",
+    "deploy": "../deploy/all.sh",
+    "deploy:roles": "../deploy/roles.sh",
+    "deploy:api": "../deploy/api.sh",
+    "deploy:web": "../deploy/web.sh"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",
