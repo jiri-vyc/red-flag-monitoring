@@ -1,21 +1,33 @@
-import { mapRuleProposalToDraft, type RuleProposal, type RuleProposalContext } from "./ruleProposal";
+import {
+  mapRuleProposalToDraft,
+  type RuleProposal,
+  type RuleProposalContext,
+  ruleProposalsJsonSchema,
+} from "./ruleProposal";
 
 const EBA_VERSION_ID = "11111111-1111-4111-8111-111111111111";
 const AMLZ_VERSION_ID = "22222222-2222-4222-8222-222222222222";
 
-const DEFINITION: NonNullable<RuleProposal["definition"]> = {
+type FlatDefinition = NonNullable<RuleProposal["definition"]>;
+
+const CONDITION: FlatDefinition["conditions"][number] = {
+  id: "a",
+  label: "Součet remitencí ≥ 375 000 CZK",
+  parentGroupId: "root",
+  left: { kind: "feature", value: "month_remittance_sum_czk" },
+  op: ">=",
+  right: { kind: "number", value: "375000" },
+};
+
+const DEFINITION: FlatDefinition = {
   match: "all",
   features: ["month_remittance_sum_czk"],
-  conditions: [
-    {
-      id: "a",
-      label: "Součet remitencí ≥ 375 000 CZK",
-      left: { feature: "month_remittance_sum_czk" },
-      op: ">=",
-      right: { value: 375000 },
-    },
-  ],
+  groups: [],
+  conditions: [CONDITION],
 };
+
+// Bedrock structured outputs reject schemas with more than 16 union-typed parameters (anyOf or type arrays).
+const BEDROCK_UNION_PARAMETER_LIMIT = 16;
 
 const PROPOSAL: RuleProposal = {
   code: "R-18",
@@ -50,7 +62,19 @@ describe("mapRuleProposalToDraft", () => {
       alertType: "high_remittance_sum",
       kind: "deterministic",
       isWhitelistAllowed: true,
-      definition: DEFINITION,
+      definition: {
+        match: "all",
+        features: ["month_remittance_sum_czk"],
+        conditions: [
+          {
+            id: "a",
+            label: "Součet remitencí ≥ 375 000 CZK",
+            left: { feature: "month_remittance_sum_czk" },
+            op: ">=",
+            right: { value: 375000 },
+          },
+        ],
+      },
       agentPrompt: null,
       agentModelId: null,
       baseScore: 70,
@@ -119,4 +143,39 @@ describe("mapRuleProposalToDraft", () => {
         "Otevřené otázky: [ROZHODNUTÍ] Ověřit, zda remitence nejsou hrazeny z účtu.",
     );
   });
+
+  it("falls back to an agentic rule when the flat definition cannot be built", () => {
+    const proposal: RuleProposal = {
+      ...PROPOSAL,
+      definition: { ...DEFINITION, conditions: [{ ...CONDITION, parentGroupId: "missing" }] },
+    };
+
+    const draft = mapRuleProposalToDraft(proposal, CONTEXT);
+
+    expect(draft).toMatchObject({ kind: "agentic", definition: null });
+    expect(draft.thresholdRationale).toContain("unknown group missing");
+  });
 });
+
+describe("ruleProposalsJsonSchema", () => {
+  it("stays within the Bedrock limit for union-typed parameters", () => {
+    expect(countUnionParameters(ruleProposalsJsonSchema)).toBeLessThanOrEqual(BEDROCK_UNION_PARAMETER_LIMIT);
+  });
+});
+
+function countUnionParameters(schema: unknown): number {
+  if (Array.isArray(schema)) {
+    return schema.reduce((count: number, item) => count + countUnionParameters(item), 0);
+  }
+
+  if (typeof schema !== "object" || schema === null) {
+    return 0;
+  }
+
+  const ownUnions = ("anyOf" in schema ? 1 : 0) + ("type" in schema && Array.isArray(schema.type) ? 1 : 0);
+
+  return Object.values(schema).reduce(
+    (count: number, value) => count + countUnionParameters(value),
+    ownUnions,
+  );
+}

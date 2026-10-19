@@ -9,47 +9,11 @@ import {
   RULE_KINDS,
   type RuleLogic,
 } from "../../domain/rule";
-import { COMPARISON_OPERATORS, CONDITION_LOGICS } from "../../domain/ruleDefinition";
 import { calculateBaseScore } from "../../domain/rulePriority";
+import { buildRuleDefinition, flatRuleDefinitionSchema } from "./flatRuleDefinition";
 import { MalformedModelResponseError } from "./modelResponse";
 
 const RULE_PARAMETER_SOURCES = ["regulation", "calibration"] as const;
-
-const operandSchema = z.union([
-  z.strictObject({ feature: z.string() }),
-  z.strictObject({ expr: z.string() }),
-  z.strictObject({ list: z.string() }),
-  z.strictObject({ value: z.union([z.number(), z.string(), z.boolean()]) }),
-]);
-
-const conditionSchema = z.strictObject({
-  id: z.string(),
-  label: z.string(),
-  left: operandSchema,
-  op: z.enum(COMPARISON_OPERATORS),
-  right: operandSchema,
-});
-
-// Groups nest at most three levels deep, as in the sample rules ("higher risk" inside a group inside a group).
-// Spelling the levels out keeps the structured-output schema non-recursive.
-function createConditionGroupSchema<Node extends z.ZodType>(nodeSchema: Node) {
-  return z.strictObject({
-    id: z.string(),
-    label: z.string(),
-    match: z.enum(CONDITION_LOGICS),
-    conditions: z.array(nodeSchema),
-  });
-}
-
-const innerGroupSchema = createConditionGroupSchema(conditionSchema);
-const middleGroupSchema = createConditionGroupSchema(z.union([conditionSchema, innerGroupSchema]));
-const outerGroupSchema = createConditionGroupSchema(z.union([conditionSchema, middleGroupSchema]));
-
-const ruleDefinitionSchema = z.strictObject({
-  match: z.enum(CONDITION_LOGICS),
-  features: z.array(z.string()),
-  conditions: z.array(z.union([conditionSchema, outerGroupSchema])),
-});
 
 const ruleProposalSchema = z.strictObject({
   code: z.string(),
@@ -58,7 +22,7 @@ const ruleProposalSchema = z.strictObject({
   kind: z.enum(RULE_KINDS),
   isWhitelistAllowed: z.boolean(),
   humanText: z.string(),
-  definition: ruleDefinitionSchema.nullable(),
+  definition: flatRuleDefinitionSchema.nullable(),
   agentPrompt: z.string().nullable(),
   priorityBase: z.number(),
   parameters: z.array(
@@ -107,17 +71,18 @@ export type RuleProposalContext = {
 };
 
 export function mapRuleProposalToDraft(proposal: RuleProposal, context: RuleProposalContext): RuleDraft {
-  const proposedLogic = createProposedLogic(proposal, context.agentModelId);
-  const logicViolation = findRuleLogicViolation(proposal.kind, proposedLogic);
+  const deterministicLogic = proposal.kind === "deterministic" ? createDeterministicLogic(proposal) : null;
+  const logicViolation =
+    deterministicLogic && "violation" in deterministicLogic ? deterministicLogic.violation : null;
   // A definition the engine cannot run is kept as an agentic rule, so the reviewer still sees the proposal.
-  const logic = logicViolation ? createAgenticLogic(proposal, context.agentModelId) : proposedLogic;
+  const isDeterministic = deterministicLogic !== null && "logic" in deterministicLogic;
 
   return {
     code: createUniqueCode(proposal.code, context),
     alertType: proposal.alertType,
-    kind: logicViolation ? "agentic" : proposal.kind,
+    kind: isDeterministic ? "deterministic" : "agentic",
     isWhitelistAllowed: proposal.isWhitelistAllowed,
-    ...logic,
+    ...(isDeterministic ? deterministicLogic.logic : createAgenticLogic(proposal, context.agentModelId)),
     humanText: `${proposal.title}. ${proposal.humanText}`,
     thresholdRationale: createThresholdRationale(proposal, logicViolation),
     sensitivity: DEFAULT_SENSITIVITY,
@@ -126,17 +91,26 @@ export function mapRuleProposalToDraft(proposal: RuleProposal, context: RuleProp
   };
 }
 
-function createProposedLogic(proposal: RuleProposal, agentModelId: string): RuleLogic {
-  if (proposal.kind === "agentic") {
-    return createAgenticLogic(proposal, agentModelId);
+function createDeterministicLogic(proposal: RuleProposal): { logic: RuleLogic } | { violation: string } {
+  if (proposal.definition === null) {
+    return { violation: "A deterministic rule needs a definition" };
   }
 
-  return {
-    definition: proposal.definition,
+  const buildResult = buildRuleDefinition(proposal.definition);
+
+  if ("violation" in buildResult) {
+    return buildResult;
+  }
+
+  const logic: RuleLogic = {
+    definition: buildResult.definition,
     agentPrompt: null,
     agentModelId: null,
     baseScore: calculateBaseScore(proposal.priorityBase),
   };
+  const violation = findRuleLogicViolation("deterministic", logic);
+
+  return violation ? { violation } : { logic };
 }
 
 function createAgenticLogic(proposal: RuleProposal, agentModelId: string): RuleLogic {

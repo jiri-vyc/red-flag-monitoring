@@ -20,41 +20,39 @@ const EXAMPLE_RULE = JSON.stringify(
     definition: {
       match: "all",
       features: ["tx_amount_czk", "tx_payer_country", "tx_payee_country", "client_country"],
+      groups: [{ id: "b", label: "Plátce, příjemce nebo klient z HRJ", parentGroupId: "root", match: "any" }],
       conditions: [
         {
           id: "a",
           label: "Částka > 10 000 CZK",
-          left: { feature: "tx_amount_czk" },
+          parentGroupId: "root",
+          left: { kind: "feature", value: "tx_amount_czk" },
           op: ">",
-          right: { value: 10000 },
+          right: { kind: "number", value: "10000" },
         },
         {
-          id: "b",
-          label: "Plátce, příjemce nebo klient z HRJ",
-          match: "any",
-          conditions: [
-            {
-              id: "b1",
-              label: "Země plátce je v HRJ",
-              left: { feature: "tx_payer_country" },
-              op: "in",
-              right: { list: "HRJ" },
-            },
-            {
-              id: "b2",
-              label: "Země příjemce je v HRJ",
-              left: { feature: "tx_payee_country" },
-              op: "in",
-              right: { list: "HRJ" },
-            },
-            {
-              id: "b3",
-              label: "Země klienta je v HRJ",
-              left: { feature: "client_country" },
-              op: "in",
-              right: { list: "HRJ" },
-            },
-          ],
+          id: "b1",
+          label: "Země plátce je v HRJ",
+          parentGroupId: "b",
+          left: { kind: "feature", value: "tx_payer_country" },
+          op: "in",
+          right: { kind: "list", value: "HRJ" },
+        },
+        {
+          id: "b2",
+          label: "Země příjemce je v HRJ",
+          parentGroupId: "b",
+          left: { kind: "feature", value: "tx_payee_country" },
+          op: "in",
+          right: { kind: "list", value: "HRJ" },
+        },
+        {
+          id: "b3",
+          label: "Země klienta je v HRJ",
+          parentGroupId: "b",
+          left: { kind: "feature", value: "client_country" },
+          op: "in",
+          right: { kind: "list", value: "HRJ" },
         },
       ],
     },
@@ -93,10 +91,17 @@ Pole:
 - definition: u "deterministic" podmínky v DSL, u "agentic" null.
   - match: "all" (všechny podmínky) nebo "any" (aspoň jedna).
   - features: seznam všech feature ID, které podmínky používají.
-  - conditions: podmínka {id, label, left, op, right}, nebo skupina {id, label, match, conditions} s podmínkami uvnitř. Skupiny lze vnořit nejvýš do tří úrovní.
-  - Operand je jeden z: {"feature": "<feature ID>"}, {"expr": "<číslo> × <feature ID>"}, {"list": "<kód referenčního seznamu>"}, {"value": číslo | text | true/false}.
-  - op: >, >=, <, <=, =, !=, in, not_in. Operátory in a not_in mají vpravo vždy {"list": …} a jen ony.
-  - Klienta s vyšším rizikem vyjádři skupinou s match "any": \`client_risk_score\` = "high" nebo \`client_is_pep\` = true.
+  - groups: skupiny podmínek {id, label, parentGroupId, match}. conditions: podmínky {id, label, parentGroupId, left, op, right}.
+  - parentGroupId je id skupiny, do které uzel patří, nebo "root" pro nejvyšší úroveň. Skupiny lze libovolně vnořovat. Každá skupina musí obsahovat aspoň jeden uzel. Všechna id jsou unikátní.
+  - Operand je {kind, value}, value je vždy text:
+    - kind "feature": value je feature ID z katalogu;
+    - kind "expr": value ve tvaru "<číslo> × <feature ID>", např. "2 × client_q2_max_tx_czk";
+    - kind "list": value je kód referenčního seznamu;
+    - kind "number": value je číslo bez mezer, desetinná tečka, např. "187500" nebo "0.8";
+    - kind "text": value je textová hodnota, např. "high" nebo "remittance";
+    - kind "boolean": value je "true" nebo "false".
+  - op: >, >=, <, <=, =, !=, in, not_in. Operátory in a not_in mají vpravo vždy kind "list" a jen ony.
+  - Klienta s vyšším rizikem vyjádři skupinou s match "any" a podmínkami \`client_risk_score\` = "high" (kind "text") nebo \`client_is_pep\` = "true" (kind "boolean").
   - Používej jen feature ID z katalogu níže a jen kódy referenčních seznamů ze zadání. Částky jsou v CZK.
   - Pokud pravidlo katalogem features vyjádřit nejde, použij kind "agentic" a do openQuestions napiš, jaká feature chybí.
 - agentPrompt: u "agentic" česká instrukce pro hodnoticího agenta: co v transakci a historii klienta posoudit a kdy jde o zásah. U "deterministic" null.
