@@ -1,0 +1,13 @@
+.subtitle {
+  color: var(--color-text-muted);
+}
+
+.reason {
+  min-width: 16rem;
+  white-space: pre-wrap;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}

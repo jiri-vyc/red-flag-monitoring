@@ -1,0 +1,23 @@
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-4) var(--space-6);
+  margin: 0;
+}
+
+.item {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.item dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.item dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,318 @@
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr));
+  gap: var(--space-6);
+}
+
+.ruleList {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.ruleCard {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition:
+    box-shadow var(--transition-medium),
+    border-color var(--transition-medium);
+}
+
+.ruleCard:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-card);
+}
+
+.ruleHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Adjusted score as a compact numeric tile: severity is carried by the number, not by a decorative stripe. */
+.scoreTile {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  width: 5.25rem;
+  height: 5.25rem;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreTile strong {
+  font-size: var(--font-size-2xl);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.scoreTile small {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-xs);
+  opacity: 0.75;
+}
+
+.scoreTileLow {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.scoreTileMedium {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.scoreTileHigh {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.ruleTitle {
+  display: grid;
+  flex: 1;
+  min-width: 16rem;
+  gap: var(--space-2);
+}
+
+.ruleMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.ruleBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 22rem);
+  gap: var(--space-8);
+}
+
+@media (max-width: 900px) {
+  .ruleBody {
+    grid-template-columns: 1fr;
+  }
+}
+
+.scorePanel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.sensitivityStep {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.sensitivityStep strong {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ruleLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--hit-target);
+  padding: 0 var(--space-4);
+  border: 1px solid rgb(37 99 235 / 0.3);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+}
+
+.ruleLink svg {
+  width: 1em;
+  height: 1em;
+}
+
+.traceTitle {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+}
+
+.trace {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trace::before {
+  content: "";
+  position: absolute;
+  left: 0.95rem;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 2px;
+  background: var(--color-border);
+}
+
+.trace li {
+  position: relative;
+  display: flex;
+  gap: var(--space-3);
+  animation: trace-in 400ms ease both;
+}
+
+.trace li:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.trace li:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+.trace li:nth-child(n + 4) {
+  animation-delay: 240ms;
+}
+
+.traceIcon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border-strong);
+}
+
+.traceIcon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.traceMet .traceIcon {
+  border-color: rgb(220 38 38 / 0.35);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.traceNotMet .traceIcon {
+  color: var(--color-text-muted);
+}
+
+.traceText {
+  display: grid;
+}
+
+.traceText small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.traceNotMet .traceText strong {
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.ruleRowList {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ruleRowList > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.passedRule summary,
+.skippedRule {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--hit-target);
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.passedRule summary {
+  list-style: none;
+}
+
+.passedRule summary::-webkit-details-marker {
+  display: none;
+}
+
+.passedRule summary:hover,
+.skippedRule:hover {
+  background: var(--color-surface-muted);
+  text-decoration: none;
+}
+
+.disclosureIcon {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.passedRule[open] .disclosureIcon {
+  transform: rotate(90deg);
+}
+
+.passedRuleName {
+  display: grid;
+  flex: 1;
+}
+
+.passedRuleName strong {
+  font-weight: 600;
+}
+
+.passedRuleName small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.inlineRuleLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.inlineRuleLink svg,
+.skippedRule > svg {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.passedRuleTrace {
+  padding: var(--space-2) var(--space-2) var(--space-4) var(--space-8);
+}
+
+@keyframes trace-in {
+  from {
+    opacity: 0;
+    transform: translateX(-0.5rem);
+  }
+}

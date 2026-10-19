@@ -16,7 +16,7 @@ Dependencies point inward: `delivery` → `application` → `domain`. `infrastru
 ## Web (`web/`)
 
 - Server components by default; add `"use client"` only for interactivity.
-- Browser code calls the backend via relative `/api/...` (proxied by `next.config.ts`). Server code uses `backendUrl` from `lib/config.ts`.
+- Browser code calls the backend via relative `/api/...` (proxied by `next.config.ts`). Server code reads `serverEnv` from `config/env.server.ts`.
 - Styling: CSS Modules + custom properties from `app/globals.css`. No Tailwind, no UI libraries.
 
 ## Checks before commit

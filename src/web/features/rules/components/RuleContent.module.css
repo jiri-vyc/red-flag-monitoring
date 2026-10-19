@@ -1,0 +1,58 @@
+.sideBySide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  gap: var(--space-4);
+}
+
+.panelTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+}
+
+.panelTitle svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.codePanel,
+.explanationPanel,
+.agentic {
+  min-width: 0;
+}
+
+.code {
+  margin: 0;
+  padding: var(--space-4);
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  background: var(--color-code-background);
+  color: var(--color-code-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.explanation,
+.ruleText {
+  height: calc(100% - 2.2rem);
+  padding: var(--space-4);
+  border: 1px solid var(--color-ai-border);
+  border-radius: var(--radius-md);
+  background: var(--color-ai-soft);
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+}
+
+.editor {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.editorActions {
+  display: flex;
+  gap: var(--space-2);
+}

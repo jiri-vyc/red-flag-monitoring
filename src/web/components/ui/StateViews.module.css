@@ -1,0 +1,42 @@
+.state {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-10) var(--space-6);
+  text-align: center;
+  color: var(--color-text-muted);
+  animation: fade-in 300ms ease both;
+}
+
+.error {
+  border: 1px solid rgb(220 38 38 / 0.25);
+  border-radius: var(--radius-lg);
+  background: var(--color-danger-soft);
+  color: var(--color-text);
+}
+
+.icon {
+  width: 3rem;
+  height: 3rem;
+  color: var(--color-text-muted);
+}
+
+.error .icon {
+  color: var(--color-danger);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+}
+
+.detail {
+  max-width: 48rem;
+  font-size: var(--font-size-md);
+  word-break: break-word;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}

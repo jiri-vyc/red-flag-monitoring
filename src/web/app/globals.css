@@ -1,42 +1,74 @@
 :root {
-  --color-background: #f7f8fa;
+  --color-background: #f7f9fc;
   --color-surface: #ffffff;
-  --color-text: #15181e;
-  --color-text-muted: #5b6270;
-  --color-border: #dde1e7;
-  --color-success: #1a7f4b;
-  --color-danger: #b42318;
+  --color-surface-muted: #f1f4f9;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-soft: #eff4ff;
+  --color-success: #16a34a;
+  --color-success-soft: #ecfdf3;
+  --color-warning: #d97706;
+  --color-warning-soft: #fff7e6;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-ai: #4f46e5;
+  --color-ai-soft: #eef0ff;
+  --color-ai-border: #c7cbfa;
+  --color-code-background: #0f172a;
+  --color-code-text: #e2e8f0;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
 
-  --radius-card: 12px;
+  --font-size-xs: 0.8rem;
+  --font-size-sm: 0.9rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.2rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --font-size-3xl: 2.75rem;
+
+  --radius-sm: 0.4rem;
+  --radius-md: 0.65rem;
+  --radius-lg: 1rem;
   --radius-pill: 999px;
-  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.06), 0 4px 16px rgb(0 0 0 / 0.04);
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 0.25rem 1rem rgb(15 23 42 / 0.05);
+  --shadow-raised: 0 0.5rem 1.75rem rgb(15 23 42 / 0.1);
+  --focus-ring: 0 0 0 0.2rem rgb(37 99 235 / 0.35);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #0f1115;
-    --color-surface: #181b21;
-    --color-text: #eef0f3;
-    --color-text-muted: #a0a7b4;
-    --color-border: #2a2f38;
-    --color-success: #4ade80;
-    --color-danger: #f87171;
-  }
+  --sidebar-width: 17rem;
+  --content-max-width: 110rem;
+  --hit-target: 2.75rem;
+
+  --transition-fast: 150ms ease;
+  --transition-medium: 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* Fluid root size: everything is in rem, so the whole UI scales up on large projector screens. */
+html {
+  font-size: clamp(16px, 0.5vw + 9px, 26px);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -46,4 +78,130 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--font-size-2xl);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: var(--font-size-xl);
+  line-height: 1.25;
+}
+
+h3 {
+  font-size: var(--font-size-lg);
+  line-height: 1.3;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 0.15rem solid var(--color-primary);
+  outline-offset: 0.15rem;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Shared entrance animations, applied via className. */
+.rf-fade-in {
+  animation: rf-fade-in 400ms ease both;
+}
+
+.rf-slide-up {
+  animation: rf-slide-up 450ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.rf-stagger > * {
+  animation: rf-slide-up 450ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.rf-stagger > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.rf-stagger > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.rf-stagger > *:nth-child(4) {
+  animation-delay: 180ms;
+}
+
+.rf-stagger > *:nth-child(n + 5) {
+  animation-delay: 240ms;
+}
+
+@keyframes rf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rf-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

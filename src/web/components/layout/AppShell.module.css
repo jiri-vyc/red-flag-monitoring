@@ -1,0 +1,18 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-8) clamp(var(--space-6), 3vw, var(--space-12));
+}
+
+.content {
+  display: grid;
+  gap: var(--space-8);
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}

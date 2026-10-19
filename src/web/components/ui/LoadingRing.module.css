@@ -1,0 +1,70 @@
+.container {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-5);
+  min-height: 22rem;
+  width: 100%;
+  animation: fade-in 300ms ease both;
+}
+
+.ring {
+  position: relative;
+  width: 7rem;
+  height: 7rem;
+}
+
+.track,
+.arc,
+.core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.track {
+  border: 0.55rem solid var(--color-primary-soft);
+}
+
+.arc {
+  border: 0.55rem solid transparent;
+  border-top-color: var(--color-primary);
+  border-right-color: var(--color-ai);
+  animation: spin 1s cubic-bezier(0.5, 0.15, 0.5, 0.85) infinite;
+}
+
+.core {
+  inset: 2.1rem;
+  background: radial-gradient(circle, var(--color-primary) 0%, var(--color-ai) 100%);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}

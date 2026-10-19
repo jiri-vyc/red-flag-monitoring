@@ -1,0 +1,63 @@
+.form {
+  display: grid;
+  gap: var(--space-6);
+  max-width: 70rem;
+}
+
+.legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+  font-weight: 600;
+}
+
+.typeChoice {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.typeChoice .legend {
+  grid-column: 1 / -1;
+}
+
+.typeOption {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.typeOption input {
+  margin-top: 0.3rem;
+  accent-color: var(--color-primary);
+}
+
+.typeOption svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.typeOption span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.typeOption small {
+  color: var(--color-text-muted);
+}
+
+.typeOptionSelected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}

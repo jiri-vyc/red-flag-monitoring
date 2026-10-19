@@ -1,0 +1,174 @@
+.headerMeta {
+  color: var(--color-text-muted);
+}
+
+.progressPanel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-10);
+  border: 1px solid var(--color-ai-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--color-surface), var(--color-ai-soft));
+  box-shadow: var(--shadow-raised);
+  flex-wrap: wrap;
+}
+
+.progressText {
+  display: grid;
+  gap: var(--space-4);
+  flex: 1;
+  min-width: 20rem;
+}
+
+.progressText h2 {
+  font-size: var(--font-size-2xl);
+}
+
+.progressCount {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+}
+
+.progressTotal {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xl);
+  font-weight: 500;
+}
+
+.progressMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+}
+
+.progressMeta svg {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.bucketCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-5);
+}
+
+.bucketCard {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-8);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition:
+    transform var(--transition-medium),
+    box-shadow var(--transition-medium),
+    border-color var(--transition-medium);
+}
+
+.bucketCard:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-raised);
+  text-decoration: none;
+}
+
+.bucketIcon {
+  width: 2.2rem;
+  height: 2.2rem;
+}
+
+.bucketCount {
+  font-size: calc(var(--font-size-3xl) * 1.4);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.bucketLabel {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ok .bucketIcon,
+.ok .bucketLabel {
+  color: var(--color-success);
+}
+
+.to_check .bucketIcon,
+.to_check .bucketLabel {
+  color: var(--color-warning);
+}
+
+.alert .bucketIcon,
+.alert .bucketLabel {
+  color: var(--color-danger);
+}
+
+.ok.bucketCardSelected {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.to_check.bucketCardSelected {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.alert.bucketCardSelected {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.bucketHint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  text-align: center;
+}
+
+.transactionList {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.listFooter {
+  display: flex;
+  justify-content: center;
+  min-height: var(--hit-target);
+}
+
+.failedCount {
+  color: var(--color-danger);
+}
+
+.rowChevron {
+  width: 1.3rem;
+  height: 1.3rem;
+  color: var(--color-primary);
+}
+
+/* The transaction link stretches over the whole row, so the row is clickable while staying a real link. */
+.clickableRow {
+  position: relative;
+  cursor: pointer;
+}
+
+.rowLink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.rowLink:focus-visible {
+  outline: none;
+}
+
+.clickableRow:has(.rowLink:focus-visible) {
+  box-shadow: inset var(--focus-ring);
+}

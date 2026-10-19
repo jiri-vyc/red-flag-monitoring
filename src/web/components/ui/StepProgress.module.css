@@ -1,0 +1,76 @@
+.steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+  transition: color var(--transition-medium);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border-strong);
+  background: var(--color-surface);
+  transition:
+    background-color var(--transition-medium),
+    border-color var(--transition-medium);
+}
+
+.icon svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.done {
+  color: var(--color-text);
+}
+
+.done .icon {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: #fff;
+  animation: pop 300ms ease;
+}
+
+.active {
+  color: var(--color-ai);
+  font-weight: 600;
+}
+
+.active .icon {
+  border-color: var(--color-ai);
+  color: var(--color-ai);
+}
+
+.active .icon svg {
+  animation: spin 900ms linear infinite;
+}
+
+.pending .icon svg {
+  width: 0.6rem;
+  height: 0.6rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+  }
+}
