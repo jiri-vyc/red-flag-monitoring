@@ -6,6 +6,7 @@ import type { ReferenceListUseCases } from "../../application/referenceLists/ref
 import type { RegulationUseCases } from "../../application/regulations/regulationUseCases";
 import type { RuleUseCases } from "../../application/rules/ruleUseCases";
 import type { WhitelistUseCases } from "../../application/whitelist/whitelistUseCases";
+import type { EnsureDatabaseReady } from "../../infrastructure/database/memoizeInitialization";
 import { errorHandler, notFoundHandler } from "./errorHandler";
 import { createEvaluationRunsRouter } from "./evaluationRunsRouter";
 import { createHealthRouter } from "./healthRouter";
@@ -26,11 +27,15 @@ export type AppUseCases = {
   evaluationRuns: EvaluationRunQueries;
 };
 
-export function createApp(useCases: AppUseCases): Express {
+export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureDatabaseReady): Express {
   const app = express();
 
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
   app.use("/api/health", createHealthRouter());
+  app.use(async (_request, _response, next) => {
+    await ensureDatabaseReady();
+    next();
+  });
   app.use("/api/regulations", createRegulationsRouter(useCases.regulations));
   app.use("/api/internal-policies", createInternalPoliciesRouter(useCases.internalPolicies));
   app.use("/api/rules", createRulesRouter(useCases.rules, useCases.whitelist));

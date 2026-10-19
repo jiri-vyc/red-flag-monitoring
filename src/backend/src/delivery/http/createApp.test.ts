@@ -7,7 +7,9 @@ import { type AppUseCases, createApp } from "./createApp";
 
 const RULE_ID = "6f1c2f9e-4a8b-4c1d-9e2f-0a1b2c3d4e5f";
 
-function createTestApp() {
+const databaseReady = async () => undefined;
+
+function createTestApp(ensureDatabaseReady = databaseReady) {
   const ruleRepository = new InMemoryRuleRepository();
   ruleRepository.rules.set(RULE_ID, {
     id: RULE_ID,
@@ -23,7 +25,7 @@ function createTestApp() {
   // Only the rules routes are exercised here; the other use cases are never called.
   const useCases = { rules: new RuleUseCases(ruleRepository, fixedClock) } as AppUseCases;
 
-  return createApp(useCases);
+  return createApp(useCases, ensureDatabaseReady);
 }
 
 describe("HTTP app", () => {
@@ -32,6 +34,22 @@ describe("HTTP app", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: "ok" });
+  });
+
+  it("reports health without waiting for the database", async () => {
+    const response = await request(createTestApp(() => new Promise(() => {}))).get("/api/health");
+
+    expect(response.status).toBe(200);
+  });
+
+  it("returns 500 when the database cannot be initialized", async () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+    const failingDatabase = () => Promise.reject(new Error("Aurora unavailable"));
+
+    const response = await request(createTestApp(failingDatabase)).get(`/api/rules/${RULE_ID}`);
+    consoleError.mockRestore();
+
+    expect(response.status).toBe(500);
   });
 
   it("returns 404 for unknown routes", async () => {

@@ -12,6 +12,7 @@ import { WhitelistUseCases } from "./application/whitelist/whitelistUseCases";
 import { parseAppConfig } from "./config";
 import { type AppUseCases, createApp } from "./delivery/http/createApp";
 import { createDataSource } from "./infrastructure/database/createDataSource";
+import { memoizeInitialization } from "./infrastructure/database/memoizeInitialization";
 import { TypeOrmEvaluationRunReadRepository } from "./infrastructure/database/repositories/TypeOrmEvaluationRunReadRepository";
 import { TypeOrmInternalPolicyRepository } from "./infrastructure/database/repositories/TypeOrmInternalPolicyRepository";
 import { TypeOrmReferenceListRepository } from "./infrastructure/database/repositories/TypeOrmReferenceListRepository";
@@ -19,16 +20,23 @@ import { TypeOrmRegulationRepository } from "./infrastructure/database/repositor
 import { TypeOrmRuleRepository } from "./infrastructure/database/repositories/TypeOrmRuleRepository";
 import { TypeOrmWhitelistRepository } from "./infrastructure/database/repositories/TypeOrmWhitelistRepository";
 
-async function startServer(): Promise<void> {
+// Lambda Web Functions kill the environment unless it listens within 10 s; an Aurora resume takes ~15 s.
+function startServer(): void {
   const appConfig = parseAppConfig(process.env);
   const dataSource = createDataSource(appConfig.database);
+  const ensureDatabaseReady = memoizeInitialization(dataSource);
+  const app = createApp(createUseCases(dataSource), ensureDatabaseReady);
 
-  await dataSource.initialize();
+  app.listen({ host: appConfig.host, port: appConfig.port }, (error?: Error) => {
+    if (error) {
+      console.error("Backend failed to start", error);
+      process.exit(1);
+    }
 
-  const app = createApp(createUseCases(dataSource));
-
-  app.listen(appConfig.port, () => {
-    console.log(`Backend listening on http://localhost:${appConfig.port}`);
+    console.log(`Backend listening on ${appConfig.host ?? "localhost"}:${appConfig.port}`);
+    ensureDatabaseReady().catch((initializationError: unknown) => {
+      console.error("Database initialization failed, retrying on the next request", initializationError);
+    });
   });
 }
 
@@ -48,7 +56,4 @@ function createUseCases(dataSource: DataSource): AppUseCases {
   };
 }
 
-startServer().catch((error: unknown) => {
-  console.error("Backend failed to start", error);
-  process.exit(1);
-});
+startServer();

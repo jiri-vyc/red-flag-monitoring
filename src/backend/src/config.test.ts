@@ -19,6 +19,18 @@ describe("parseAppConfig", () => {
     expect(() => parseAppConfig({ PORT: "abc", DATABASE_URL })).toThrow(InvalidConfigError);
   });
 
+  it("listens on AWS_LAMBDA_HTTP_ENDPOINT instead of PORT", () => {
+    const environment = { AWS_LAMBDA_HTTP_ENDPOINT: "127.0.0.1:3000", PORT: "5000", DATABASE_URL };
+
+    expect(parseAppConfig(environment)).toMatchObject({ host: "127.0.0.1", port: 3000 });
+  });
+
+  it("rejects an AWS_LAMBDA_HTTP_ENDPOINT without a host", () => {
+    expect(() => parseAppConfig({ AWS_LAMBDA_HTTP_ENDPOINT: "3000", DATABASE_URL })).toThrow(
+      InvalidConfigError,
+    );
+  });
+
   it("requires DATABASE_URL", () => {
     expect(() => parseAppConfig({})).toThrow(InvalidConfigError);
   });

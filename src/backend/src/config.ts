@@ -12,22 +12,41 @@ export type IamDatabaseConfig = {
 };
 export type DatabaseConfig = PasswordDatabaseConfig | IamDatabaseConfig;
 
-export type AppConfig = { port: number; database: DatabaseConfig };
+export type AppConfig = { host?: string; port: number; database: DatabaseConfig };
 
 export class InvalidConfigError extends Error {}
 
 export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
   return {
-    port: parsePort(environment.PORT),
+    ...parseListenAddress(environment),
     database: parseDatabaseConfig(environment),
   };
 }
 
-function parsePort(rawPort: string | undefined): number {
+function parseListenAddress(environment: NodeJS.ProcessEnv): { host?: string; port: number } {
+  const lambdaEndpoint = environment.AWS_LAMBDA_HTTP_ENDPOINT;
+
+  if (lambdaEndpoint === undefined) {
+    return { port: parsePort("PORT", environment.PORT) };
+  }
+
+  const separatorIndex = lambdaEndpoint.lastIndexOf(":");
+
+  if (separatorIndex <= 0) {
+    throw new InvalidConfigError(`AWS_LAMBDA_HTTP_ENDPOINT must be host:port, got "${lambdaEndpoint}"`);
+  }
+
+  return {
+    host: lambdaEndpoint.slice(0, separatorIndex),
+    port: parsePort("AWS_LAMBDA_HTTP_ENDPOINT port", lambdaEndpoint.slice(separatorIndex + 1)),
+  };
+}
+
+function parsePort(name: string, rawPort: string | undefined): number {
   const port = rawPort === undefined ? DEFAULT_PORT : Number(rawPort);
 
   if (!Number.isInteger(port) || port <= 0) {
-    throw new InvalidConfigError(`PORT must be a positive integer, got "${rawPort}"`);
+    throw new InvalidConfigError(`${name} must be a positive integer, got "${rawPort}"`);
   }
 
   return port;
