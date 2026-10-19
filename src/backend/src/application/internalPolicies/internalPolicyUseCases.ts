@@ -1,6 +1,8 @@
+import type { DraftingJob } from "../../domain/draftingJob";
 import type { InternalPolicy, InternalPolicyVersion } from "../../domain/internalPolicy";
 import type { Clock } from "../clock";
-import type { DraftingUseCases } from "../drafting/draftingUseCases";
+import { newRulesFromPolicyJob } from "../drafting/draftingJobPorts";
+import type { DraftingJobUseCases } from "../drafting/draftingJobUseCases";
 import { NotFoundError } from "../errors";
 import { createReviewSubmission, createVersionReview, type ReviewInput } from "../versionReview";
 import type {
@@ -9,7 +11,9 @@ import type {
   NewInternalPolicyVersion,
 } from "./internalPolicyRepository";
 
-export type RuleDrafting = Pick<DraftingUseCases, "draftRules">;
+export type RuleDrafting = Pick<DraftingJobUseCases, "findPolicyJobIdForPolicy" | "launchStoredJob">;
+
+export type ReviewedPolicyVersion = InternalPolicyVersion & { rulesJob: DraftingJob | null };
 
 export class InternalPolicyUseCases {
   constructor(
@@ -67,25 +71,35 @@ export class InternalPolicyUseCases {
   }
 
   // A policy has no active-version pointer, so approving a version supersedes the previously approved ones.
-  // Approval also drafts the rules that implement the policy, the reviewer becomes their author.
+  // Approval stores a rule drafting job together with the review (#2); the reviewer becomes the rules' author.
   async reviewVersion(
     policyId: string,
     versionId: string,
     input: ReviewInput,
-  ): Promise<InternalPolicyVersion> {
+  ): Promise<ReviewedPolicyVersion> {
     const version = await this.getVersion(policyId, versionId);
     const review = createVersionReview(version, input, this.clock);
-    const supersededVersionIds =
-      review.decision === "approved" ? await this.findApprovedVersionIds(policyId, versionId) : [];
-
-    await this.internalPolicyRepository.recordReview({ versionId, review, supersededVersionIds });
+    const isApproved = review.decision === "approved";
+    const supersededVersionIds = isApproved ? await this.findApprovedVersionIds(policyId, versionId) : [];
+    const rulesJob = isApproved
+      ? newRulesFromPolicyJob({
+          policyVersionId: versionId,
+          parentJobId: await this.ruleDrafting.findPolicyJobIdForPolicy(policyId),
+          createdBy: review.reviewedBy,
+        })
+      : null;
+    const rulesJobId = await this.internalPolicyRepository.recordReview({
+      versionId,
+      review,
+      supersededVersionIds,
+      rulesJob,
+    });
     const reviewedVersion = await this.getVersion(policyId, versionId);
 
-    if (review.decision === "approved") {
-      await this.ruleDrafting.draftRules(reviewedVersion, review.reviewedBy);
-    }
-
-    return reviewedVersion;
+    return {
+      ...reviewedVersion,
+      rulesJob: rulesJobId ? await this.ruleDrafting.launchStoredJob(rulesJobId) : null,
+    };
   }
 
   private async findApprovedVersionIds(policyId: string, exceptVersionId: string): Promise<string[]> {

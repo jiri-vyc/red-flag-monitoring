@@ -1,7 +1,7 @@
 import express, { type Express } from "express";
 
 import type { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
-import type { DraftingUseCases } from "../../application/drafting/draftingUseCases";
+import type { DraftingJobUseCases } from "../../application/drafting/draftingJobUseCases";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
 import type { EvaluationRunUseCases } from "../../application/evaluationRuns/evaluationRunUseCases";
 import type { InternalPolicyUseCases } from "../../application/internalPolicies/internalPolicyUseCases";
@@ -11,6 +11,7 @@ import type { RuleUseCases } from "../../application/rules/ruleUseCases";
 import type { WhitelistUseCases } from "../../application/whitelist/whitelistUseCases";
 import type { EnsureDatabaseReady } from "../../infrastructure/database/memoizeInitialization";
 import { createDatabaseStatusRouter } from "./databaseStatusRouter";
+import { createDraftingJobsRouter } from "./draftingJobsRouter";
 import { errorHandler, notFoundHandler } from "./errorHandler";
 import { createEvaluationRunsRouter } from "./evaluationRunsRouter";
 import { createHealthRouter } from "./healthRouter";
@@ -24,7 +25,7 @@ const JSON_BODY_LIMIT = "5mb";
 
 export type AppUseCases = {
   regulations: RegulationUseCases;
-  drafting: DraftingUseCases;
+  draftingJobs: DraftingJobUseCases;
   internalPolicies: InternalPolicyUseCases;
   rules: RuleUseCases;
   whitelist: WhitelistUseCases;
@@ -43,7 +44,8 @@ export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureData
     await ensureDatabaseReady();
     next();
   });
-  app.use("/api/regulations", createRegulationsRouter(useCases.regulations, useCases.drafting));
+  app.use("/api/regulations", createRegulationsRouter(useCases.regulations, useCases.draftingJobs));
+  app.use("/api/drafting-jobs", createDraftingJobsRouter(useCases.draftingJobs));
   app.use("/api/internal-policies", createInternalPoliciesRouter(useCases.internalPolicies));
   app.use("/api/rules", createRulesRouter(useCases.rules, useCases.whitelist));
   app.use("/api/reference-lists", createReferenceListsRouter(useCases.referenceLists));

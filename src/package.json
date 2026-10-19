@@ -22,6 +22,7 @@
     "deploy": "../deploy/all.sh",
     "deploy:roles": "../deploy/roles.sh",
     "deploy:api": "../deploy/api.sh",
+    "deploy:drafting-worker": "../deploy/drafting-worker.sh",
     "deploy:web": "../deploy/web.sh",
     "demo:rule-extraction": "npm run demo:rule-extraction -w backend --",
     "demo:policy-drafting": "npm run demo:policy-drafting -w backend --",

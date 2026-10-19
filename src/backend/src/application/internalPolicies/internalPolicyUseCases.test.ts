@@ -1,27 +1,35 @@
+import type { DraftingJob } from "../../domain/draftingJob";
 import { BusinessRuleViolationError, ConflictError } from "../errors";
 import { InMemoryInternalPolicyRepository } from "../testing/InMemoryInternalPolicyRepository";
 import { ADMIN_ID, fixedClock } from "../testing/fixtures";
-import type { InternalPolicyVersion } from "../../domain/internalPolicy";
 import { InternalPolicyUseCases } from "./internalPolicyUseCases";
 
 const APPROVAL = { decision: "approved", reviewedBy: ADMIN_ID, reviewComment: null } as const;
+const POLICY_JOB_ID = "policy-job-1";
 
 async function setUp() {
-  const draftedFrom: { versionId: string; createdBy: string }[] = [];
+  const internalPolicyRepository = new InMemoryInternalPolicyRepository();
+  const launchedJobIds: string[] = [];
   const ruleDrafting = {
-    draftRules: (version: InternalPolicyVersion, createdBy: string) => {
-      draftedFrom.push({ versionId: version.id, createdBy });
-      return Promise.resolve([]);
+    findPolicyJobIdForPolicy: () => Promise.resolve(POLICY_JOB_ID),
+    launchStoredJob: (jobId: string) => {
+      launchedJobIds.push(jobId);
+      return Promise.resolve({ id: jobId, status: "pending" } as DraftingJob);
     },
   };
   const internalPolicyUseCases = new InternalPolicyUseCases(
-    new InMemoryInternalPolicyRepository(),
+    internalPolicyRepository,
     fixedClock,
     ruleDrafting,
   );
   const policy = await internalPolicyUseCases.createPolicy({ code: "SVZ-TM", title: "Monitoring transakcí" });
 
-  return { internalPolicyUseCases, policy, draftedFrom };
+  return {
+    internalPolicyUseCases,
+    policy,
+    createdRulesJobs: internalPolicyRepository.createdRulesJobs,
+    launchedJobIds,
+  };
 }
 
 async function createPendingVersion(internalPolicyUseCases: InternalPolicyUseCases, policyId: string) {
@@ -48,17 +56,26 @@ describe("InternalPolicyUseCases.reviewVersion", () => {
     expect((await internalPolicyUseCases.getVersion(policy.id, second.id)).status).toBe("approved");
   });
 
-  it("drafts rules from the approved version, authored by the reviewer", async () => {
-    const { internalPolicyUseCases, policy, draftedFrom } = await setUp();
+  it("stores a rule drafting job with the approval, authored by the reviewer, and launches it", async () => {
+    const { internalPolicyUseCases, policy, createdRulesJobs, launchedJobIds } = await setUp();
     const pending = await createPendingVersion(internalPolicyUseCases, policy.id);
 
-    await internalPolicyUseCases.reviewVersion(policy.id, pending.id, APPROVAL);
+    const reviewed = await internalPolicyUseCases.reviewVersion(policy.id, pending.id, APPROVAL);
 
-    expect(draftedFrom).toEqual([{ versionId: pending.id, createdBy: ADMIN_ID }]);
+    expect(createdRulesJobs).toEqual([
+      expect.objectContaining({
+        kind: "rules_from_policy",
+        policyVersionId: pending.id,
+        parentJobId: POLICY_JOB_ID,
+        createdBy: ADMIN_ID,
+      }),
+    ]);
+    expect(launchedJobIds).toEqual([createdRulesJobs[0]?.id]);
+    expect(reviewed.rulesJob?.id).toBe(createdRulesJobs[0]?.id);
   });
 
   it("drafts no rules from a rejected version", async () => {
-    const { internalPolicyUseCases, policy, draftedFrom } = await setUp();
+    const { internalPolicyUseCases, policy, createdRulesJobs } = await setUp();
     const pending = await createPendingVersion(internalPolicyUseCases, policy.id);
 
     await internalPolicyUseCases.reviewVersion(policy.id, pending.id, {
@@ -67,7 +84,7 @@ describe("InternalPolicyUseCases.reviewVersion", () => {
       reviewComment: "Chybí § 21",
     });
 
-    expect(draftedFrom).toEqual([]);
+    expect(createdRulesJobs).toEqual([]);
   });
 
   it("keeps the approved version when a newer one is rejected", async () => {

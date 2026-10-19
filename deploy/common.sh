@@ -6,6 +6,7 @@ export AWS_PROFILE="${AWS_PROFILE:-hackathon}" AWS_REGION="${AWS_REGION:-eu-cent
 ACCOUNT_ID=526983806399
 API_FUNCTION=rfm-api
 WEB_FUNCTION=rfm-web
+DRAFTING_WORKER_FUNCTION=rfm-drafting-worker
 ENDPOINT_NAME=dev
 CLUSTER="${RFM_CLUSTER:-database-1}"
 
@@ -32,4 +33,27 @@ assert_no_symlinks() {
     find "$1" -type l >&2
     exit 1
   fi
+}
+
+cluster_endpoint() {
+  aws rds describe-db-clusters --db-cluster-identifier "$CLUSTER" --query 'DBClusters[0].Endpoint' --output text
+}
+
+# tsc output plus a production-only npm ci for Linux arm64, shared by the API and the drafting worker.
+build_backend_bundle() {
+  local bundle="$1"
+
+  npm run build --prefix "$SRC_DIR" -w backend
+
+  rm -rf "$bundle"
+  mkdir -p "$bundle/backend" "$bundle/web"
+  cp "$SRC_DIR/package.json" "$SRC_DIR/package-lock.json" "$bundle/"
+  cp "$SRC_DIR/backend/package.json" "$bundle/backend/"
+  cp "$SRC_DIR/web/package.json" "$bundle/web/"
+  docker run --rm --platform linux/arm64 -v "$bundle:/app" -w /app node:24 \
+    npm ci --omit=dev --workspace backend --no-audit --no-fund
+  # Workspace links point at packages that are either copied below or not shipped.
+  rm -rf "$bundle/web" "$bundle/node_modules/backend" "$bundle/node_modules/web" "$bundle/node_modules/.bin"
+  cp -R "$SRC_DIR/backend/dist" "$bundle/backend/dist"
+  assert_no_symlinks "$bundle"
 }

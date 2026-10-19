@@ -1,4 +1,4 @@
-import { type DataSource, type EntityManager, In, IsNull } from "typeorm";
+import { type DataSource, In, IsNull } from "typeorm";
 
 import type { RuleLegalBasis } from "../../../domain/regulation";
 import type { Rule, RuleVersion } from "../../../domain/rule";
@@ -15,29 +15,14 @@ import { RuleEntity } from "../entities/RuleEntity";
 import { RuleLegalBasisEntity } from "../entities/RuleLegalBasisEntity";
 import { RuleVersionEntity } from "../entities/RuleVersionEntity";
 import { translateDatabaseErrors } from "../translateDatabaseErrors";
-import {
-  recordVersionReview,
-  supersedeApprovedVersions,
-  toNextVersionNo,
-  updateVersionStatus,
-} from "./versionWrites";
+import { insertRule, insertRuleVersion } from "./ruleWrites";
+import { recordVersionReview, supersedeApprovedVersions, updateVersionStatus } from "./versionWrites";
 
 export class TypeOrmRuleRepository implements RuleRepository {
   constructor(private readonly dataSource: DataSource) {}
 
   async createRule(rule: NewRule): Promise<Rule> {
-    const rules = this.dataSource.getRepository(RuleEntity);
-    const saved = await translateDatabaseErrors(() =>
-      rules.save(
-        rules.create({
-          policyId: rule.policyId,
-          code: rule.code,
-          alertType: rule.alertType,
-          kind: rule.kind,
-          whitelistAllowed: rule.isWhitelistAllowed,
-        }),
-      ),
-    );
+    const saved = await translateDatabaseErrors(() => insertRule(this.dataSource.manager, rule));
 
     return toRule(saved);
   }
@@ -81,22 +66,12 @@ export class TypeOrmRuleRepository implements RuleRepository {
     );
   }
 
-  createVersion(version: NewRuleVersion): Promise<RuleVersion> {
-    return translateDatabaseErrors(() =>
-      this.dataSource.transaction(async (manager) => {
-        const { legalBases, ...columns } = version;
-        const maxVersionNo = await manager.maximum(RuleVersionEntity, "versionNo", {
-          ruleId: version.ruleId,
-        });
-        const saved = await manager.save(
-          manager.create(RuleVersionEntity, { ...columns, versionNo: toNextVersionNo(maxVersionNo) }),
-        );
-
-        await insertLegalBases(manager, saved.id, legalBases);
-
-        return toRuleVersion(saved, legalBases);
-      }),
+  async createVersion(version: NewRuleVersion): Promise<RuleVersion> {
+    const saved = await translateDatabaseErrors(() =>
+      this.dataSource.transaction((manager) => insertRuleVersion(manager, version)),
     );
+
+    return toRuleVersion(saved, version.legalBases);
   }
 
   async listVersions(ruleId: string): Promise<RuleVersion[]> {
@@ -137,17 +112,6 @@ export class TypeOrmRuleRepository implements RuleRepository {
       ),
     );
   }
-}
-
-async function insertLegalBases(
-  manager: EntityManager,
-  ruleVersionId: string,
-  legalBases: RuleLegalBasis[],
-): Promise<void> {
-  await manager.insert(
-    RuleLegalBasisEntity,
-    legalBases.map((legalBasis) => ({ ...legalBasis, ruleVersionId })),
-  );
 }
 
 function toRule(entity: RuleEntity): Rule {

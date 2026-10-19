@@ -1,41 +1,27 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { REGULATION_KINDS } from "../../domain/regulation";
-import type { DraftingUseCases } from "../../application/drafting/draftingUseCases";
+import { DEMO_ADMIN_USER_ID } from "../../domain/user";
+import type { DraftingJobUseCases } from "../../application/drafting/draftingJobUseCases";
 import type { RegulationUseCases } from "../../application/regulations/regulationUseCases";
-import { requiredText } from "./schemas";
+import { newRegulationSchema, requiredText } from "./schemas";
 import { parseRequest } from "./validation";
 
 const regulationParamsSchema = z.object({ regulationId: z.uuid() });
 const versionParamsSchema = regulationParamsSchema.extend({ versionId: z.uuid() });
 
-const createRegulationSchema = z.object({
-  code: requiredText,
-  title: requiredText,
-  kind: z.enum(REGULATION_KINDS),
-  sourceUrl: z
-    .url()
-    .nullish()
-    .transform((value) => value ?? null),
-  checkedAt: z.iso
-    .datetime({ offset: true })
-    .nullish()
-    .transform((value) => (value ? new Date(value) : null)),
-});
-
 const createVersionSchema = z.object({ label: requiredText, fullText: requiredText });
 
-const draftPoliciesSchema = z.object({ createdBy: z.uuid() });
+const draftPoliciesSchema = z.object({ createdBy: z.uuid().default(DEMO_ADMIN_USER_ID) });
 
 export function createRegulationsRouter(
   regulationUseCases: RegulationUseCases,
-  draftingUseCases: DraftingUseCases,
+  draftingJobUseCases: DraftingJobUseCases,
 ): Router {
   const router = Router();
 
   router.post("/", async (request, response) => {
-    const regulation = parseRequest(createRegulationSchema, request.body);
+    const regulation = parseRequest(newRegulationSchema, request.body);
 
     response.status(201).json(await regulationUseCases.createRegulation(regulation));
   });
@@ -69,15 +55,17 @@ export function createRegulationsRouter(
     response.json(await regulationUseCases.getVersion(regulationId, versionId));
   });
 
+  // 202: drafting runs as a job, poll GET /api/drafting-jobs/:jobId for the drafted policy versions.
   router.post("/:regulationId/versions/:versionId/draft-policies", async (request, response) => {
     const { regulationId, versionId } = parseRequest(versionParamsSchema, request.params);
-    const { createdBy } = parseRequest(draftPoliciesSchema, request.body);
+    const { createdBy } = parseRequest(draftPoliciesSchema, request.body ?? {});
+    const job = await draftingJobUseCases.startPolicyJobForVersion({
+      regulationId,
+      regulationVersionId: versionId,
+      createdBy,
+    });
 
-    response
-      .status(201)
-      .json(
-        await draftingUseCases.draftPolicies({ regulationId, regulationVersionId: versionId, createdBy }),
-      );
+    response.status(202).location(`/api/drafting-jobs/${job.id}`).json(job);
   });
 
   return router;

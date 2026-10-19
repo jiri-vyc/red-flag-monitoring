@@ -1,4 +1,5 @@
 import type { InternalPolicy, InternalPolicyVersion } from "../../domain/internalPolicy";
+import type { NewDraftingJob } from "../drafting/draftingJobPorts";
 import { ConflictError } from "../errors";
 import type {
   InternalPolicyRepository,
@@ -58,7 +59,9 @@ export class InMemoryInternalPolicyRepository implements InternalPolicyRepositor
     this.versions.set(version.id, { ...version, status: change.toStatus });
   }
 
-  async recordReview(record: PolicyVersionReviewRecord): Promise<void> {
+  readonly createdRulesJobs: (NewDraftingJob & { id: string })[] = [];
+
+  async recordReview(record: PolicyVersionReviewRecord): Promise<string | null> {
     const version = this.getVersionInStatus(record.versionId, "pending_review");
     const { review } = record;
 
@@ -77,6 +80,15 @@ export class InMemoryInternalPolicyRepository implements InternalPolicyRepositor
         this.versions.set(supersededId, { ...superseded, status: "superseded" });
       }
     }
+
+    if (!record.rulesJob) {
+      return null;
+    }
+
+    const job = { ...record.rulesJob, id: `job-${this.nextId++}` };
+    this.createdRulesJobs.push(job);
+
+    return job.id;
   }
 
   private getVersionInStatus(

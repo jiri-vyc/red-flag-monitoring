@@ -1,4 +1,4 @@
-import { type DataSource, type EntityManager, In } from "typeorm";
+import { type DataSource, In } from "typeorm";
 
 import type { InternalPolicy, InternalPolicyVersion } from "../../../domain/internalPolicy";
 import type { PolicyLegalBasis } from "../../../domain/regulation";
@@ -13,19 +13,15 @@ import { InternalPolicyEntity } from "../entities/InternalPolicyEntity";
 import { InternalPolicyVersionEntity } from "../entities/InternalPolicyVersionEntity";
 import { PolicyLegalBasisEntity } from "../entities/PolicyLegalBasisEntity";
 import { translateDatabaseErrors } from "../translateDatabaseErrors";
-import {
-  recordVersionReview,
-  supersedeApprovedVersions,
-  toNextVersionNo,
-  updateVersionStatus,
-} from "./versionWrites";
+import { insertDraftingJob } from "./draftingJobWrites";
+import { insertPolicy, insertPolicyVersion } from "./policyWrites";
+import { recordVersionReview, supersedeApprovedVersions, updateVersionStatus } from "./versionWrites";
 
 export class TypeOrmInternalPolicyRepository implements InternalPolicyRepository {
   constructor(private readonly dataSource: DataSource) {}
 
   async createPolicy(policy: NewInternalPolicy): Promise<InternalPolicy> {
-    const policies = this.dataSource.getRepository(InternalPolicyEntity);
-    const saved = await translateDatabaseErrors(() => policies.save(policies.create(policy)));
+    const saved = await translateDatabaseErrors(() => insertPolicy(this.dataSource.manager, policy));
 
     return toInternalPolicy(saved);
   }
@@ -44,25 +40,12 @@ export class TypeOrmInternalPolicyRepository implements InternalPolicyRepository
     return entity ? toInternalPolicy(entity) : null;
   }
 
-  createVersion(version: NewInternalPolicyVersion): Promise<InternalPolicyVersion> {
-    return translateDatabaseErrors(() =>
-      this.dataSource.transaction(async (manager) => {
-        const { legalBases, ...columns } = version;
-        const maxVersionNo = await manager.maximum(InternalPolicyVersionEntity, "versionNo", {
-          policyId: version.policyId,
-        });
-        const saved = await manager.save(
-          manager.create(InternalPolicyVersionEntity, {
-            ...columns,
-            versionNo: toNextVersionNo(maxVersionNo),
-          }),
-        );
-
-        await insertLegalBases(manager, saved.id, legalBases);
-
-        return toInternalPolicyVersion(saved, legalBases);
-      }),
+  async createVersion(version: NewInternalPolicyVersion): Promise<InternalPolicyVersion> {
+    const saved = await translateDatabaseErrors(() =>
+      this.dataSource.transaction((manager) => insertPolicyVersion(manager, version)),
     );
+
+    return toInternalPolicyVersion(saved, version.legalBases);
   }
 
   async listVersions(policyId: string): Promise<InternalPolicyVersion[]> {
@@ -86,11 +69,13 @@ export class TypeOrmInternalPolicyRepository implements InternalPolicyRepository
     return updateVersionStatus(this.dataSource.manager, InternalPolicyVersionEntity, change);
   }
 
-  recordReview(record: PolicyVersionReviewRecord): Promise<void> {
+  recordReview(record: PolicyVersionReviewRecord): Promise<string | null> {
     return translateDatabaseErrors(() =>
       this.dataSource.transaction(async (manager) => {
         await recordVersionReview(manager, InternalPolicyVersionEntity, record.versionId, record.review);
         await supersedeApprovedVersions(manager, InternalPolicyVersionEntity, record.supersededVersionIds);
+
+        return record.rulesJob ? (await insertDraftingJob(manager, record.rulesJob)).id : null;
       }),
     );
   }
@@ -108,21 +93,6 @@ export class TypeOrmInternalPolicyRepository implements InternalPolicyRepository
       ),
     );
   }
-}
-
-async function insertLegalBases(
-  manager: EntityManager,
-  policyVersionId: string,
-  legalBases: PolicyLegalBasis[],
-): Promise<void> {
-  if (legalBases.length === 0) {
-    return;
-  }
-
-  await manager.insert(
-    PolicyLegalBasisEntity,
-    legalBases.map((legalBasis) => ({ ...legalBasis, policyVersionId })),
-  );
 }
 
 function toInternalPolicy(entity: InternalPolicyEntity): InternalPolicy {

@@ -26,6 +26,11 @@ export type RuleDraft = Omit<NewRule, "policyId"> &
 
 // Spec 7.2: drafts proposed by an LLM. A human reviews every one before it takes effect.
 export interface DraftGenerator {
-  draftPolicies(regulation: Regulation, version: RegulationVersion): Promise<PolicyDraft[]>;
+  // `scope` names the part of the regulation to draft from, e.g. a heading; null means the whole text.
+  draftPolicies(
+    regulation: Regulation,
+    version: RegulationVersion,
+    scope: string | null,
+  ): Promise<PolicyDraft[]>;
   draftRules(policy: InternalPolicy, version: InternalPolicyVersion): Promise<RuleDraft[]>;
 }

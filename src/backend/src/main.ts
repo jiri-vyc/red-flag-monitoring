@@ -4,7 +4,6 @@ import type { DataSource } from "typeorm";
 
 import { systemClock } from "./application/clock";
 import { DatabaseStatusQueries } from "./application/databaseStatus/databaseStatusQueries";
-import { DraftingUseCases } from "./application/drafting/draftingUseCases";
 import { EvaluationRunQueries } from "./application/evaluationRuns/evaluationRunQueries";
 import { InternalPolicyUseCases } from "./application/internalPolicies/internalPolicyUseCases";
 import { ReferenceListUseCases } from "./application/referenceLists/referenceListUseCases";
@@ -13,9 +12,9 @@ import { RuleUseCases } from "./application/rules/ruleUseCases";
 import { WhitelistUseCases } from "./application/whitelist/whitelistUseCases";
 import { type AppConfig, parseAppConfig } from "./config";
 import { type AppUseCases, createApp } from "./delivery/http/createApp";
+import { createDraftingJobUseCases } from "./draftingJobComposition";
 import { createEvaluationRunUseCases } from "./evaluationRunComposition";
 import { createDataSource } from "./infrastructure/database/createDataSource";
-import { DummyDraftGenerator } from "./infrastructure/drafting/DummyDraftGenerator";
 import { memoizeInitialization } from "./infrastructure/database/memoizeInitialization";
 import { TypeOrmDatabaseStatusProbe } from "./infrastructure/database/TypeOrmDatabaseStatusProbe";
 import { TypeOrmEvaluationRunReadRepository } from "./infrastructure/database/repositories/TypeOrmEvaluationRunReadRepository";
@@ -50,18 +49,12 @@ function createUseCases(dataSource: DataSource, appConfig: AppConfig): AppUseCas
   const internalPolicyRepository = new TypeOrmInternalPolicyRepository(dataSource);
   const regulations = new RegulationUseCases(new TypeOrmRegulationRepository(dataSource));
   const rules = new RuleUseCases(ruleRepository, systemClock);
-  // TODO(#1, #2): swap the dummy for a Bedrock-backed DraftGenerator.
-  const drafting = new DraftingUseCases(
-    new DummyDraftGenerator(),
-    regulations,
-    internalPolicyRepository,
-    rules,
-  );
+  const draftingJobs = createDraftingJobUseCases(dataSource, appConfig, regulations);
 
   return {
     regulations,
-    drafting,
-    internalPolicies: new InternalPolicyUseCases(internalPolicyRepository, systemClock, drafting),
+    draftingJobs,
+    internalPolicies: new InternalPolicyUseCases(internalPolicyRepository, systemClock, draftingJobs),
     rules,
     whitelist: new WhitelistUseCases(new TypeOrmWhitelistRepository(dataSource), ruleRepository),
     referenceLists: new ReferenceListUseCases(new TypeOrmReferenceListRepository(dataSource)),

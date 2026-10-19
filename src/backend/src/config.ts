@@ -15,9 +15,8 @@ export type IamDatabaseConfig = {
 };
 export type DatabaseConfig = PasswordDatabaseConfig | IamDatabaseConfig;
 
-// Where started evaluation runs execute: in the API process, or in a separate Lambda function (#3).
-export type EvaluationWorkerConfig =
-  { mode: "in_process" } | { mode: "lambda"; functionName: string; region: string };
+// Where started evaluation runs (#3) and drafting jobs execute: in the API process, or in a separate Lambda.
+export type WorkerConfig = { mode: "in_process" } | { mode: "lambda"; functionName: string; region: string };
 
 export type AppConfig = {
   host?: string;
@@ -25,7 +24,8 @@ export type AppConfig = {
   database: DatabaseConfig;
   // V10: the code version stored on each evaluation run, the git commit in deployments.
   engineVersion: string;
-  evaluationWorker: EvaluationWorkerConfig;
+  evaluationWorker: WorkerConfig;
+  draftingWorker: WorkerConfig;
 };
 
 const LOCAL_ENGINE_VERSION = "local";
@@ -48,19 +48,20 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
     ...parseListenAddress(environment),
     database: parseDatabaseConfig(environment),
     engineVersion: environment.ENGINE_VERSION || LOCAL_ENGINE_VERSION,
-    evaluationWorker: parseEvaluationWorkerConfig(environment),
+    evaluationWorker: parseWorkerConfig(environment, "EVALUATION_WORKER_FUNCTION"),
+    draftingWorker: parseWorkerConfig(environment, "DRAFTING_WORKER_FUNCTION"),
   };
 }
 
-function parseEvaluationWorkerConfig(environment: NodeJS.ProcessEnv): EvaluationWorkerConfig {
-  const functionName = environment.EVALUATION_WORKER_FUNCTION;
+function parseWorkerConfig(environment: NodeJS.ProcessEnv, functionVariable: string): WorkerConfig {
+  const functionName = environment[functionVariable];
 
   if (!functionName) {
     return { mode: "in_process" };
   }
 
   if (!environment.AWS_REGION) {
-    throw new InvalidConfigError("AWS_REGION is required when EVALUATION_WORKER_FUNCTION is set");
+    throw new InvalidConfigError(`AWS_REGION is required when ${functionVariable} is set`);
   }
 
   return { mode: "lambda", functionName, region: environment.AWS_REGION };

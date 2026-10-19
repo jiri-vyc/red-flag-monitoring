@@ -10,6 +10,7 @@ describe("parseAppConfig", () => {
       database: { authMode: "password", url: DATABASE_URL },
       engineVersion: "local",
       evaluationWorker: { mode: "in_process" },
+      draftingWorker: { mode: "in_process" },
     });
   });
 
@@ -109,6 +110,28 @@ describe("parseAppConfig", () => {
 
     it("requires AWS_REGION with EVALUATION_WORKER_FUNCTION", () => {
       const environment = { DATABASE_URL, EVALUATION_WORKER_FUNCTION: "rfm-evaluation" };
+
+      expect(() => parseAppConfig(environment)).toThrow(InvalidConfigError);
+    });
+  });
+
+  describe("drafting worker", () => {
+    it("runs drafting jobs in a Lambda function when DRAFTING_WORKER_FUNCTION is set", () => {
+      const environment = {
+        DATABASE_URL,
+        DRAFTING_WORKER_FUNCTION: "rfm-drafting-worker",
+        AWS_REGION: "eu-central-1",
+      };
+
+      expect(parseAppConfig(environment).draftingWorker).toEqual({
+        mode: "lambda",
+        functionName: "rfm-drafting-worker",
+        region: "eu-central-1",
+      });
+    });
+
+    it("requires AWS_REGION with DRAFTING_WORKER_FUNCTION", () => {
+      const environment = { DATABASE_URL, DRAFTING_WORKER_FUNCTION: "rfm-drafting-worker" };
 
       expect(() => parseAppConfig(environment)).toThrow(InvalidConfigError);
     });

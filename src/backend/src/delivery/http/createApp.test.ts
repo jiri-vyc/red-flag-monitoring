@@ -2,9 +2,14 @@ import request from "supertest";
 
 import { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
 import type { DatabaseStatus } from "../../application/databaseStatus/databaseStatusProbe";
+import { DraftingJobUseCases } from "../../application/drafting/draftingJobUseCases";
+import { RegulationUseCases } from "../../application/regulations/regulationUseCases";
 import { RuleUseCases } from "../../application/rules/ruleUseCases";
+import { InMemoryDraftingJobRepository } from "../../application/testing/InMemoryDraftingJobRepository";
+import { InMemoryInternalPolicyRepository } from "../../application/testing/InMemoryInternalPolicyRepository";
+import { InMemoryRegulationRepository } from "../../application/testing/InMemoryRegulationRepository";
 import { InMemoryRuleRepository } from "../../application/testing/InMemoryRuleRepository";
-import { ADMIN_ID, fixedClock } from "../../application/testing/fixtures";
+import { ADMIN_ID, fixedClock, REVIEWED_AT } from "../../application/testing/fixtures";
 import { type AppUseCases, createApp } from "./createApp";
 
 const RULE_ID = "6f1c2f9e-4a8b-4c1d-9e2f-0a1b2c3d4e5f";
@@ -25,6 +30,21 @@ function createDatabaseStatusApp(loadDatabaseStatus: () => Promise<DatabaseStatu
   const useCases = { databaseStatus: new DatabaseStatusQueries({ loadDatabaseStatus }) } as AppUseCases;
 
   return createApp(useCases, databaseReady);
+}
+
+function createDraftingJobsApp() {
+  const draftingJobs = new DraftingJobUseCases({
+    draftingJobRepository: new InMemoryDraftingJobRepository(
+      new InMemoryInternalPolicyRepository(),
+      new InMemoryRuleRepository(),
+      REVIEWED_AT,
+    ),
+    draftingJobLauncher: { launchJob: () => Promise.resolve() },
+    regulationUseCases: new RegulationUseCases(new InMemoryRegulationRepository()),
+    clock: fixedClock,
+  });
+
+  return createApp({ draftingJobs } as AppUseCases, databaseReady);
 }
 
 function createTestApp(ensureDatabaseReady = databaseReady) {
@@ -139,5 +159,64 @@ describe("HTTP app", () => {
       .send(body);
 
     expect(response.status).toBe(400);
+  });
+
+  describe("drafting jobs", () => {
+    const pastedSource = {
+      source: { kind: "text", content: "§ 21" },
+      regulation: { code: "AML", title: "Zákon č. 253/2008 Sb.", kind: "law" },
+    };
+
+    it("accepts a pasted regulation with 202, the pending job and its location", async () => {
+      const response = await request(createDraftingJobsApp()).post("/api/drafting-jobs").send(pastedSource);
+
+      expect(response.status).toBe(202);
+      expect(response.body).toEqual(
+        expect.objectContaining({ kind: "policy_from_regulation", status: "pending", createdBy: ADMIN_ID }),
+      );
+      expect(response.headers.location).toBe(`/api/drafting-jobs/${response.body.id}`);
+    });
+
+    it("accepts a URL without regulation metadata", async () => {
+      const response = await request(createDraftingJobsApp())
+        .post("/api/drafting-jobs")
+        .send({ source: { kind: "url", url: "https://eur-lex.europa.eu/eli/reg/2024/1624/oj" } });
+
+      expect(response.status).toBe(202);
+      expect(response.body).toEqual(expect.objectContaining({ sourceKind: "url", regulationId: null }));
+    });
+
+    it("rejects pasted text without a regulation", async () => {
+      const response = await request(createDraftingJobsApp())
+        .post("/api/drafting-jobs")
+        .send({ source: pastedSource.source });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("rejects a URL outside the allowed sources with 422", async () => {
+      const response = await request(createDraftingJobsApp())
+        .post("/api/drafting-jobs")
+        .send({ source: { kind: "url", url: "https://example.com/aml" } });
+
+      expect(response.status).toBe(422);
+    });
+
+    it("lists jobs filtered by a comma-separated status list", async () => {
+      const app = createDraftingJobsApp();
+      await request(app).post("/api/drafting-jobs").send(pastedSource);
+
+      const pending = await request(app).get("/api/drafting-jobs?status=pending,running");
+      const failed = await request(app).get("/api/drafting-jobs?status=failed");
+
+      expect(pending.body).toEqual(expect.objectContaining({ total: 1, limit: 50, offset: 0 }));
+      expect(failed.body.total).toBe(0);
+    });
+
+    it("rejects an unknown status filter", async () => {
+      const response = await request(createDraftingJobsApp()).get("/api/drafting-jobs?status=done");
+
+      expect(response.status).toBe(400);
+    });
   });
 });

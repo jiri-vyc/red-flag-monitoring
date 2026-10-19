@@ -8,6 +8,7 @@ export interface RegulationRepository {
   createRegulation(regulation: NewRegulation): Promise<Regulation>;
   listRegulations(): Promise<Regulation[]>;
   findRegulation(regulationId: string): Promise<Regulation | null>;
+  findRegulationBySourceUrl(sourceUrl: string): Promise<Regulation | null>;
   createVersion(version: NewRegulationVersion): Promise<RegulationVersion>;
   listVersions(regulationId: string): Promise<RegulationVersionSummary[]>;
   findVersion(versionId: string): Promise<RegulationVersion | null>;

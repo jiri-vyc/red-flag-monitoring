@@ -78,6 +78,7 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 | `/internal-policies` | as regulations, plus `POST /:id/versions/:versionId/submit` and `POST /:id/versions/:versionId/review`                                                                                                |
 | `/rules`             | as internal policies, plus `POST /:id/enable`, `POST /:id/disable`, `PUT /:id/active-version`, `GET` / `POST /:id/whitelist`, `DELETE /:id/whitelist/:clientId`                                       |
 | `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                               |
+| `/drafting-jobs`     | `POST /` (start, see below), `GET /?status=&kind=&regulationId=&policyVersionId=&limit=&offset=`, `GET /:jobId`, `POST /:jobId/retry`                                                                 |
 | `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&limit=&offset=`, `GET /:runId/transactions/:transactionId` (detail with trace) |
 | `/database-status`   | `GET /`: the connected database (`current_database()`, `version()`, `aurora_version()` or `null`, server address and time, latest migration, `clients` count)                                         |
 
@@ -99,6 +100,28 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 - Only rule results other than `pass` are stored ([V16](../spec/datovy-model.md#rozhodnutí-vyhodnocení)). A passed transaction has its verdict and score, but no per-rule rows.
 - Where the run executes: in the API process by default. With `EVALUATION_WORKER_FUNCTION` set, the API invokes that Lambda function asynchronously instead (`backend/src/evaluationWorker.ts`, export `handler`), because a Web Function may remove its environment after the response.
 - The `SeedSampleRules` migration adds the sample rules R-01 to R-17 from `knowledgebase/pravidla-priklady` as active versions.
+
+### Drafting jobs
+
+The LLM steps of the wizard run as jobs, because one step can take minutes (design: [spec/drafting-jobs.md](../spec/drafting-jobs.md)). A `policy_from_regulation` job drafts internal policy versions from a regulation; a `rules_from_policy` job drafts rule versions from an approved policy version. `POST /api/drafting-jobs` body:
+
+```json
+{
+  "source": { "kind": "markdown", "content": "# Zákon č. 253/2008 Sb. …" },
+  "regulation": { "code": "AML", "title": "Zákon č. 253/2008 Sb.", "kind": "law" },
+  "versionLabel": "znění od 1. 1. 2026",
+  "scope": "Hlava III",
+  "createdBy": "00000000-0000-4000-8000-000000000001"
+}
+```
+
+- `source` is `{ "kind": "text" | "markdown", "content" }` or `{ "kind": "url", "url" }`. A URL must be `https` on an allowed host (EUR-Lex, e-Sbírka, zakonyprolidi.cz, ČNB, FATF); the worker fetches it, converts HTML to text and stores it as a regulation version.
+- `regulation` is `{ "id" }`, new regulation metadata, or omitted for a URL: the worker then reuses the regulation with that `sourceUrl` or creates one with placeholder metadata (code `URL-<host>-<hash>`, the page title, kind `guidance`). `versionLabel`, `scope` and `createdBy` are optional.
+- The response is `202` with the job in status `pending` and a `Location` header. Poll `GET /:jobId` (the web does it every 30 s while a job is in flight) until `succeeded` or `failed`. A `pending` or `running` job older than 16 minutes is reported as `failed`.
+- A succeeded job lists its drafts with their current review status: `policyVersions` (`id`, `policyId`, `status`) or `ruleVersions` (`id`, `ruleId`, `status`). Rule drafts that fail validation are skipped and listed in `warnings`.
+- `POST /api/internal-policies/:id/versions/:versionId/review` with `approved` stores a `rules_from_policy` job together with the review and returns it as `rulesJob` next to the version. `POST /api/regulations/:id/versions/:versionId/draft-policies` starts a job for an existing regulation version and also returns `202`.
+- `POST /:jobId/retry` starts a new job with the input of a failed one (`422` otherwise). A URL that was already fetched is not fetched again.
+- Where a job executes: in the API process by default. With `DRAFTING_WORKER_FUNCTION` set, the API invokes that Lambda function asynchronously (`backend/src/draftingWorker.ts`, export `handler`). The drafts come from `DummyDraftGenerator` until the Bedrock generator is wired in `draftingJobComposition.ts` (#1, #2).
 
 Versions are immutable. A version goes `draft` → `pending_review` → `approved` / `rejected`; an approved version becomes `superseded` when a newer one replaces it (rules: on `active-version`, policies: on approval of a newer version). Errors: 400 invalid input, 404 not found, 409 state conflict or duplicate, 422 business rule or unknown reference.
 
@@ -127,6 +150,7 @@ Copy `.env.example` to `.env` in each package if you need to override defaults. 
 | backend | `AWS_REGION`                 | none                    | Required with `DATABASE_AUTH=iam` (`eu-central-1`)                                                      |
 | backend | `ENGINE_VERSION`             | `local`                 | Code version stored on each evaluation run (V10); `deploy/api.sh` sets the git commit                   |
 | backend | `EVALUATION_WORKER_FUNCTION` | (unset)                 | Lambda function that executes evaluation runs; unset = in the API process. Needs `AWS_REGION`           |
+| backend | `DRAFTING_WORKER_FUNCTION`   | (unset)                 | Lambda function that executes drafting jobs; unset = in the API process. Needs `AWS_REGION`             |
 | web     | `BACKEND_URL`                | `http://localhost:4000` | Server-only. Backend base URL for the `/api/*` proxy; baked into the rewrite at build time              |
 | web     | `NEXT_PUBLIC_API_MODE`       | `mock`                  | Default data source (`mock` or `live`); the sidebar switch overrides it per browser                     |
 | web     | `NEXT_PUBLIC_API_MODE_<SVC>` | (unset)                 | Per-service override, `<SVC>` is `REGULATIONS`, `POLICIES`, `RULES`, `BATCHES`, `WIZARD` or `DASHBOARD` |
@@ -204,14 +228,16 @@ Both apps run as AWS Lambda Web Functions in `eu-central-1`, team account `52698
 
 ```bash
 cd src
-npm run deploy          # roles, then API, then web
-npm run deploy:roles    # rfm-api-execution, rfm-web-execution
-npm run deploy:api      # backend bundle → rfm-api
-npm run deploy:web      # web bundle → rfm-web, reads the rfm-api endpoint for BACKEND_URL
+npm run deploy                   # roles, then drafting worker, then API, then web
+npm run deploy:roles             # rfm-api-execution, rfm-web-execution, rfm-drafting-worker-execution
+npm run deploy:drafting-worker   # backend bundle → rfm-drafting-worker (classic Lambda)
+npm run deploy:api               # backend bundle → rfm-api
+npm run deploy:web               # web bundle → rfm-web, reads the rfm-api endpoint for BACKEND_URL
 ```
 
 - Roles: least-privilege execution roles instead of the CLI's auto-created `awscli-lambdaweb-*`. Both may write their own log groups `/aws/lambda/web/<name>` and `/aws/lambda/web/<name>.local`. The API role may also `rds-db:connect` as `postgres` on `database-1` and invoke Anthropic models through the `eu.anthropic.*` inference profiles only.
 - API bundle: `tsc` output plus a production-only `npm ci` in a `node:24` arm64 container. Env: `DATABASE_AUTH=iam`, `DATABASE_URL=postgres://postgres@<cluster endpoint>:5432/main` (`RFM_DATABASE=wip_<name> npm run deploy:api` for a work copy). The server listens before it touches the database; the DataSource initializes on the first request that needs it, because Web Functions require a listening server within 10 s and an Aurora resume takes ~15 s. Run `npm run migration:run` against `main` before deploying code that needs a new migration.
+- Drafting worker: the same backend bundle zipped into a classic Lambda `rfm-drafting-worker` (Node 24, arm64, 900 s, handler `backend/dist/draftingWorker.handler`), with no Lambda retries (a failed job is retried by the user) and up to 3 reserved concurrent executions where the account quota allows. Its role may write `/aws/lambda/rfm-drafting-worker`, connect to Aurora and invoke Anthropic models through the EU profiles. The API gets `DRAFTING_WORKER_FUNCTION=rfm-drafting-worker` and may invoke only this function. Deploy the worker before the API.
 - Web bundle: the `build` stage of `web/Dockerfile` for arm64, then `.next/standalone` plus static assets and `deploy/web/index.js`, which maps `AWS_LAMBDA_HTTP_ENDPOINT` to `HOSTNAME`/`PORT`. `BACKEND_URL` and `NEXT_PUBLIC_*` are baked in at build time, so redeploy the web after changing them or after the API endpoint changes. The deployed UI calls the real backend (`NEXT_PUBLIC_API_MODE` defaults to `live` here, unlike local dev); `NEXT_PUBLIC_API_MODE=mock npm run deploy:web` switches it to browser-only demo data.
 - Endpoints are public (`ApplicationManaged` auth) and the API has no authentication yet, so it only ever points at synthetic and organiser data.
 - Fallback: the `runtime` stage of `web/Dockerfile` is a plain container image for ECS Express.

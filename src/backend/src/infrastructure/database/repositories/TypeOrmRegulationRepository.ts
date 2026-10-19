@@ -33,6 +33,14 @@ export class TypeOrmRegulationRepository implements RegulationRepository {
     return entity ? toRegulation(entity) : null;
   }
 
+  async findRegulationBySourceUrl(sourceUrl: string): Promise<Regulation | null> {
+    const entity = await this.dataSource
+      .getRepository(RegulationEntity)
+      .findOne({ where: { sourceUrl }, order: { code: "ASC" } });
+
+    return entity ? toRegulation(entity) : null;
+  }
+
   async createVersion(version: NewRegulationVersion): Promise<RegulationVersion> {
     const versions = this.dataSource.getRepository(RegulationVersionEntity);
     const saved = await translateDatabaseErrors(() => versions.save(versions.create(version)));
