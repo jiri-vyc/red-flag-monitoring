@@ -1,4 +1,5 @@
 import { CURRENT_USER } from "@/config/currentUser";
+import { createDraftingJobDto } from "@/features/draftingJobs/api/draftingJobDtoFixture";
 import { requestJson } from "@/lib/httpClient";
 
 import type { InternalPolicyVersionDto } from "./dto";
@@ -109,11 +110,15 @@ describe("livePoliciesService", () => {
 describe("livePoliciesService.approvePolicy", () => {
   beforeEach(() => requestJsonMock.mockReset());
 
-  it("submits and approves the draft, and reports the rules the backend drafted on approval", async () => {
+  it("submits and approves the draft, and returns the job that drafts its rules", async () => {
     const requests = serveEndpoints();
-    const rulesBeforeApproval = ENDPOINTS["GET /rules"];
     const fallbackImplementation = requestJsonMock.getMockImplementation()!;
-    let isApproved = false;
+    const rulesJob = createDraftingJobDto({
+      id: "job-rules",
+      kind: "rules_from_policy",
+      parentJobId: "job-policy",
+      policyVersionId: "policy-multi-v1",
+    });
     requestJsonMock.mockImplementation(async (options) => {
       const { path, method = "GET" } = options;
       if (method === "POST" && path.endsWith("/submit")) {
@@ -122,17 +127,12 @@ describe("livePoliciesService.approvePolicy", () => {
       }
       if (method === "POST" && path.endsWith("/review")) {
         requests.push({ path, method, jsonBody: options.jsonBody });
-        isApproved = true;
-        return { ...MULTI_REGULATION_VERSION, status: "approved" };
-      }
-      if (method === "GET" && path === "/rules" && isApproved) {
-        requests.push({ path, method });
-        return [...(rulesBeforeApproval as object[]), { id: "rule-drafted", policyId: "policy-multi" }];
+        return { ...MULTI_REGULATION_VERSION, status: "approved", rulesJob };
       }
       return fallbackImplementation(options);
     });
 
-    const { policy, draftedRuleIds } = await livePoliciesService.approvePolicy({
+    const approval = await livePoliciesService.approvePolicy({
       policyId: "policy-multi",
       approvedBy: CURRENT_USER.name,
     });
@@ -147,7 +147,13 @@ describe("livePoliciesService.approvePolicy", () => {
       reviewedBy: CURRENT_USER.id,
       reviewComment: null,
     });
-    expect(policy.ruleIds).toEqual(["rule-1", "rule-drafted"]);
-    expect(draftedRuleIds).toEqual(["rule-drafted"]);
+    expect(approval.policy.id).toBe("policy-multi");
+    expect(approval.rulesJob).toMatchObject({
+      id: "job-rules",
+      kind: "rules_from_policy",
+      status: "pending",
+      parentJobId: "job-policy",
+      ruleIds: [],
+    });
   });
 });

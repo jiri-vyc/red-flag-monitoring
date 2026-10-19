@@ -1,19 +1,30 @@
 "use client";
 
-import { FileText, ListChecks } from "lucide-react";
+import { FileText, ListChecks, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/ui/KeyValueList";
 import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { EmptyState, QueryView } from "@/components/ui/StateViews";
+import { RefreshButton } from "@/components/ui/RefreshButton";
+import { EmptyState, ErrorState, QueryView } from "@/components/ui/StateViews";
+import {
+  useDraftingJob,
+  useRefreshDraftedArtifacts,
+  useRetryDraftingJob,
+} from "@/features/draftingJobs/api/hooks";
+import { DraftingJobStatusBadge } from "@/features/draftingJobs/components/DraftingJobStatusBadge";
+import { DraftingJobWarnings } from "@/features/draftingJobs/components/DraftingJobWarnings";
+import type { DraftingJob } from "@/features/draftingJobs/types";
 import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useRules } from "@/features/rules/api/hooks";
 import { RuleStatusBadge, RuleTypeBadge } from "@/features/rules/components/RuleBadges";
 import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
+import { assertUnreachable } from "@/lib/assertUnreachable";
 import { formatDateTime } from "@/lib/format";
 
 import { usePolicy } from "../api/hooks";
@@ -59,20 +70,72 @@ function RelatedRules({ policy }: { policy: Policy }) {
   );
 }
 
-/** The backend drafts the policy's rules when it is approved; they still need their own review. */
-function DraftedRulesNotice({ draftedRuleCount }: { draftedRuleCount: number }) {
+function RulesJobStatus({ job }: { job: DraftingJob }) {
   const { t } = useI18n();
+  switch (job.status) {
+    case "pending":
+    case "running":
+      return <>{t.policies.rulesJobRunning}</>;
+    case "succeeded":
+      return (
+        <>
+          {formatMessage(t.policies.rulesJobSucceeded, { count: job.ruleIds.length })}{" "}
+          <Link href="/rules">{t.policies.reviewDraftedRules}</Link>
+        </>
+      );
+    case "failed":
+      return (
+        <>
+          {t.policies.rulesJobFailed} {job.errorMessage ?? t.draftingJobs.noErrorMessage}
+        </>
+      );
+    default:
+      return assertUnreachable(job.status);
+  }
+}
+
+function RulesJobNotice({ jobId, onRetried }: { jobId: string; onRetried: (jobId: string) => void }) {
+  const { t } = useI18n();
+  const jobQuery = useDraftingJob(jobId);
+  const retryMutation = useRetryDraftingJob();
+  const job = jobQuery.data;
+  useRefreshDraftedArtifacts(job);
   return (
-    <Notice tone="ai" title={t.policies.approved}>
-      {formatMessage(t.policies.draftedRules, { count: draftedRuleCount })}{" "}
-      <Link href="/rules">{t.policies.reviewDraftedRules}</Link>
-    </Notice>
+    <div className={styles.rulesJob}>
+      <Notice tone="ai" title={t.policies.approved}>
+        {job ? <RulesJobStatus job={job} /> : t.common.loading}
+      </Notice>
+      <div className={styles.rulesJobActions}>
+        {job && <DraftingJobStatusBadge status={job.status} />}
+        {job?.status === "failed" && (
+          <Button
+            variant="secondary"
+            icon={<RotateCcw aria-hidden="true" />}
+            disabled={retryMutation.isPending}
+            onClick={() =>
+              retryMutation.mutate(job.id, { onSuccess: (retriedJob) => onRetried(retriedJob.id) })
+            }
+          >
+            {retryMutation.isPending ? t.draftingJobs.retrying : t.draftingJobs.retry}
+          </Button>
+        )}
+        <RefreshButton
+          label={t.draftingJobs.refresh}
+          isFetching={jobQuery.isFetching}
+          onRefresh={() => void jobQuery.refetch()}
+        />
+      </div>
+      {job && <DraftingJobWarnings jobs={[job]} />}
+      {(jobQuery.error || retryMutation.error) && (
+        <ErrorState error={jobQuery.error ?? retryMutation.error} />
+      )}
+    </div>
   );
 }
 
 function PolicyDetail({ policy }: { policy: Policy }) {
   const { t, locale } = useI18n();
-  const [draftedRuleCount, setDraftedRuleCount] = useState(0);
+  const [rulesJobId, setRulesJobId] = useState<string | null>(null);
   const isDraft = policy.status === "draft";
   return (
     <>
@@ -86,7 +149,7 @@ function PolicyDetail({ policy }: { policy: Policy }) {
           </>
         }
       />
-      {draftedRuleCount > 0 && <DraftedRulesNotice draftedRuleCount={draftedRuleCount} />}
+      {rulesJobId && <RulesJobNotice jobId={rulesJobId} onRetried={setRulesJobId} />}
       <Card tone={policy.origin === "generated" ? "ai" : "default"}>
         <KeyValueList
           items={[
@@ -124,7 +187,7 @@ function PolicyDetail({ policy }: { policy: Policy }) {
             <PolicyTextEditor
               key={policy.updatedAt}
               policy={policy}
-              onApproved={({ draftedRuleIds }) => setDraftedRuleCount(draftedRuleIds.length)}
+              onApproved={({ rulesJob }) => setRulesJobId(rulesJob?.id ?? null)}
             />
           </>
         ) : (

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { DraftingJob } from "@/features/draftingJobs/types";
 import { policyLegalBasisSchema } from "@/features/regulations/types";
 
 export const policyStatusSchema = z.enum(["draft", "approved"]);
@@ -26,8 +27,5 @@ export type Policy = z.infer<typeof policySchema>;
 
 export type UpdatePolicyTextInput = { policyId: string; text: string };
 
-/**
- * Approving a policy version makes the backend draft the rules that implement it (in `draft` status, awaiting
- * their own review). `draftedRuleIds` are the rules created by this approval; the mock drafts none.
- */
-export type PolicyApproval = { policy: Policy; draftedRuleIds: string[] };
+/** Approving a policy version starts a job that drafts its rules (`draft`, awaiting their own review), if any. */
+export type PolicyApproval = { policy: Policy; rulesJob: DraftingJob | null };

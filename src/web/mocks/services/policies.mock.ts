@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/apiError";
 import { simulateLatency } from "../latency";
 import { throwMockNotFound } from "../notFound";
 import { readMockDatabase, writeMockDatabase, type MockPolicyRecord } from "../store/mockDatabase";
+import { addMockDraftingJob, advanceMockDraftingJobs } from "./draftingJobs.mock";
 import { mapPolicyRecord } from "./mappers";
 
 function findPolicyRecord(policyId: string): MockPolicyRecord {
@@ -58,7 +59,18 @@ export const mockPoliciesService: PoliciesService = {
       approvedAt: now,
       updatedAt: now,
     });
-    // Unlike the backend, the mock drafts no rules on approval; the mock wizard generates them itself.
-    return { policy, draftedRuleIds: [] };
+    const database = advanceMockDraftingJobs();
+    const parentJob = database.draftingJobs.find(
+      ({ job }) => job.kind === "policy_from_regulation" && job.policyIds.includes(policyId),
+    )?.job;
+    const enqueued = addMockDraftingJob(database, {
+      parentJobId: parentJob?.id ?? null,
+      sourceKind: null,
+      sourceUrl: null,
+      regulationId: parentJob?.regulationId ?? record.legalBases[0]?.regulationId ?? null,
+      input: { kind: "rules_from_policy", policyId },
+    });
+    writeMockDatabase(enqueued.database);
+    return { policy, rulesJob: enqueued.job };
   },
 };

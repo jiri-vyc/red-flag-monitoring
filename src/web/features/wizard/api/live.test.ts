@@ -3,6 +3,9 @@
  */
 // Node's File has text(), which the live adapter uses to read a Markdown file; jsdom's File does not.
 import { CURRENT_USER } from "@/config/currentUser";
+import { createDraftingJobDto } from "@/features/draftingJobs/api/draftingJobDtoFixture";
+import type { DraftingJobDto } from "@/features/draftingJobs/api/dto";
+import { liveDraftingJobsService } from "@/features/draftingJobs/api/live";
 import { requestJson } from "@/lib/httpClient";
 
 import type { DraftPoliciesInput } from "../types";
@@ -31,7 +34,7 @@ function createReviewFields(status: string) {
   };
 }
 
-/** Mimics regulationsRouter, internalPoliciesRouter and rulesRouter with the DummyDraftGenerator. */
+/** Mimics the drafting jobs API, internalPoliciesRouter and rulesRouter; the test plays the worker. */
 function createFakeBackend() {
   const regulations: Row[] = [
     { id: "reg-existing", code: "AMLZ", title: "AML zákon", kind: "law", sourceUrl: null, checkedAt: null },
@@ -41,10 +44,11 @@ function createFakeBackend() {
   const policyVersions: Row[] = [];
   const rules: Row[] = [];
   const ruleVersions: Row[] = [];
+  const jobs: DraftingJobDto[] = [];
   const requests: RecordedRequest[] = [];
   let nextId = 1;
   const createId = (prefix: string) => `${prefix}-${nextId++}`;
-  const findById = (rows: Row[], id: string | undefined) => {
+  const findById = <TRow extends { id: string }>(rows: TRow[], id: string | undefined) => {
     const row = rows.find((candidate) => candidate.id === id);
     if (!row) {
       throw new Error(`Fake backend: ${id} not found`);
@@ -52,25 +56,25 @@ function createFakeBackend() {
     return row;
   };
 
-  function draftPolicies(regulationVersionId: string): Row[] {
-    return Array.from({ length: DRAFTS_PER_SOURCE }, (_, index) => {
+  function draftPolicies(job: DraftingJobDto): void {
+    job.policyVersions = Array.from({ length: DRAFTS_PER_SOURCE }, (_, index) => {
       const policy = { id: createId("policy"), code: `SVZ-${index}`, title: `[DUMMY] Předpis ${index}` };
       const version = {
         id: createId("policy-version"),
         policyId: policy.id,
         body: `# [DUMMY] Předpis ${index}`,
-        legalBases: [{ regulationVersionId, ref: "neurčeno" }],
+        legalBases: [{ regulationVersionId: job.regulationVersionId, ref: "neurčeno" }],
         ...createReviewFields("draft"),
       };
       policies.push(policy);
       policyVersions.push(version);
-      return version;
+      return { id: version.id, policyId: policy.id, status: "draft" };
     });
   }
 
-  // internalPolicyUseCases.reviewVersion: approval drafts the policy's rules.
-  function draftRules(policyVersion: Row): void {
-    for (let index = 0; index < DRAFTS_PER_SOURCE; index += 1) {
+  function draftRules(job: DraftingJobDto): void {
+    const policyVersion = findById(policyVersions, job.policyVersionId ?? undefined);
+    job.ruleVersions = Array.from({ length: DRAFTS_PER_SOURCE }, (_, index) => {
       const rule = {
         id: createId("rule"),
         policyId: policyVersion.policyId,
@@ -82,8 +86,7 @@ function createFakeBackend() {
         isWhitelistAllowed: true,
         createdAt: CREATED_AT,
       };
-      rules.push(rule);
-      ruleVersions.push({
+      const version = {
         id: createId("rule-version"),
         ruleId: rule.id,
         derivedFromPolicyVersionId: policyVersion.id,
@@ -97,80 +100,136 @@ function createFakeBackend() {
         riskProfiles: ["low", "medium", "high"],
         legalBases: [{ regulationVersionId: "reg-version-x", ref: "neurčeno" }],
         ...createReviewFields("draft"),
-      });
-    }
+      };
+      rules.push(rule);
+      ruleVersions.push(version);
+      return { id: version.id, ruleId: rule.id, status: "draft" };
+    });
   }
 
-  function handleGet(segments: string[]): unknown {
+  function runJob(jobId: string): void {
+    const job = findById(jobs, jobId);
+    if (job.kind === "policy_from_regulation") {
+      draftPolicies(job);
+    } else {
+      draftRules(job);
+    }
+    Object.assign(job, { status: "succeeded", attempts: 1, startedAt: CREATED_AT, finishedAt: CREATED_AT });
+  }
+
+  function createPolicyJob(jsonBody: Record<string, unknown>): DraftingJobDto {
+    const source = jsonBody.source as { kind: string; content?: string; url?: string };
+    const regulationBody = jsonBody.regulation as Record<string, unknown> | undefined;
+    let regulationId: string | null = null;
+    if (regulationBody && "id" in regulationBody) {
+      regulationId = findById(regulations, regulationBody.id as string).id;
+    } else if (regulationBody) {
+      regulationId = createId("reg");
+      regulations.push({ id: regulationId, checkedAt: null, ...regulationBody });
+    }
+    let regulationVersionId: string | null = null;
+    if (source.kind !== "url" && regulationId) {
+      regulationVersionId = createId("reg-version");
+      regulationVersions.push({
+        id: regulationVersionId,
+        regulationId,
+        label: jsonBody.versionLabel,
+        fullText: source.content,
+        createdAt: CREATED_AT,
+      });
+    }
+    const job = createDraftingJobDto({
+      id: createId("job"),
+      sourceKind: source.kind as DraftingJobDto["sourceKind"],
+      sourceUrl: source.url ?? null,
+      regulationId,
+      regulationVersionId,
+      createdBy: jsonBody.createdBy as string,
+    });
+    jobs.push(job);
+    return job;
+  }
+
+  function createRulesJob(policyVersion: Row): DraftingJobDto {
+    const parentJob = jobs.find((job) => job.policyVersions.some(({ id }) => id === policyVersion.id));
+    const job = createDraftingJobDto({
+      id: createId("job"),
+      kind: "rules_from_policy",
+      parentJobId: parentJob?.id ?? null,
+      sourceKind: null,
+      regulationId: parentJob?.regulationId ?? null,
+      regulationVersionId: null,
+      policyVersionId: policyVersion.id,
+    });
+    jobs.push(job);
+    return job;
+  }
+
+  function listJobs(query: URLSearchParams) {
+    const kinds = query.get("kind")?.split(",");
+    const policyVersionId = query.get("policyVersionId");
+    const limit = Number(query.get("limit") ?? 50);
+    const items = jobs
+      .filter((job) => !kinds || kinds.includes(job.kind))
+      .filter((job) => !policyVersionId || job.policyVersionId === policyVersionId)
+      .toReversed();
+    return { items: items.slice(0, limit), total: items.length, limit, offset: 0 };
+  }
+
+  function handleGet(segments: string[], query: URLSearchParams): unknown {
     const [collection, id, child] = segments;
-    if (collection === "regulations") {
-      if (id === undefined) {
-        return regulations;
-      }
-      return child === "versions"
-        ? regulationVersions.filter((version) => version.regulationId === id)
-        : findById(regulations, id);
+    if (collection === "drafting-jobs") {
+      return id === undefined ? listJobs(query) : findById(jobs, id);
     }
-    if (collection === "internal-policies") {
-      if (id === undefined) {
-        return policies;
-      }
-      return child === "versions"
-        ? policyVersions.filter((version) => version.policyId === id)
-        : findById(policies, id);
+    const tables: Record<string, [Row[], Row[], string]> = {
+      regulations: [regulations, regulationVersions, "regulationId"],
+      "internal-policies": [policies, policyVersions, "policyId"],
+      rules: [rules, ruleVersions, "ruleId"],
+    };
+    const table = collection === undefined ? undefined : tables[collection];
+    if (!table) {
+      throw new Error(`Fake backend: unexpected GET /${segments.join("/")}`);
     }
-    if (collection === "rules") {
-      if (id === undefined) {
-        return rules;
-      }
-      return child === "versions"
-        ? ruleVersions.filter((version) => version.ruleId === id)
-        : findById(rules, id);
+    const [rows, versions, foreignKey] = table;
+    if (id === undefined) {
+      return rows;
     }
-    throw new Error(`Fake backend: unexpected GET /${segments.join("/")}`);
+    return child === "versions"
+      ? versions.filter((version) => version[foreignKey] === id)
+      : findById(rows, id);
   }
 
   function handlePost(segments: string[], jsonBody: Record<string, unknown>): unknown {
     const [collection, id, child, versionId, action] = segments;
-    if (collection === "regulations" && id === undefined) {
-      const regulation = { id: createId("reg"), checkedAt: null, ...jsonBody };
-      regulations.push(regulation);
-      return regulation;
-    }
-    if (collection === "regulations" && child === "versions" && versionId === undefined) {
-      findById(regulations, id);
-      const version = { id: createId("reg-version"), regulationId: id, createdAt: CREATED_AT, ...jsonBody };
-      regulationVersions.push(version);
-      return version;
-    }
-    if (collection === "regulations" && action === "draft-policies") {
-      return draftPolicies(findById(regulationVersions, versionId).id);
+    if (collection === "drafting-jobs" && id === undefined) {
+      return createPolicyJob(jsonBody);
     }
     if (collection === "internal-policies" && action === "submit") {
       return Object.assign(findById(policyVersions, versionId), { status: "pending_review" });
     }
     if (collection === "internal-policies" && action === "review") {
       const version = Object.assign(findById(policyVersions, versionId), { status: jsonBody.decision });
-      if (jsonBody.decision === "approved") {
-        draftRules(version);
-      }
-      return version;
+      return { ...version, rulesJob: jsonBody.decision === "approved" ? createRulesJob(version) : null };
     }
     if (collection === "rules" && action === "submit") {
       return Object.assign(findById(ruleVersions, versionId), { status: "pending_review" });
     }
-    throw new Error(`Fake backend: unexpected POST /${segments.join("/")}`);
+    throw new Error(`Fake backend: unexpected POST /${segments.join("/")} (${child ?? ""})`);
   }
 
   requestJsonMock.mockImplementation(async ({ path, method = "GET", jsonBody }) => {
     requests.push({ method, path, jsonBody });
-    const segments = path.split("?")[0]!.split("/").filter(Boolean).map(decodeURIComponent);
-    return method === "GET" ? handleGet(segments) : handlePost(segments, jsonBody as Record<string, unknown>);
+    const [pathname = "", queryString = ""] = path.split("?");
+    const segments = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    return method === "GET"
+      ? handleGet(segments, new URLSearchParams(queryString))
+      : handlePost(segments, jsonBody as Record<string, unknown>);
   });
 
   return {
     requests,
     ruleVersions,
+    runJob,
     writes: () => requests.filter(({ method }) => method !== "GET"),
   };
 }
@@ -189,46 +248,119 @@ const NEW_REGULATION_INPUT: DraftPoliciesInput = {
   versionLabel: "Znění k 2026-10-19",
 };
 
+async function draftPolicies(backend: ReturnType<typeof createFakeBackend>) {
+  const { id } = await liveWizardService.startPolicyDrafting(NEW_REGULATION_INPUT);
+  backend.runJob(id);
+  return liveWizardService.loadPolicyDraft(await liveDraftingJobsService.loadJob(id));
+}
+
 describe("liveWizardService", () => {
   beforeEach(() => requestJsonMock.mockReset());
 
-  it("cannot load a regulation from a URL (BE-02) but is available", () => {
-    expect(liveWizardService.capabilities).toEqual({ isAvailable: true, canFetchUrl: false });
+  it("is available and loads a regulation from a URL through a drafting job", () => {
+    expect(liveWizardService.capabilities).toEqual({ isAvailable: true, canFetchUrl: true });
   });
 
-  it("creates the regulation and its wording, then returns every policy draft", async () => {
+  it("starts one policy job with the pasted text and the new regulation's metadata", async () => {
     const backend = createFakeBackend();
 
-    const result = await liveWizardService.draftPolicies(NEW_REGULATION_INPUT);
+    const job = await liveWizardService.startPolicyDrafting(NEW_REGULATION_INPUT);
 
     expect(backend.writes()).toEqual([
       {
         method: "POST",
-        path: "/regulations",
+        path: "/drafting-jobs",
         jsonBody: {
-          code: "AMLZ-2026",
-          title: "Zákon o AML",
-          kind: "law",
-          sourceUrl: "https://example.org/aml",
+          source: { kind: "text", content: LONG_TEXT },
+          regulation: {
+            code: "AMLZ-2026",
+            title: "Zákon o AML",
+            kind: "law",
+            sourceUrl: "https://example.org/aml",
+          },
+          versionLabel: "Znění k 2026-10-19",
+          createdBy: CURRENT_USER.id,
         },
       },
+    ]);
+    expect(job).toMatchObject({
+      kind: "policy_from_regulation",
+      status: "pending",
+      sourceKind: "text",
+      regulationId: "reg-1",
+      policyIds: [],
+    });
+  });
+
+  it("sends a Markdown file as its text and an existing regulation by id", async () => {
+    const backend = createFakeBackend();
+    const markdownFile = new File(["# Vyhláška\n\nObsah\n"], "vyhlaska.md", { type: "text/markdown" });
+
+    await liveWizardService.startPolicyDrafting({
+      source: { kind: "file", file: markdownFile },
+      regulation: { kind: "existing", regulationId: "reg-existing" },
+      versionLabel: "Novela 2026",
+    });
+
+    expect(backend.writes().map(({ jsonBody }) => jsonBody)).toEqual([
       {
-        method: "POST",
-        path: "/regulations/reg-1/versions",
-        jsonBody: { label: "Znění k 2026-10-19", fullText: LONG_TEXT },
-      },
-      {
-        method: "POST",
-        path: "/regulations/reg-1/versions/reg-version-2/draft-policies",
-        jsonBody: { createdBy: CURRENT_USER.id },
+        source: { kind: "markdown", content: "# Vyhláška\n\nObsah" },
+        regulation: { id: "reg-existing" },
+        versionLabel: "Novela 2026",
+        createdBy: CURRENT_USER.id,
       },
     ]);
-    expect(result.regulation).toMatchObject({
-      id: "reg-1",
-      shortName: "AMLZ-2026",
-      version: "Znění k 2026-10-19",
+  });
+
+  it("leaves the regulation to the job when it is derived from the URL", async () => {
+    const backend = createFakeBackend();
+    const url = "https://eur-lex.europa.eu/eli/reg/2024/1624/oj";
+
+    const job = await liveWizardService.startPolicyDrafting({
+      source: { kind: "url", url },
+      regulation: { kind: "fromUrl", url },
+      versionLabel: "Znění k 2026-10-19",
     });
-    expect(result.policies.map(({ name, status, legalBases }) => ({ name, status, legalBases }))).toEqual([
+
+    const [write] = backend.writes();
+    expect(write?.jsonBody).toEqual({
+      source: { kind: "url", url },
+      versionLabel: "Znění k 2026-10-19",
+      createdBy: CURRENT_USER.id,
+    });
+    expect(job).toMatchObject({ sourceKind: "url", sourceUrl: url, regulationId: null });
+  });
+
+  it.each([
+    {
+      label: "a file that is not Markdown",
+      input: { ...NEW_REGULATION_INPUT, source: { kind: "file", file: new File(["x"], "aml.docx") } },
+      kind: "unsupported",
+    },
+    {
+      label: "an empty Markdown file",
+      input: { ...NEW_REGULATION_INPUT, source: { kind: "file", file: new File(["  "], "aml.md") } },
+      kind: "validation",
+    },
+    {
+      label: "a regulation derived from a URL with a pasted text",
+      input: { ...NEW_REGULATION_INPUT, regulation: { kind: "fromUrl", url: "https://example.org/aml" } },
+      kind: "validation",
+    },
+  ] as const)("rejects $label before creating a job", async ({ input, kind }) => {
+    const backend = createFakeBackend();
+
+    await expect(liveWizardService.startPolicyDrafting(input)).rejects.toMatchObject({ kind });
+    expect(backend.requests).toEqual([]);
+  });
+
+  it("loads the regulation and every policy a succeeded job drafted", async () => {
+    const backend = createFakeBackend();
+
+    const { regulation, policies } = await draftPolicies(backend);
+
+    expect(regulation).toMatchObject({ id: "reg-1", shortName: "AMLZ-2026", version: "Znění k 2026-10-19" });
+    expect(policies.map(({ name, status, legalBases }) => ({ name, status, legalBases }))).toEqual([
       {
         name: "[DUMMY] Předpis 0",
         status: "draft",
@@ -242,75 +374,51 @@ describe("liveWizardService", () => {
     ]);
   });
 
-  it("adds a wording to an existing regulation and reads a Markdown file as text", async () => {
-    const backend = createFakeBackend();
-    const markdownFile = new File(["# Vyhláška\n\nObsah"], "vyhlaska.md", { type: "text/markdown" });
+  it("rejects a succeeded job without a regulation instead of loading nothing", async () => {
+    createFakeBackend();
+    const job = {
+      ...(await liveWizardService.startPolicyDrafting(NEW_REGULATION_INPUT)),
+      regulationId: null,
+    };
 
-    await liveWizardService.draftPolicies({
-      source: { kind: "file", file: markdownFile },
-      regulation: { kind: "existing", regulationId: "reg-existing" },
-      versionLabel: "Novela 2026",
-    });
-
-    expect(backend.writes().map(({ path, jsonBody }) => ({ path, jsonBody }))).toEqual([
-      {
-        path: "/regulations/reg-existing/versions",
-        jsonBody: { label: "Novela 2026", fullText: "# Vyhláška\n\nObsah" },
-      },
-      {
-        path: "/regulations/reg-existing/versions/reg-version-1/draft-policies",
-        jsonBody: { createdBy: CURRENT_USER.id },
-      },
-    ]);
+    await expect(liveWizardService.loadPolicyDraft(job)).rejects.toMatchObject({ kind: "invalid_response" });
   });
 
-  it.each([
-    {
-      label: "a file that is not Markdown",
-      input: { ...NEW_REGULATION_INPUT, source: { kind: "file", file: new File(["x"], "aml.docx") } },
-    },
-    {
-      label: "a URL",
-      input: {
-        ...NEW_REGULATION_INPUT,
-        source: { kind: "url", url: "https://example.org/aml" },
-        regulation: { kind: "fromUrl", url: "https://example.org/aml" },
-      },
-    },
-    {
-      label: "a regulation derived from a URL",
-      input: { ...NEW_REGULATION_INPUT, regulation: { kind: "fromUrl", url: "https://example.org/aml" } },
-    },
-  ] as const)("rejects $label as unsupported before writing anything", async ({ input }) => {
+  it("approves a policy draft and finds the rules job by the approved version", async () => {
     const backend = createFakeBackend();
-
-    await expect(liveWizardService.draftPolicies(input)).rejects.toMatchObject({
-      kind: "unsupported",
-    });
-    expect(backend.requests).toEqual([]);
-  });
-
-  it("approves a policy draft (submit, then review) and returns the rule drafts the backend created", async () => {
-    const backend = createFakeBackend();
-    const { policies } = await liveWizardService.draftPolicies(NEW_REGULATION_INPUT);
+    const { policies } = await draftPolicies(backend);
     const policyId = policies[0]!.id;
     const writesBefore = backend.writes().length;
 
-    const { policy, rules } = await liveWizardService.approvePolicyDraft(policyId);
+    const { policy, rulesJob } = await liveWizardService.approvePolicyDraft(policyId);
+    const foundJobs = await liveWizardService.findRulesJobs([policyId, policies[1]!.id]);
 
-    expect(backend.writes().slice(writesBefore)).toEqual([
-      {
-        method: "POST",
-        path: `/internal-policies/${policyId}/versions/policy-version-4/submit`,
-        jsonBody: undefined,
-      },
-      {
-        method: "POST",
-        path: `/internal-policies/${policyId}/versions/policy-version-4/review`,
-        jsonBody: { decision: "approved", reviewedBy: CURRENT_USER.id, reviewComment: null },
-      },
+    expect(
+      backend
+        .writes()
+        .slice(writesBefore)
+        .map(({ path }) => path),
+    ).toEqual([
+      `/internal-policies/${policyId}/versions/policy-version-5/submit`,
+      `/internal-policies/${policyId}/versions/policy-version-5/review`,
     ]);
     expect(policy.status).toBe("approved");
+    expect(rulesJob).toMatchObject({ kind: "rules_from_policy", status: "pending", parentJobId: "job-3" });
+    expect(foundJobs.map((job) => job.id)).toEqual([rulesJob!.id]);
+    expect(backend.requests.map(({ path }) => path)).toContain(
+      "/drafting-jobs?kind=rules_from_policy&policyVersionId=policy-version-5&limit=1",
+    );
+  });
+
+  it("loads the rules a rules job drafted", async () => {
+    const backend = createFakeBackend();
+    const { policies } = await draftPolicies(backend);
+    const policyId = policies[0]!.id;
+    const { rulesJob } = await liveWizardService.approvePolicyDraft(policyId);
+    backend.runJob(rulesJob!.id);
+
+    const rules = await liveWizardService.loadDraftedRules([policyId]);
+
     expect(
       rules.map(({ policyId: rulePolicyId, status, description }) => ({ rulePolicyId, status, description })),
     ).toEqual([
@@ -321,9 +429,11 @@ describe("liveWizardService", () => {
 
   it("submits only the rules that are still drafts when the review is finished", async () => {
     const backend = createFakeBackend();
-    const { policies } = await liveWizardService.draftPolicies(NEW_REGULATION_INPUT);
+    const { policies } = await draftPolicies(backend);
     const policyIds = policies.map((policy) => policy.id);
-    const { rules } = await liveWizardService.approvePolicyDraft(policyIds[0]!);
+    const { rulesJob } = await liveWizardService.approvePolicyDraft(policyIds[0]!);
+    backend.runJob(rulesJob!.id);
+    const rules = await liveWizardService.loadDraftedRules(policyIds);
     // The analyst already decided the first rule in the review step, so its version is no draft any more.
     Object.assign(
       backend.ruleVersions.find((version) => version.ruleId === rules[0]!.id)!,

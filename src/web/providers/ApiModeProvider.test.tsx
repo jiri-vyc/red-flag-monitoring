@@ -43,8 +43,7 @@ describe("ApiModeProvider", () => {
     expect(result.current.batches.canUploadBatch).toBe(false);
     expect(result.current.batches.canStartRun).toBe(true);
     expect(result.current.rules.canCreateDeterministicRule).toBe(false);
-    // The live wizard cannot load a regulation from a URL (BE-02).
-    expect(result.current.wizard).toEqual({ isAvailable: true, canFetchUrl: false });
+    expect(result.current.wizard).toEqual({ isAvailable: true, canFetchUrl: true });
   });
 
   it("switches every capability to the mock implementation and back", () => {
@@ -59,7 +58,7 @@ describe("ApiModeProvider", () => {
 
     act(() => result.current.changeApiMode("live"));
     expect(result.current.batches.canUploadBatch).toBe(false);
-    expect(result.current.wizard.canFetchUrl).toBe(false);
+    expect(result.current.rules.canCreateDeterministicRule).toBe(false);
   });
 
   it("drops cached data of the previous source on switch", () => {

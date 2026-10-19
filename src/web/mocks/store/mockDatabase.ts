@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Batch, BatchTransaction, Transaction } from "@/features/batches/types";
+import type { DraftingJob } from "@/features/draftingJobs/types";
 import { policySchema, type Policy } from "@/features/policies/types";
 import { regulationSchema, type Regulation } from "@/features/regulations/types";
 import { ruleSchema, whitelistEntrySchema, type Rule, type WhitelistEntry } from "@/features/rules/types";
@@ -22,6 +23,16 @@ export type MockBatchRecord = {
   ruleSnapshots: MockRuleSnapshot[];
 };
 
+export type MockDraftingJobInput =
+  { kind: "policy_from_regulation"; sourceLabel: string } | { kind: "rules_from_policy"; policyId: string };
+
+export type MockDraftingJobRecord = {
+  /** As of the last read; the simulated worker advances it from wall-clock time, so it survives a reload. */
+  job: DraftingJob;
+  createdAtMs: number;
+  input: MockDraftingJobInput;
+};
+
 export type MockDatabase = {
   regulations: MockRegulationRecord[];
   policies: MockPolicyRecord[];
@@ -30,6 +41,7 @@ export type MockDatabase = {
   /** Rule-level exceptions (M16), not versioned. Batches keep their own copy in ruleSnapshots. */
   whitelistEntries: WhitelistEntry[];
   batches: MockBatchRecord[];
+  draftingJobs: MockDraftingJobRecord[];
 };
 
 /** The mock engine re-evaluates stored rows, so it keeps the full transaction with its CZK amount. */
@@ -99,9 +111,28 @@ const storedDatabaseSchema = z.object({
   batches: z.array(
     z.object({ batch: z.object({ id: z.string() }).loose(), ruleSnapshots: z.array(z.unknown()) }).loose(),
   ),
+  // Optional: data stored before drafting jobs existed stays valid and starts with none.
+  draftingJobs: z
+    .array(
+      z.object({
+        job: z
+          .object({
+            id: z.string(),
+            status: z.string(),
+            policyIds: z.array(z.string()),
+            warnings: z.array(z.string()),
+          })
+          .loose(),
+        createdAtMs: z.number(),
+        input: z.object({ kind: z.string() }).loose(),
+      }),
+    )
+    .optional(),
 });
 
-function isMockDatabase(value: unknown): value is MockDatabase {
+type StoredDatabase = Omit<MockDatabase, "draftingJobs"> & { draftingJobs?: MockDraftingJobRecord[] };
+
+function isStoredDatabase(value: unknown): value is StoredDatabase {
   return storedDatabaseSchema.safeParse(value).success;
 }
 
@@ -118,8 +149,8 @@ export function readMockDatabase(): MockDatabase {
     return cachedDatabase;
   }
   const storedDatabase = readStorageItem(DATABASE_KEY);
-  if (isMockDatabase(storedDatabase)) {
-    cachedDatabase = storedDatabase;
+  if (isStoredDatabase(storedDatabase)) {
+    cachedDatabase = { ...storedDatabase, draftingJobs: storedDatabase.draftingJobs ?? [] };
     return cachedDatabase;
   }
   if (storedDatabase !== null) {

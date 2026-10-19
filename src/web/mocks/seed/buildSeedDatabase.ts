@@ -69,6 +69,7 @@ export function buildSeedDatabase(): MockSeed {
     ruleCheckKinds,
     whitelistEntries,
     batches,
+    draftingJobs: [],
   };
   return { database, batchRows };
 }

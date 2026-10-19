@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
 import { EmptyState, ErrorState } from "@/components/ui/StateViews";
+import { useDraftingJobGroup } from "@/features/draftingJobs/api/hooks";
+import { DraftingJobWarnings } from "@/features/draftingJobs/components/DraftingJobWarnings";
 import { formatLegalBasisRefs } from "@/features/regulations/types";
 import { useRulesCapabilities, useRuleTransition, useUpdateDraftContent } from "@/features/rules/api/hooks";
 import { RejectRulePanel } from "@/features/rules/components/RejectRulePanel";
@@ -134,19 +136,28 @@ function GeneratedRuleCard({ rule, onRuleChange }: { rule: Rule; onRuleChange: (
 
 type RuleReviewStepProps = {
   rules: Rule[];
+  rulesJobIds: string[];
   isFinishing: boolean;
   onRuleChange: (rule: Rule) => void;
   onFinish: () => void;
 };
 
-export function RuleReviewStep({ rules, isFinishing, onRuleChange, onFinish }: RuleReviewStepProps) {
+export function RuleReviewStep({
+  rules,
+  rulesJobIds,
+  isFinishing,
+  onRuleChange,
+  onFinish,
+}: RuleReviewStepProps) {
   const { t } = useI18n();
+  const { jobs: rulesJobs } = useDraftingJobGroup(rulesJobIds);
   return (
     <Card tone="ai" title={t.wizard.reviewTitle}>
       <p className={styles.muted}>{t.wizard.reviewHint}</p>
       <Notice tone="ai" title={t.aiNotice.title}>
         {t.aiNotice.body}
       </Notice>
+      <DraftingJobWarnings jobs={rulesJobs} />
       {rules.length === 0 ? (
         <EmptyState message={t.wizard.noRuleDrafts} />
       ) : (

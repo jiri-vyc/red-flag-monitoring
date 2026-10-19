@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { CURRENT_USER } from "@/config/currentUser";
+import { draftingJobQueryKeys } from "@/features/draftingJobs/api/hooks";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
 import type { UpdatePolicyTextInput } from "../types";
@@ -34,11 +35,11 @@ export function useUpdatePolicyText() {
   });
 }
 
-// Approval drafts rules on the backend, so rule lists, counters and regulation citations change too.
+// Approval starts a rules job, whose drafts then change rule lists, counters and regulation citations too.
 function invalidatePolicyApprovalQueries(queryClient: QueryClient) {
   return Promise.all(
-    [policyQueryKeys.all, ["rules"], ["dashboard"], ["regulations"]].map((queryKey) =>
-      queryClient.invalidateQueries({ queryKey }),
+    [policyQueryKeys.all, ["rules"], ["dashboard"], ["regulations"], draftingJobQueryKeys.all].map(
+      (queryKey) => queryClient.invalidateQueries({ queryKey }),
     ),
   );
 }

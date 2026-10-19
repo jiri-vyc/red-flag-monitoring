@@ -53,3 +53,12 @@ export function formatAmount({
     throw error;
   }
 }
+
+/** A running duration as m:ss or h:mm:ss. Negative input (client clock behind the server) shows 0:00. */
+export function formatElapsedTime(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
+}

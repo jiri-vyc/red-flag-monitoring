@@ -50,3 +50,15 @@
   display: flex;
   gap: var(--space-2);
 }
+
+.rulesJob {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.rulesJobActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}

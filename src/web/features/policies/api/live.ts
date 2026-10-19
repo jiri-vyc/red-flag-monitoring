@@ -1,4 +1,5 @@
 import { CURRENT_USER, formatUserName } from "@/config/currentUser";
+import { draftingJobDtoSchema, toDraftingJob } from "@/features/draftingJobs/api/dto";
 import {
   fetchRegulationsWithVersions,
   indexRegulationIdByVersionId,
@@ -65,19 +66,18 @@ async function loadPolicy(policyId: string): Promise<Policy> {
   return toPolicy(policyWithVersions, relations);
 }
 
-function postVersionAction(
-  policyId: string,
-  versionId: string,
-  action: "submit" | "review",
-  jsonBody?: unknown,
-) {
+function submitVersion(policyId: string, versionId: string) {
   return requestJson({
-    path: `${versionPath(policyId, versionId)}/${action}`,
+    path: `${versionPath(policyId, versionId)}/submit`,
     method: "POST",
-    jsonBody,
     schema: internalPolicyVersionDtoSchema,
   });
 }
+
+// `nullish`: a backend that still drafts rules inline answers without `rulesJob`.
+const approvedPolicyVersionDtoSchema = internalPolicyVersionDtoSchema.extend({
+  rulesJob: draftingJobDtoSchema.nullish(),
+});
 
 export const livePoliciesService: PoliciesService = {
   async loadPolicies() {
@@ -108,29 +108,22 @@ export const livePoliciesService: PoliciesService = {
     return loadPolicy(policyId);
   },
 
-  // The backend reviews only pending versions, so a draft is submitted first. Approval supersedes older ones
-  // and drafts the policy's rules in the same request; they are the rules of the policy that did not exist before.
+  // The backend reviews only pending versions, so a draft is submitted first.
   async approvePolicy({ policyId }) {
-    const [{ versions }, rulesBeforeApproval] = await Promise.all([
-      fetchPolicyWithVersions(policyId),
-      fetchRuleDtos(),
-    ]);
+    const { versions } = await fetchPolicyWithVersions(policyId);
     const latestVersion = versions.at(-1);
     if (!latestVersion || (latestVersion.status !== "draft" && latestVersion.status !== "pending_review")) {
       return throwValidation("The policy has no version awaiting approval. Edit the text to create one.");
     }
     if (latestVersion.status === "draft") {
-      await postVersionAction(policyId, latestVersion.id, "submit");
+      await submitVersion(policyId, latestVersion.id);
     }
-    await postVersionAction(policyId, latestVersion.id, "review", {
-      decision: "approved",
-      reviewedBy: CURRENT_USER.id,
-      reviewComment: null,
+    const { rulesJob } = await requestJson({
+      path: `${versionPath(policyId, latestVersion.id)}/review`,
+      method: "POST",
+      jsonBody: { decision: "approved", reviewedBy: CURRENT_USER.id, reviewComment: null },
+      schema: approvedPolicyVersionDtoSchema,
     });
-    const policy = await loadPolicy(policyId);
-    const existingRuleIds = new Set(
-      rulesBeforeApproval.filter((rule) => rule.policyId === policyId).map((rule) => rule.id),
-    );
-    return { policy, draftedRuleIds: policy.ruleIds.filter((ruleId) => !existingRuleIds.has(ruleId)) };
+    return { policy: await loadPolicy(policyId), rulesJob: rulesJob ? toDraftingJob(rulesJob) : null };
   },
 };

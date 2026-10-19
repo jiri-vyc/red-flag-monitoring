@@ -53,7 +53,8 @@ export function PolicyTextEditor({ policy, showApprove = true, onApproved }: Pol
             variant="success"
             icon={<CircleCheck aria-hidden="true" />}
             disabled={hasUnsavedChanges || approveMutation.isPending}
-            onClick={() => approveMutation.mutate(policy.id, { onSuccess: onApproved })}
+            // Not mutate's onSuccess: the refetched, approved policy unmounts this editor before it would run.
+            onClick={() => void approveMutation.mutateAsync(policy.id).then(onApproved, () => undefined)}
           >
             {t.policies.approve}
           </Button>

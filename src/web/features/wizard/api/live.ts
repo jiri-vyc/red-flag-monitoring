@@ -1,9 +1,12 @@
-import { z } from "zod";
-
 import { CURRENT_USER } from "@/config/currentUser";
-import { internalPolicyVersionDtoSchema } from "@/features/policies/api/dto";
+import {
+  draftingJobDtoSchema,
+  draftingJobPageDtoSchema,
+  toDraftingJob,
+} from "@/features/draftingJobs/api/dto";
+import type { DraftingJob } from "@/features/draftingJobs/types";
+import { fetchPolicyWithVersions } from "@/features/policies/api/dto";
 import { livePoliciesService } from "@/features/policies/api/live";
-import { regulationDtoSchema, regulationVersionSummaryDtoSchema } from "@/features/regulations/api/dto";
 import { liveRegulationsService } from "@/features/regulations/api/live";
 import { liveRulesService, loadPolicyRules } from "@/features/rules/api/live";
 import type { Rule } from "@/features/rules/types";
@@ -16,7 +19,7 @@ import type { WizardService } from "./contract";
 
 const MARKDOWN_FILE_PATTERN = /\.(md|markdown)$/i;
 
-const regulationPath = (regulationId: string) => `/regulations/${encodeURIComponent(regulationId)}`;
+type SourceBody = { kind: "text" | "markdown"; content: string } | { kind: "url"; url: string };
 
 function throwUnsupported(message: string): never {
   throw new ApiError({ kind: "unsupported", message });
@@ -26,47 +29,65 @@ function throwValidation(message: string): never {
   throw new ApiError({ kind: "validation", message });
 }
 
-/** The backend stores the wording as plain text (M1): a Markdown file is read in the browser, a URL is not supported. */
-async function readRegulationText(source: RegulationSource): Promise<string> {
+function throwInvalidResponse(message: string): never {
+  throw new ApiError({ kind: "invalid_response", message });
+}
+
+async function buildSourceBody(source: RegulationSource): Promise<SourceBody> {
   switch (source.kind) {
     case "text":
-      return source.text;
+      return { kind: "text", content: source.text };
     case "file": {
       // The UI accepts only Markdown; this is the safety net.
       if (!MARKDOWN_FILE_PATTERN.test(source.file.name)) {
         return throwUnsupported("Only Markdown files are supported as a regulation file.");
       }
-      const text = (await source.file.text()).trim();
-      return text === "" ? throwValidation(`The file ${source.file.name} is empty.`) : text;
+      const content = (await source.file.text()).trim();
+      return content === ""
+        ? throwValidation(`The file ${source.file.name} is empty.`)
+        : { kind: "markdown", content };
     }
     case "url":
-      // BE-02: the backend does not load regulations from a URL. Disabled in the UI (canFetchUrl); the safety net.
-      return throwUnsupported("Fetching a regulation from a URL is not supported by the API.");
+      return { kind: "url", url: source.url };
     default:
       return assertUnreachable(source);
   }
 }
 
-async function findRegulationId(target: RegulationTarget): Promise<string> {
-  if (target.kind === "existing") {
-    return target.regulationId;
+function buildRegulationBody(target: RegulationTarget, source: SourceBody) {
+  switch (target.kind) {
+    case "existing":
+      return { id: target.regulationId };
+    case "new":
+      return {
+        code: target.code,
+        title: target.title,
+        kind: target.regulationKind,
+        sourceUrl: target.sourceUrl,
+      };
+    case "fromUrl":
+      return source.kind === "url"
+        ? undefined
+        : throwValidation("Only a URL source can derive the regulation from the page it loads.");
+    default:
+      return assertUnreachable(target);
   }
-  if (target.kind === "fromUrl") {
-    // BE-02: no `POST /regulations/import` yet.
-    return throwUnsupported("Deriving a regulation from a URL is not supported by the API.");
+}
+
+async function findRulesJob(policyId: string): Promise<DraftingJob | null> {
+  const { versions } = await fetchPolicyWithVersions(policyId);
+  const approvedVersion = versions.findLast((version) => version.status === "approved");
+  if (!approvedVersion) {
+    return null;
   }
-  const regulation = await requestJson({
-    path: "/regulations",
-    method: "POST",
-    jsonBody: {
-      code: target.code,
-      title: target.title,
-      kind: target.regulationKind,
-      sourceUrl: target.sourceUrl,
-    },
-    schema: regulationDtoSchema,
+  const query = new URLSearchParams({
+    kind: "rules_from_policy",
+    policyVersionId: approvedVersion.id,
+    limit: "1",
   });
-  return regulation.id;
+  const { items } = await requestJson({ path: `/drafting-jobs?${query}`, schema: draftingJobPageDtoSchema });
+  const [newestJob] = items;
+  return newestJob ? toDraftingJob(newestJob) : null;
 }
 
 function replaceRules(rules: Rule[], updatedRules: Rule[]): Rule[] {
@@ -74,48 +95,59 @@ function replaceRules(rules: Rule[], updatedRules: Rule[]): Rule[] {
   return rules.map((rule) => updatedRuleById.get(rule.id) ?? rule);
 }
 
-// Minimal backend flow (draftingUseCases.ts): regulation wording → policy drafts, approved policy → rule drafts.
-// The backend generator is a placeholder for now (DummyDraftGenerator, titles start with "[DUMMY]").
+async function loadRulesOfPolicies(policyIds: string[]): Promise<Rule[]> {
+  const rulesByPolicy = await Promise.all(policyIds.map((policyId) => loadPolicyRules(policyId)));
+  return rulesByPolicy.flat();
+}
+
 export const liveWizardService: WizardService = {
   capabilities: {
     isAvailable: true,
-    canFetchUrl: false, // BE-02
+    canFetchUrl: true,
   },
 
-  // The text is read before anything is written, so an unsupported or empty source leaves no regulation behind.
-  async draftPolicies({ source, regulation, versionLabel }) {
-    const fullText = await readRegulationText(source);
-    const regulationId = await findRegulationId(regulation);
-    const regulationVersion = await requestJson({
-      path: `${regulationPath(regulationId)}/versions`,
+  // The source is read before anything is sent, so an unsupported or empty file creates no job.
+  async startPolicyDrafting({ source, regulation, versionLabel }) {
+    const sourceBody = await buildSourceBody(source);
+    const job = await requestJson({
+      path: "/drafting-jobs",
       method: "POST",
-      jsonBody: { label: versionLabel, fullText },
-      schema: regulationVersionSummaryDtoSchema,
+      jsonBody: {
+        source: sourceBody,
+        regulation: buildRegulationBody(regulation, sourceBody),
+        versionLabel,
+        createdBy: CURRENT_USER.id,
+      },
+      schema: draftingJobDtoSchema,
     });
-    const policyVersions = await requestJson({
-      path: `${regulationPath(regulationId)}/versions/${encodeURIComponent(regulationVersion.id)}/draft-policies`,
-      method: "POST",
-      jsonBody: { createdBy: CURRENT_USER.id },
-      schema: z.array(internalPolicyVersionDtoSchema),
-    });
-    const policyIds = [...new Set(policyVersions.map((policyVersion) => policyVersion.policyId))];
-    const [regulationModel, policies] = await Promise.all([
+    return toDraftingJob(job);
+  },
+
+  async loadPolicyDraft({ id, regulationId, policyIds }) {
+    if (regulationId === null) {
+      return throwInvalidResponse(`Drafting job ${id} succeeded without a regulation.`);
+    }
+    const [regulation, policies] = await Promise.all([
       liveRegulationsService.loadRegulation(regulationId),
       Promise.all(policyIds.map((policyId) => livePoliciesService.loadPolicy(policyId))),
     ]);
-    return { regulation: regulationModel, policies };
+    return { regulation, policies };
   },
 
-  // The backend drafts the rules while it approves the policy (internalPolicyUseCases.reviewVersion).
-  async approvePolicyDraft(policyId) {
-    const { policy } = await livePoliciesService.approvePolicy({ policyId, approvedBy: CURRENT_USER.name });
-    return { policy, rules: await loadPolicyRules(policyId) };
+  approvePolicyDraft(policyId) {
+    return livePoliciesService.approvePolicy({ policyId, approvedBy: CURRENT_USER.name });
   },
+
+  async findRulesJobs(policyIds) {
+    const jobs = await Promise.all(policyIds.map(findRulesJob));
+    return jobs.filter((job) => job !== null);
+  },
+
+  loadDraftedRules: loadRulesOfPolicies,
 
   // Same semantics as the mock: rules nobody approved or rejected go to review, none stays a draft.
   async finishRuleReview(policyIds) {
-    const rulesByPolicy = await Promise.all(policyIds.map((policyId) => loadPolicyRules(policyId)));
-    const rules = rulesByPolicy.flat();
+    const rules = await loadRulesOfPolicies(policyIds);
     const submittedRules = await Promise.all(
       rules
         .filter((rule) => rule.status === "draft")
