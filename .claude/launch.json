@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "src/backend", "run", "dev"],
       "port": 4000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd src/web && npx next dev --port 3100"],
+      "port": 3100
     }
   ]
 }
