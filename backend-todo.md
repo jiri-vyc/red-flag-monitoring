@@ -14,7 +14,7 @@ Priority: **P1** = bez toho chybí hlavní tok demo (nahrát transakce, vytvoři
 | BE-02 | Wizard: generování předpisů přes Bedrock (asynchronní úlohy, načtení z URL a Bedrock generátor hotové, `DRAFT_GENERATOR=bedrock`, výchozí je dummy)          | `wizard.canFetchUrl`                 | P1       |
 | BE-03 | Wizard: generování pravidel ze schváleného předpisu přes Bedrock (asynchronní úloha a Bedrock generátor hotové, `DRAFT_GENERATOR=bedrock`, výchozí je dummy) | kvalita návrhů pravidel              | P1       |
 | BE-04 | Generování definice deterministického pravidla z popisu                                                                                                      | `rules.canCreateDeterministicRule`   | P1       |
-| BE-05 | Úprava draftu pravidla, nebo rozhodnutí, že verze zůstanou neměnné                                                                                           | `rules.canEditDraftContent`          | P2       |
+| BE-05 | Úprava draftu verze pravidla (`PATCH`, jen `status = draft`), rozhodnuto 2026-10-19                                                                          | `rules.canEditDraftContent`          | P1       |
 | BE-06 | Seznam klientů pro návrhy ve whitelistu                                                                                                                      | `rules.canSuggestWhitelistClients`   | P3       |
 | BE-07 | Souhrnný endpoint pro dashboard (volitelné)                                                                                                                  | rychlejší dashboard                  | P3       |
 | BE-08 | Popis regulace                                                                                                                                               | text v detailu regulace              | P2       |
@@ -103,7 +103,7 @@ Zbývá:
 - **Generátor (hotovo, commit `2bcf6a8`):** `BedrockDraftGenerator` navrhuje pravidla přes Bedrock (`ruleProposal.ts`, `ruleDraftingPrompt.ts`), zapne ho `DRAFT_GENERATOR=bedrock`. Výchozí `DummyDraftGenerator` vrací dvě zástupná pravidla (`[DUMMY]` v textu). Neplatnou definici backend odmítne, ne web.
 - **Stav (commit `77feb9f`):** `BedrockRuleCandidateExtractor` (`application/extractRuleCandidates.ts`, `domain/ruleCandidate.ts`) vytahuje kandidáty pravidel z předpisu, zatím jen z CLI (`delivery/cli/demoRuleExtraction.ts`). Zbývá převod `RuleCandidate` na `RuleDraft` (definice podle katalogu featur) a zapojení do `DraftGenerator.draftRules`. Tvar API pro web se nemění.
 - Předpis bez právního základu dnes žádná pravidla nedostane (M5). Web to v kroku review oznámí.
-- Úprava draftu pravidla v kroku review potřebuje BE-05. Bez něj web tlačítko „Upravit“ skryje a zbude schválit nebo zamítnout.
+- Úprava draftu pravidla v kroku review potřebuje BE-05 (rozhodnuto: `PATCH` draftu). Do té doby web tlačítko „Upravit“ skryje a zbývá schválit, nebo zamítnout.
 - ~~Generování běží synchronně v requestu schválení.~~ Hotovo: schválení uloží úlohu `rules_from_policy` ve stejné transakci a vrátí ji jako `rulesJob`, pravidla vzniknou asynchronně (`ruleVersions` úlohy). Neplatné návrhy pravidel worker přeskočí a uvede ve `warnings`.
 
 ## BE-04: Generování definice deterministického pravidla z popisu
@@ -134,22 +134,39 @@ Web pak pravidlo uloží stávajícím `POST /api/rules` a `POST /api/rules/:rul
 
 - Pro `kind: "agentic"` stejný endpoint vrátí `agentPrompt` a `agentModelId`. Dnes web posílá placeholder modelu `eu.anthropic.claude-sonnet-4-5-20250929-v1:0`, backend má určit skutečný model.
 
-## BE-05: Úprava draftu pravidla, nebo rozhodnutí o neměnných verzích
+## BE-05: Úprava draftu verze pravidla
 
-**Priorita:** P2. **Odemkne:** `rules.canEditDraftContent` (tlačítko „Upravit koncept“ v detailu pravidla a „Upravit“ v review kroku wizardu).
+**Priorita:** P1. **Odemkne:** `rules.canEditDraftContent` (tlačítko „Upravit koncept“ v detailu pravidla a „Upravit“ v review kroku průvodce).
 
-M17 říká, že verze jsou neměnné. Tým musí rozhodnout jednu z variant:
+**Rozhodnutí (2026-10-19):** úpravu draftu ve webu chceme. Verze ve stavu `draft` půjde upravit na místě. Od odeslání k review (`pending_review`) je verze neměnná jako dosud. Mění to M17 v [spec/datovy-model.md](spec/datovy-model.md) (viz návrh u M17), tým musí změnu potvrdit. Draft ještě nikdo nereviewoval a nic se nad ním nespouští (běží jen `active_version_id`), takže úprava nenaruší rekonstruovatelnost rozhodnutí (vyhláška 67/2018 § 18).
 
-1. **Úprava jen pro `draft`:** verze ve stavu `draft` ještě nikdo nereviewoval, takže její změna nenaruší rekonstruovatelnost.
+```http
+PATCH /api/rules/:ruleId/versions/:versionId
+Content-Type: application/json
 
-   ```http
-   PATCH /api/rules/:ruleId/versions/:versionId
-   { "definition": {…} | null, "agentPrompt": "…" | null, "humanText": "…" }
-   ```
+{
+  "updatedBy": "<uuid>",
+  "definition": { "match": "any", "features": [...], "conditions": [...] } | null,
+  "agentPrompt": "…" | null,
+  "agentModelId": "…" | null,
+  "humanText": "…",
+  "thresholdRationale": "…" | null,
+  "baseScore": 0-100 | null,
+  "sensitivity": 0-100,
+  "riskProfiles": ["low", "medium", "high"],
+  "legalBases": [{ "regulationVersionId": "<uuid>", "ref": "§ 6 odst. 1 písm. b)" }],
+  "changeNote": "…" | null
+}
+```
 
-   Povolit jen pro `status = "draft"`, jinak `409`. Odpověď: `RuleVersionDto`.
+- **Částečná úprava:** všechna pole kromě `updatedBy` jsou nepovinná. Chybějící pole zůstane beze změny. Web dnes posílá obsah (`definition` + `humanText`, nebo `agentPrompt` + `humanText`). Konfiguraci (`sensitivity`, `riskProfiles`, `legalBases`) začne posílat, až ji formulář úpravy draftu dostane.
+- **Validace:** stejná jako u `POST /api/rules/:ruleId/versions`. Patří k ní `ruleDefinitionSchema` včetně vnořených skupin, `findRuleLogicViolation` proti katalogu featur, deterministické pravidlo s `definition` a agentní s `agentPrompt`, aspoň jeden právní základ (M5) a unikátní `regulationVersionId|ref`. Chyba vrací `400` nebo `422` se zprávou, jako dnes.
+- **Stav:** úprava je povolená jen pro `status = "draft"`. Jinak vrací `409 Conflict` se zprávou „Only a draft version can be edited“. Neexistující pravidlo nebo verze vrací `404`.
+- **Odpověď:** `200` s celým `RuleVersionDto`, stejný tvar jako `GET /api/rules/:ruleId/versions/:versionId`.
+- **Audit:** verze dostane `updatedBy` a `updatedAt`. Každá úprava se zapíše do audit logu (kdo, kdy, co: před a po, `changeNote`), viz BE-13. Původní návrh vygenerovaný AI (`createdVia = "wizard"`) musí zůstat dohledatelný, buď v audit logu, nebo jako snapshot `generatedDefinition` / `generatedHumanText` ve verzi. Rozhodne tým, posoudit s compliance.
+- **Souběh:** web posílá úpravy z jednoho okna, optimistický zámek zatím není nutný. Volitelně může PATCH přijmout `If-Match` s `updatedAt`, aby úprava při souběhu neprošla (`412`).
 
-2. **Verze zůstanou neměnné:** pak web capability nechá `false` napořád, tlačítko odstraní a draft se opravuje zamítnutím a novou verzí (`POST /api/rules/:ruleId/versions`, to už funguje). Rozhodnutí zapsat do `spec/datovy-model.md`.
+Až endpoint bude, web v live adapteru přepne `rules.canEditDraftContent` na `true` a namapuje `updateDraftContent` na tento PATCH. UI úpravy už existuje, v Mocku funguje.
 
 ## BE-06: Seznam klientů pro návrhy ve whitelistu
 

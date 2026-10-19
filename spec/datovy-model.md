@@ -241,7 +241,7 @@ Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVA
 | M14 | `definition` obsahuje jen logiku pravidla: `match`, `features` a `conditions`. Skóre a citlivost jsou sloupce. | Sloupce jdou filtrovat a zobrazit v UI bez parsování JSON. |
 | M15 | Risk profily jsou `low`, `medium`, `high` podle sloupce `AML risk score` v datech klientů. | Data neobsahují neznámý profil. Mění D12. |
 | M16 | Whitelist je dvojice pravidlo × klient s povinným `reason`. Odebrání záznam smaže a zapíše do audit logu. `whitelist_allowed = false` whitelist u pravidla zakáže. | Jednoduchost MVP. Pravidla B jsou regulatorně povinná. |
-| M17 | Verze předpisu a pravidla jsou neměnné. Systém je nemaže. | Rekonstruovatelnost rozhodnutí (vyhláška 67/2018 § 18). |
+| M17 | Verze předpisu a pravidla jsou neměnné. Systém je nemaže. **Návrh změny (2026-10-19, čeká na potvrzení týmu):** verze pravidla ve stavu `draft` jde upravit na místě (`PATCH`, viz BE-05 v [backend-todo.md](../backend-todo.md)). Od `pending_review` je neměnná. Každá úprava draftu se zapíše do audit logu a původní návrh AI zůstane dohledatelný. | Rekonstruovatelnost rozhodnutí (vyhláška 67/2018 § 18). Draft ještě nikdo nereviewoval a nespouští se, takže jeho úprava rozhodnutí nemění. |
 
 ### Aktualizace regulace
 
