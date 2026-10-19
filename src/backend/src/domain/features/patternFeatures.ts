@@ -134,7 +134,7 @@ export const PATTERN_FEATURES: FeatureDefinition[] = [
   },
 ];
 
-// PR-01
+// R-07
 function findSmallPaymentsToSamePayee(context: FeatureContext): PricedTransaction[] | null {
   if (!isOutgoingTransaction(context.transaction)) {
     return null;
@@ -148,7 +148,7 @@ function findSmallPaymentsToSamePayee(context: FeatureContext): PricedTransactio
   );
 }
 
-// PR-05
+// R-11
 function calculateQuickForwardMatchCount(context: FeatureContext): FeatureResult {
   const forwardingPayment = context.transaction;
 
@@ -174,7 +174,7 @@ function calculateQuickForwardMatchCount(context: FeatureContext): FeatureResult
   return toResultFromTransactions(forwardedPayments.length, forwardedPayments);
 }
 
-// PR-06: a pair of opposite payments with one counterparty hits on its second payment.
+// R-12: a pair of opposite payments with one counterparty hits on its second payment.
 function calculateRoundTripMatchCount(context: FeatureContext): FeatureResult {
   const secondPayment = context.transaction;
   const counterpartyAccount = getCounterpartyAccount(secondPayment);
@@ -195,7 +195,7 @@ function calculateRoundTripMatchCount(context: FeatureContext): FeatureResult {
   return toResultFromTransactions(firstPayments.length, firstPayments);
 }
 
-// TM-04
+// R-04
 function toPassthroughResult(
   context: FeatureContext,
   toValue: (flow: PassthroughFlow) => number,
@@ -273,7 +273,7 @@ function calculatePassthroughFlow(input: {
   };
 }
 
-// PR-03: reads payments of other clients from the run-wide index, not from the client history.
+// R-09: reads payments of other clients from the run-wide index, not from the client history.
 function calculatePayeeDayDistinctClients(context: FeatureContext): FeatureResult {
   const payment = context.transaction;
 

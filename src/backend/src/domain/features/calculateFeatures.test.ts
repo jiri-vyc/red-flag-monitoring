@@ -60,7 +60,7 @@ describe("calculateFeatures", () => {
   });
 });
 
-describe("payee_small_out_count_7d (PR-01)", () => {
+describe("payee_small_out_count_7d (R-07)", () => {
   const history = [
     buildOutgoing({ id: "TX1", at: "2026-07-01 09:00", amount: 9000, payee: "A" }),
     buildOutgoing({ id: "TX2", at: "2026-07-03 09:00", amount: 30000, payee: "A" }),
@@ -91,7 +91,7 @@ describe("payee_small_out_count_7d (PR-01)", () => {
   });
 });
 
-describe("quick_forward_match_count (PR-05)", () => {
+describe("quick_forward_match_count (R-11)", () => {
   it.each([
     ["forwards within 2 h to another account", "2026-07-01 11:30", 31000, "B", 1],
     ["is outside the 2 h window", "2026-07-01 12:30", 31000, "B", 0],
@@ -116,7 +116,7 @@ describe("quick_forward_match_count (PR-05)", () => {
   );
 });
 
-describe("round_trip_match_count_72h (PR-06)", () => {
+describe("round_trip_match_count_72h (R-12)", () => {
   const history = [
     buildOutgoing({ id: "TX1", at: "2026-07-01 10:00", amount: 50000, payee: "X" }),
     buildIncoming({ id: "TX2", at: "2026-07-03 10:00", amount: 40000, payer: "X" }),
@@ -144,7 +144,7 @@ describe("round_trip_match_count_72h (PR-06)", () => {
   });
 });
 
-describe("passthrough features (TM-04)", () => {
+describe("passthrough features (R-04)", () => {
   const featureIds = ["passthrough_in_24h_czk", "passthrough_out_6h_czk", "passthrough_ratio"];
   const inflow = [
     buildIncoming({ id: "TX1", at: "2026-07-01 01:00", amount: 60000, payer: "P1" }),
@@ -180,7 +180,7 @@ describe("passthrough features (TM-04)", () => {
   });
 });
 
-describe("payee_day_distinct_clients (PR-03)", () => {
+describe("payee_day_distinct_clients (R-09)", () => {
   it("counts clients paying the same payee that day up to the evaluated payment", () => {
     const otherClientPayments = ["K000002", "K000003", "K000004"].map((clientId, position) =>
       buildTransaction({

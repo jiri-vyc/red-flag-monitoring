@@ -2,7 +2,7 @@ import type { Transaction } from "../transaction";
 import { toDateKey } from "./calendar";
 import { isOutgoingTransaction } from "./pricedTransaction";
 
-// PR-03 needs payments of all clients to one payee account in a day. The evaluation builds this index once
+// R-09 needs payments of all clients to one payee account in a day. The evaluation builds this index once
 // per run from every outgoing transaction in the database, so rules still never query it (D18).
 export type PayeePaymentSource = Pick<
   Transaction,

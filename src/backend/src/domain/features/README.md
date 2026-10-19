@@ -4,7 +4,7 @@ Catalogue and calculation of the features that deterministic rule conditions com
 
 ## Flow per evaluated transaction
 
-1. Once per run: load `fx_rates` into `createFxRateTable(rates)` and build the PR-03 index with `createPayeeDayClientIndex(allOutgoingTransactions)`.
+1. Once per run: load `fx_rates` into `createFxRateTable(rates)` and build the R-09 index with `createPayeeDayClientIndex(allOutgoingTransactions)`.
 2. Once per client: `priceTransactionsChronologically(clientTransactions, fxRateTable)` gives the client's history in CZK, oldest first.
 3. Per transaction: `createFeatureContext({ transaction, client, clientHistory, payeeDayClientIndex })` cuts the history at the transaction (no look-ahead, F1).
 4. Per rule version: `calculateFeatures({ featureIds: definition.features, context })` returns `features` (plus `tx_fx`) and `contextRefs`.
@@ -44,8 +44,8 @@ Amounts convert with the ČNB rate on the transaction date, or the last publishe
   - `{ expr: "<number> × <feature>" }`: the only expression form.
 - `findRuleDefinitionViolation` (called from `findRuleLogicViolation`) checks a definition against this catalogue when a rule version is created.
 - Reference lists seeded on `main`:
-  - `HRJ`: TM-02, PR-10.
-  - `EEA`: PR-09.
+  - `HRJ`: R-02, R-16.
+  - `EEA`: R-15.
   - `EU_HRTC`, `FATF_BLACK`, `FATF_GREY`: the parts of `HRJ`.
 
 ## Calendar

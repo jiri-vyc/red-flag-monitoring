@@ -3,7 +3,7 @@ import type { RuleDefinition } from "./ruleDefinition";
 
 const REFERENCE_LISTS = new Map([["HRJ", ["IR", "KP"]]]);
 
-// PR-08 shape: a higher limit for everyone, a lower one for high-risk or PEP clients.
+// R-14 shape: a higher limit for everyone, a lower one for high-risk or PEP clients.
 const REMITTANCE_SUM_RULE: RuleDefinition = {
   match: "any",
   features: ["month_remittance_sum_czk", "client_risk_score", "client_is_pep"],
