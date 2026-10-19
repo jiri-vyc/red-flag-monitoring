@@ -28,7 +28,7 @@ Hackathonová challenge pokrývá kroky Review → Escalate → Audit. Náš sys
 
 | # | Rozhodnutí | Zdroj |
 | --- | --- | --- |
-| D1 | Hierarchie: **regulace → interní předpis → pravidlo**. Předpis a regulace mají vazbu M:N. Pravidlo má nepovinný FK na předpis (viz [M3, M4](datovy-model-pravidla.md#rozhodnutí)). | N; upřesňuje P1 00:31 |
+| D1 | Hierarchie: **regulace → interní předpis → pravidlo**. Předpis a regulace mají vazbu M:N. Pravidlo má nepovinný FK na předpis (viz [M3, M4](datovy-model.md#rozhodnutí-pravidla)). | N; upřesňuje P1 00:31 |
 | D2 | Pravidla mají dva typy: **deterministické** (kód s jasným kontraktem vstupů a výstupů) a **agentní** (text pravidla, který vyhodnocuje LLM agent nad dostupnými daty). | P1 01:30, 02:31; N |
 | D3 | Pravidlo vrací **skóre 0–100** a **trace** (log odůvodnění). Výstup true/false je možný až v budoucnu. | P1 03:20–03:48 |
 | D4 | Vyhodnocení má dvě úrovně: **vyhodnocení transakce** obsahuje 1:N **vyhodnocení pravidel**. Vyhodnocení transakce je jeden run nad transakcí v daném čase. Každé vyhodnocení pravidla má vlastní kontext. | P1 07:19–07:49; N |
@@ -48,7 +48,7 @@ Hackathonová challenge pokrývá kroky Review → Escalate → Audit. Náš sys
 
 ## 3. Doménový model
 
-Podrobný model regulací, interních předpisů a pravidel je v [datovy-model-pravidla.md](datovy-model-pravidla.md). Tam uvedená rozhodnutí M1–M17 mají přednost před touto sekcí.
+Podrobný model regulací, interních předpisů, pravidel a vyhodnocovacího běhu je v [datovy-model.md](datovy-model.md). Tam uvedená rozhodnutí M1–M17 a V1–V14 mají přednost před touto sekcí.
 
 ```mermaid
 erDiagram
@@ -260,6 +260,7 @@ Po uložení jde pravidlo do stavu `pending_for_review`.
 - Caching chování per uživatel nebo entita (N).
 - Časová platnost pravidel (datum od–do).
 - Citlivost per risk profil.
+- AML události, triage a lidské review výsledku běhu. MVP končí zobrazením výsledku běhu ([V13](datovy-model.md#rozhodnutí-vyhodnocení)).
 - Výstup pravidla jiný než skóre 0–100.
 - Konvertování a zpracování PDF regulací na vstupu
 - Monitoring metodických pokynů ČNB ke konkrétním hackům/incidentům -> vytvoříme pravidlo, zkontrolujeme
@@ -267,18 +268,18 @@ Po uložení jde pravidlo do stavu `pending_for_review`.
 ## 10. Otevřené otázky
 
 1. **MVP scope.** Sekce v Notionu je prázdná. Jako nice-to-have je zatím označené jen zpracování AML událostí. Které z ostatních částí (wizard, ruční tvorba, aktualizace regulací, PoC vyhodnocení, audit log) jsou nutné pro demo?
-2. ~~**FK předpis → regulace.**~~ Vyřešeno: vazba M:N, nepovinná ([M3](datovy-model-pravidla.md#rozhodnutí)).
-3. ~~**Ruční pravidlo s odkazem na regulaci.**~~ Vyřešeno: FK na předpis je nepovinný, právní základ má každá verze pravidla ([M4, M5](datovy-model-pravidla.md#rozhodnutí)).
-4. ~~**Verze vs. stav.**~~ Vyřešeno: `update_for_review` je odvozený stav, mezitím se spouští aktivní verze ([M6](datovy-model-pravidla.md#rozhodnutí)).
+2. ~~**FK předpis → regulace.**~~ Vyřešeno: vazba M:N, nepovinná ([M3](datovy-model.md#rozhodnutí-pravidla)).
+3. ~~**Ruční pravidlo s odkazem na regulaci.**~~ Vyřešeno: FK na předpis je nepovinný, právní základ má každá verze pravidla ([M4, M5](datovy-model.md#rozhodnutí-pravidla)).
+4. ~~**Verze vs. stav.**~~ Vyřešeno: `update_for_review` je odvozený stav, mezitím se spouští aktivní verze ([M6](datovy-model.md#rozhodnutí-pravidla)).
 5. **Granularita AML události.** Zadání požaduje u pravidel A a C jednu událost na klienta, u pravidla B jednu na transakci. Náš model vyhodnocuje per transakce. Jak se vyhodnocení transakcí agregují do událostí per klient?
 6. **Vyhodnocení per transakce, nebo per klient.** Rozhovor se přiklonil k per transakce (P1 09:13–09:51). Varianta „vyhodnocení klienta v daném čase“ zůstala otevřená.
-7. **Agregace skóre.** Jak se ze skóre pravidel spočítá skóre vyhodnocení transakce (max, vážený součet…) a jaký je práh pro vznik AML události?
-8. **Výpočet citlivosti.** Citlivost je 0–100 per pravidlo (N). Jak přesně mění skóre? Návrh `skóre × citlivost / 100` skóre jen snižuje. Má jít skóre i zvýšit (P2 05:49)? Zůstává vedle toho globální koeficient z rozhovoru?
+7. ~~**Agregace skóre.**~~ Vyřešeno pro MVP: skóre transakce je maximum, hranici zásahu určuje `hit_threshold` na běhu ([V7](datovy-model.md#rozhodnutí-vyhodnocení)). Práh pro vznik AML události zůstává otevřený s otázkou 5.
+8. **Výpočet citlivosti.** MVP používá `skóre × citlivost / 100` ([V7](datovy-model.md#rozhodnutí-vyhodnocení)), citlivost tedy skóre jen snižuje. Má jít skóre i zvýšit (P2 05:49)? Zůstává vedle toho globální koeficient z rozhovoru?
 9. **Technologie deterministických pravidel.** JavaScript, Python, nebo DSL? Kde a jak se kód spouští (sandbox)?
 10. **Kontrola aktualizací regulací.** V MVP se regulace zadává jako text a scraping je mimo rozsah. Jak tedy tlačítko „zkontrolovat aktualizace“ zjistí novou verzi? Uživatel vloží nový text, nebo systém použije zdroj (EUR-Lex, e-Sbírka, seznamy FATF)?
 11. **Eskalace a střet zájmů.** Eskalační matice a pravidla střetu zájmů zatím nemáme. Zpracování událostí je v Notionu jen nice-to-have, ale challenge za eskalaci dává 20 % hodnocení. Jaké role musí mít entita User?
 12. **Architektura.** Miro board z Notionu je privátní. Je potřeba ho zpřístupnit nebo převést do repa.
-13. **Otevřené otázky k datům** z [knowledgebase](../knowledgebase/finreg/README.md#open-questions-for-our-implementation): FX kurzy, směr transakce, okna pravidla C, verze seznamů vysoce rizikových zemí.
+13. **Otevřené otázky k datům** (FX vyřešeno v [V11](datovy-model.md#rozhodnutí-vyhodnocení)) z [knowledgebase](../knowledgebase/finreg/README.md#open-questions-for-our-implementation): FX kurzy, směr transakce, okna pravidla C, verze seznamů vysoce rizikových zemí.
 
 ## 11. Compliance poznámky
 
