@@ -23,6 +23,8 @@ npm run dev
 - Web: http://localhost:3000
 - API: http://localhost:4000/api/health
 
+`npm run migration:run` creates the `clients` and `transactions` tables and loads the organiser datasets from `../datasets/*.csv` (5,493 clients, 397,853 transactions). The load migration fails if row counts or amount sums don't match the files.
+
 The web proxies `/api/*` to the backend, so browser code calls relative `/api/...` URLs.
 
 ## Scripts (from `src/`)
@@ -41,10 +43,13 @@ Run a single package with `-w`, e.g. `npm test -w backend`. Production start: `n
 
 Copy `.env.example` to `.env` in each package if you need to override defaults. Never commit `.env`.
 
-| Package | Variable      | Default                 | Meaning                                                       |
-| ------- | ------------- | ----------------------- | ------------------------------------------------------------- |
-| backend | `PORT`        | `4000`                  | API port                                                      |
-| web     | `BACKEND_URL` | `http://localhost:4000` | Backend base URL for server components and the `/api/*` proxy |
+| Package | Variable        | Default                 | Meaning                                                                     |
+| ------- | --------------- | ----------------------- | --------------------------------------------------------------------------- |
+| backend | `PORT`          | `4000`                  | API port                                                                    |
+| backend | `DATABASE_URL`  | required                | Postgres connection string; no password when `DATABASE_AUTH=iam`            |
+| backend | `DATABASE_AUTH` | `password`              | `iam` for Aurora `database-1`: fresh IAM token per connection, TLS verified |
+| backend | `AWS_REGION`    | none                    | Required with `DATABASE_AUTH=iam` (`eu-central-1`)                          |
+| web     | `BACKEND_URL`   | `http://localhost:4000` | Backend base URL for server components and the `/api/*` proxy               |
 
 AWS (Bedrock) access uses the standard AWS credential chain (profile / env). No credentials in code or `.env.example`.
 
@@ -71,7 +76,7 @@ src/
 ## Where to edit
 
 - New API endpoint: add a router in `backend/src/delivery/http/`, mount it in `createApp.ts`. Business logic goes to `application/` and `domain/`, not into routers.
-- Database schema: add or change an entity in `backend/src/infrastructure/database/entities/`, then `npm run migration:generate -- <Name>`, review the generated SQL, and run `npm run migration:run`.
+- Database schema: add or change an entity in `backend/src/infrastructure/database/entities/`, then `npm run migration:generate -- <Name>`, review the generated SQL, and run `npm run migration:run`. Allowed values for text columns (client type, transaction type, …) live in `backend/src/domain/` and feed both the entity types and their check constraints.
 - New page: add a folder with `page.tsx` under `web/app/`.
 - Theme (colors, spacing, radius, shadows): CSS custom properties in `web/app/globals.css`.
 - Component styles: the `*.module.css` file next to the component.
@@ -79,4 +84,4 @@ src/
 ## Deployment
 
 - Web: deploy `src/web` to Vercel (set Root Directory to `src/web`) and set `BACKEND_URL` to the deployed API.
-- Backend: long-running Node server; within the AWS stack (see root `AGENTS.md`), e.g. App Runner, ECS or Lambda behind API Gateway. `npm run build -w backend` then `node dist/main.js`. Needs `DATABASE_URL` (e.g. RDS, with the password from AWS Secrets Manager) and `npm run migration:run -w backend` before each release.
+- Backend: long-running Node server; within the AWS stack (see root `AGENTS.md`), e.g. App Runner, ECS or Lambda behind API Gateway. `npm run build -w backend` then `node dist/main.js`. Needs `DATABASE_AUTH=iam`, `DATABASE_URL` without a password, `AWS_REGION` and an IAM role allowed `rds-db:connect`, plus `npm run migration:run -w backend` before each release.

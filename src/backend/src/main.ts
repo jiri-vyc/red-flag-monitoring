@@ -6,7 +6,7 @@ import { createDataSource } from "./infrastructure/database/createDataSource";
 
 async function startServer(): Promise<void> {
   const appConfig = parseAppConfig(process.env);
-  const dataSource = createDataSource(appConfig.databaseUrl);
+  const dataSource = createDataSource(appConfig.database);
 
   await dataSource.initialize();
 

@@ -1,10 +1,14 @@
 import { InvalidConfigError, parseAppConfig } from "./config";
 
 const DATABASE_URL = "postgres://user:password@localhost:5434/database";
+const AURORA_URL = "postgres://postgres@database-1.cluster-x.eu-central-1.rds.amazonaws.com:5432/wip_alice";
 
 describe("parseAppConfig", () => {
-  it("uses the default port when PORT is not set", () => {
-    expect(parseAppConfig({ DATABASE_URL })).toEqual({ port: 4000, databaseUrl: DATABASE_URL });
+  it("uses the default port and password auth when nothing else is set", () => {
+    expect(parseAppConfig({ DATABASE_URL })).toEqual({
+      port: 4000,
+      database: { authMode: "password", url: DATABASE_URL },
+    });
   });
 
   it("reads PORT from the environment", () => {
@@ -21,5 +25,56 @@ describe("parseAppConfig", () => {
 
   it("rejects a non-postgres DATABASE_URL", () => {
     expect(() => parseAppConfig({ DATABASE_URL: "mysql://localhost/database" })).toThrow(InvalidConfigError);
+  });
+
+  it("rejects an unknown DATABASE_AUTH", () => {
+    expect(() => parseAppConfig({ DATABASE_URL, DATABASE_AUTH: "kerberos" })).toThrow(InvalidConfigError);
+  });
+
+  describe("with DATABASE_AUTH=iam", () => {
+    it("splits the URL into connection parts and reads the region", () => {
+      const environment = { DATABASE_URL: AURORA_URL, DATABASE_AUTH: "iam", AWS_REGION: "eu-central-1" };
+
+      expect(parseAppConfig(environment).database).toEqual({
+        authMode: "iam",
+        host: "database-1.cluster-x.eu-central-1.rds.amazonaws.com",
+        port: 5432,
+        username: "postgres",
+        database: "wip_alice",
+        region: "eu-central-1",
+      });
+    });
+
+    it("defaults the port to 5432", () => {
+      const environment = {
+        DATABASE_URL: "postgres://postgres@db.example.com/main",
+        DATABASE_AUTH: "iam",
+        AWS_REGION: "eu-central-1",
+      };
+
+      expect(parseAppConfig(environment).database).toMatchObject({ port: 5432 });
+    });
+
+    it("requires AWS_REGION", () => {
+      expect(() => parseAppConfig({ DATABASE_URL: AURORA_URL, DATABASE_AUTH: "iam" })).toThrow(
+        InvalidConfigError,
+      );
+    });
+
+    it("rejects a password in DATABASE_URL", () => {
+      const environment = { DATABASE_URL, DATABASE_AUTH: "iam", AWS_REGION: "eu-central-1" };
+
+      expect(() => parseAppConfig(environment)).toThrow(InvalidConfigError);
+    });
+
+    it("requires a database name in DATABASE_URL", () => {
+      const environment = {
+        DATABASE_URL: "postgres://postgres@db.example.com:5432",
+        DATABASE_AUTH: "iam",
+        AWS_REGION: "eu-central-1",
+      };
+
+      expect(() => parseAppConfig(environment)).toThrow(InvalidConfigError);
+    });
   });
 });

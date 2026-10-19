@@ -4,4 +4,4 @@ import "reflect-metadata";
 import { parseAppConfig } from "../../config";
 import { createDataSource } from "./createDataSource";
 
-export default createDataSource(parseAppConfig(process.env).databaseUrl);
+export default createDataSource(parseAppConfig(process.env).database);
