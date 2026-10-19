@@ -124,7 +124,7 @@ describe("HTTP app", () => {
   });
 
   it.each([
-    ["without createdBy", {}],
+    ["with a createdBy that is not a UUID", { createdBy: "admin" }],
     [
       "with scope.from after scope.to",
       { createdBy: ADMIN_ID, scope: { from: "2026-07-10", to: "2026-07-01" } },

@@ -22,6 +22,10 @@ Relations (data model M3 to M5): a policy cites 0..N regulations through its leg
 
 Rule statuses: `draft`, `pending_for_review`, `update_for_review`, `active`, `inactive`. A rule returns a score of 0–100 and a trace. The adjusted score is `score × sensitivity / 100`. Each rule version holds its content (code + Czech explanation, or agentic rule text) and its config (sensitivity, risk profiles). Any edit of content or config creates a new version that goes to review (data model M7). Evaluation always uses the running approved version, never a pending one. The client whitelist is not versioned: it lives at rule level as rule × client entries with a required reason (M16), and changes apply immediately without review. Regulatory-mandatory rules have `whitelistAllowed = false`. Each batch snapshots the whitelist together with the rule versions, so past batches stay reproducible. Whitelist approval and periodic review (CNB benchmark 2/2023) are not in the MVP and need compliance review.
 
+## Evaluation engine (`src/backend`)
+
+`POST /api/evaluation-runs` → `EvaluationRunUseCases.startRun` fixes the active deterministic rule versions and the latest reference lists, stores the run as `running` and hands it to an `EvaluationRunLauncher` (in the API process locally, a Lambda worker when `EVALUATION_WORKER_FUNCTION` is set). `EvaluationRunExecutor` loads clients, transactions and ČNB rates once (D18), evaluates the transactions in scope with the pure `domain/transactionEvaluator.ts` and stores them in batches of 1,000 with progress counters. Only rule results other than `pass` are stored (V16). Runs are read through `EvaluationRunQueries`.
+
 ## Web (`src/web`)
 
 Our team owns the frontend only. The backend is someone else's, and the web adapts to its API.

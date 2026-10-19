@@ -10,7 +10,7 @@ Priority: **P1** = bez toho chybí hlavní tok demo (nahrát transakce, vytvoři
 
 | ID    | Co                                                                                                           | Odemkne ve webu                                 | Priorita |
 | ----- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | -------- |
-| BE-01 | Nahrání CSV dávky a engine běhu (endpoint startu běhu už existuje, vrací 501)                                | `batches.canUploadBatch`, `batches.canStartRun` | P1       |
+| BE-01 | Nahrání CSV dávky (engine běhu nad transakcemi v DB je hotový)                                               | `batches.canUploadBatch`, `batches.canStartRun` | P1       |
 | BE-02 | Wizard: načtení regulace z URL a generování předpisů přes Bedrock (text a MD už fungují, generátor je dummy) | `wizard.canFetchUrl`                            | P1       |
 | BE-03 | Wizard: generování pravidel ze schváleného předpisu přes Bedrock (tok už funguje, generátor je dummy)        | kvalita návrhů pravidel                         | P1       |
 | BE-04 | Generování definice deterministického pravidla z popisu                                                      | `rules.canCreateDeterministicRule`              | P1       |
@@ -36,11 +36,10 @@ Priority: **P1** = bez toho chybí hlavní tok demo (nahrát transakce, vytvoři
 
 **Priorita:** P1. **Odemkne:** `batches.canUploadBatch` a `batches.canStartRun` (`features/batches/api/live.ts`). Dnes je obrazovka Dávky v live režimu jen seznam běhů, dropzone, tlačítko „Spustit vyhodnocení“ a tlačítko „Nahrát dávku“ na dashboardu jsou skryté.
 
-**Stav (částečně hotovo):** `POST /api/evaluation-runs` už existuje (`evaluationRunsRouter.ts`), bez těla požadavku. `EvaluationRunUseCases.startRun` ale zatím hází `NotImplementedError`, takže endpoint vrací `501` (TODO #3). Web má live adapter hotový (`startRun` pošle `POST` a otevře běh přes `GET /api/evaluation-runs/:runId`), `httpClient.ts` mapuje `501` na chybu typu `unsupported`. Až engine poběží, stačí v `live.ts` přepnout `canStartRun` na `true`.
+**Stav (částečně hotovo):** engine běží (#3). `POST /api/evaluation-runs` vyhodnotí aktivní schválené verze zapnutých deterministických pravidel nad transakcemi, které už jsou v DB, a vrátí `202` s během ve stavu `running` (tvar `EvaluationRunListItemDto` + `scope`). Tělo je nepovinné: `createdBy` (výchozí demo admin), `hitThreshold` (výchozí 50), `scope { from, to, clientIds, limit }` (výchozí všechny transakce, ~45 s lokálně). Průběh se plní po 1 000 transakcích do `txProcessed`. Souhrn běhu má navíc `flaggedClientCount` a u pravidel `hitClientCount`, seznam transakcí má `hitRules`. Detail transakce vrací jen výsledky pravidel jiné než `pass` ([V16](spec/datovy-model.md#rozhodnutí-vyhodnocení)). Web teď může v `live.ts` přepnout `canStartRun` na `true`. Agentní pravidla engine zatím přeskakuje. Nasazení workeru (Lambda pro běh mimo Web Function) chybí, bez něj běží výpočet v procesu API best-effort.
 
 Zbývá:
 
-- Engine: spustit aktivní zapnutá pravidla nad transakcemi a uložit běh (D18, V5, V14). Odpověď `201` (nebo `202`) s `id` běhu, web pak polluje `GET /api/evaluation-runs/:runId`.
 - Nahrání CSV (`spec/spec.md` 7.5, `spec/datovy-model.md` V1 až V5). Návrh:
 
 ```http
@@ -54,10 +53,9 @@ hitThreshold=50                # nepovinné, výchozí podle V7
 
 Odpověď `202 Accepted`: stejný tvar jako položka `GET /api/evaluation-runs` (`EvaluationRunListItemDto`), tedy `id`, `fileName`, `status: "importing"`, `rowsTotal`, `rowsImported`, `txProcessed`, `txPassed`, `txFlagged`, `txError`, `errorMessage`, `createdAt`, `createdBy`.
 
-- Běh fixuje verze pravidel a referenčních seznamů při startu (V5).
+- Běh fixuje verze pravidel a referenčních seznamů při startu (V5). Hotové i pro CSV, stačí naplnit `transactions` a použít stávající executor.
 - Řádek s neznámým klientem nebo neplatným datem (`31.02.`) odmítnout s popisem chyby (V1, V2). Chyby formátu vracet jako `400` s `issues`, aby je web ukázal.
-- Průběh: web už dnes polluje `GET /api/evaluation-runs/:runId`, dokud je stav `importing` nebo `running`, a čte `rowsImported` a `txProcessed`. Stačí, když se tyto sloupce průběžně plní (V12). SSE není nutné.
-- `startRun` dnes nemá `createdBy`. Web ho zatím neposílá, až ho backend bude chtít, doplní se do těla požadavku.
+- Průběh: hotové pro běh nad DB (`txProcessed`). Import CSV musí průběžně plnit `rowsImported` (V12).
 - Volitelně `POST /api/evaluation-runs/:runId/rerun` pro nové vyhodnocení stejných transakcí s aktuálními pravidly (V2).
 
 ## BE-02: Wizard, zdroj regulace → drafty interních předpisů

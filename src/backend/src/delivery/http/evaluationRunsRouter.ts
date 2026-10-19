@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { DEFAULT_HIT_THRESHOLD, VERDICTS } from "../../domain/evaluation";
 import { MAX_SCORE, MIN_SCORE } from "../../domain/score";
+import { DEMO_ADMIN_USER_ID } from "../../domain/user";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
 import type { EvaluationRunUseCases } from "../../application/evaluationRuns/evaluationRunUseCases";
 import { pageQuerySchema } from "./schemas";
@@ -45,8 +46,9 @@ const runScopeSchema = z
     message: "scope.from must be before scope.to",
   });
 
+// The web starts a run without a body, so every field is optional.
 const startRunBodySchema = z.object({
-  createdBy: z.uuid(),
+  createdBy: z.uuid().default(DEMO_ADMIN_USER_ID),
   hitThreshold: z.number().int().min(MIN_SCORE).max(MAX_SCORE).default(DEFAULT_HIT_THRESHOLD),
   scope: runScopeSchema.default({ from: null, to: null, clientIds: null, limit: null }),
 });
@@ -71,7 +73,7 @@ export function createEvaluationRunsRouter(
 
   // 202: the run is created as `running`; poll GET /:runId for tx_processed and the final status.
   router.post("/", async (request, response) => {
-    const command = parseRequest(startRunBodySchema, request.body);
+    const command = parseRequest(startRunBodySchema, request.body ?? {});
 
     response.status(202).json(await evaluationRunUseCases.startRun(command));
   });
