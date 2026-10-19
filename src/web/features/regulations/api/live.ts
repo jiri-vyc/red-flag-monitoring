@@ -1,13 +1,11 @@
 import { fetchPoliciesWithVersions } from "@/features/policies/api/dto";
 import { fetchRulesWithVersions, findDescribingVersionDto } from "@/features/rules/api/dto";
-import { assertUnreachable } from "@/lib/assertUnreachable";
-
-import type { Jurisdiction, Regulation } from "../types";
+import type { Regulation } from "../types";
 import type { RegulationsService } from "./contract";
 import {
   fetchRegulationWithVersions,
   fetchRegulationsWithVersions,
-  type RegulationKind,
+  toJurisdiction,
   type RegulationWithVersionsDto,
 } from "./dto";
 
@@ -15,22 +13,6 @@ type Citation = { citingId: string; regulationVersionId: string; ref: string | n
 
 /** Which policies and rules cite which regulation versions, taken from their current legal bases. */
 type RegulationCitations = { policyCitations: Citation[]; ruleCitations: Citation[] };
-
-// The backend has no jurisdiction; it follows from the kind of act. Guidance is mostly FATF / EBA level.
-function toJurisdiction(kind: RegulationKind): Jurisdiction {
-  switch (kind) {
-    case "law":
-    case "decree":
-      return "CZ";
-    case "eu_reg":
-    case "eu_dir":
-      return "EU";
-    case "guidance":
-      return "INTL";
-    default:
-      return assertUnreachable(kind);
-  }
-}
 
 function findCitingIds(citations: Citation[], regulationVersionIds: Set<string>): string[] {
   const citingIds = citations

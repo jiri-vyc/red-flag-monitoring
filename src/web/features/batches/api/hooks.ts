@@ -55,6 +55,18 @@ export function useUploadBatch() {
   });
 }
 
+export function useStartEvaluationRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => batchesService.startRun({ startedBy: CURRENT_USER.name }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: batchQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+      ]),
+  });
+}
+
 export function useBatchTransactions({ batchId, bucket }: { batchId: string; bucket: Bucket }) {
   useServiceUsage("batches");
   return useInfiniteQuery({

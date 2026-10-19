@@ -28,21 +28,66 @@ const conditionOperandSchema = z.union([
   z.strictObject({ value: z.union([z.number(), z.string(), z.boolean()]) }),
 ]);
 
+const conditionLogicSchema = z.enum(["any", "all"]);
+
+const ruleConditionDtoSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  left: conditionOperandSchema,
+  op: z.enum([">", ">=", "<", "<=", "=", "!=", "in", "not_in"]),
+  right: conditionOperandSchema,
+});
+export type RuleConditionDto = z.infer<typeof ruleConditionDtoSchema>;
+
+/** A group nests conditions under its own `match`, e.g. `all` inside a top-level `any`. */
+export type RuleConditionGroupDto = {
+  id: string;
+  label: string;
+  match: z.infer<typeof conditionLogicSchema>;
+  conditions: RuleConditionNodeDto[];
+};
+export type RuleConditionNodeDto = RuleConditionDto | RuleConditionGroupDto;
+
+const ruleConditionGroupDtoSchema: z.ZodType<RuleConditionGroupDto> = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  match: conditionLogicSchema,
+  // A getter defers the recursive reference until the node schema below exists.
+  get conditions() {
+    return z.array(ruleConditionNodeDtoSchema).min(1);
+  },
+});
+
+// A condition has no `match`, a group has no `left`/`op`/`right`, so the union is unambiguous.
+const ruleConditionNodeDtoSchema: z.ZodType<RuleConditionNodeDto> = z.union([
+  ruleConditionDtoSchema,
+  ruleConditionGroupDtoSchema,
+]);
+
+export function isConditionGroupDto(node: RuleConditionNodeDto): node is RuleConditionGroupDto {
+  return "match" in node;
+}
+
+/** Every condition and group of the tree, depth first. */
+export function listConditionNodeDtos(nodes: RuleConditionNodeDto[]): RuleConditionNodeDto[] {
+  return nodes.flatMap((node) =>
+    isConditionGroupDto(node) ? [node, ...listConditionNodeDtos(node.conditions)] : [node],
+  );
+}
+
+function hasUniqueNodeIds(nodes: RuleConditionNodeDto[]): boolean {
+  const nodeIds = listConditionNodeDtos(nodes).map((node) => node.id);
+  return new Set(nodeIds).size === nodeIds.length;
+}
+
 /** Mirrors the backend ruleDefinitionSchema, so an edited definition is rejected before it is sent. */
 export const ruleDefinitionDtoSchema = z.object({
-  match: z.enum(["any", "all"]),
+  match: conditionLogicSchema,
   features: z.array(z.string().min(1)),
   conditions: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        label: z.string().min(1),
-        left: conditionOperandSchema,
-        op: z.enum([">", ">=", "<", "<=", "=", "!=", "in", "not_in"]),
-        right: conditionOperandSchema,
-      }),
-    )
-    .min(1),
+    .array(ruleConditionNodeDtoSchema)
+    .min(1)
+    .refine(hasUniqueNodeIds, { message: "Condition ids must be unique across nested groups" }),
 });
 export type RuleDefinitionDto = z.infer<typeof ruleDefinitionDtoSchema>;
 
@@ -120,9 +165,18 @@ export async function fetchRuleWithVersions(ruleId: string): Promise<RuleWithVer
   return { rule, versions };
 }
 
-export async function fetchRulesWithVersions(): Promise<RuleWithVersionsDto[]> {
-  const rules = await fetchRuleDtos();
+function attachRuleVersions(rules: RuleDto[]): Promise<RuleWithVersionsDto[]> {
   return Promise.all(rules.map(async (rule) => ({ rule, versions: await fetchRuleVersions(rule.id) })));
+}
+
+export async function fetchRulesWithVersions(): Promise<RuleWithVersionsDto[]> {
+  return attachRuleVersions(await fetchRuleDtos());
+}
+
+/** GET /rules has no filter, so the rules of one policy are picked on the web (BE-12). */
+export async function fetchPolicyRulesWithVersions(policyId: string): Promise<RuleWithVersionsDto[]> {
+  const rules = await fetchRuleDtos();
+  return attachRuleVersions(rules.filter((rule) => rule.policyId === policyId));
 }
 
 /** M6: evaluations run the active version; without one the rule has nothing to run. */

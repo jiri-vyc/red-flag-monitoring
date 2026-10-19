@@ -108,9 +108,14 @@ export const livePoliciesService: PoliciesService = {
     return loadPolicy(policyId);
   },
 
-  // The backend reviews only pending versions, so a draft is submitted first. Approval supersedes older ones.
+  // The backend reviews only pending versions, so a draft is submitted first. Approval supersedes older ones
+  // and drafts the policy's rules in the same request; they are the rules of the policy that did not exist before.
   async approvePolicy({ policyId }) {
-    const latestVersion = (await fetchPolicyWithVersions(policyId)).versions.at(-1);
+    const [{ versions }, rulesBeforeApproval] = await Promise.all([
+      fetchPolicyWithVersions(policyId),
+      fetchRuleDtos(),
+    ]);
+    const latestVersion = versions.at(-1);
     if (!latestVersion || (latestVersion.status !== "draft" && latestVersion.status !== "pending_review")) {
       return throwValidation("The policy has no version awaiting approval. Edit the text to create one.");
     }
@@ -122,6 +127,10 @@ export const livePoliciesService: PoliciesService = {
       reviewedBy: CURRENT_USER.id,
       reviewComment: null,
     });
-    return loadPolicy(policyId);
+    const policy = await loadPolicy(policyId);
+    const existingRuleIds = new Set(
+      rulesBeforeApproval.filter((rule) => rule.policyId === policyId).map((rule) => rule.id),
+    );
+    return { policy, draftedRuleIds: policy.ruleIds.filter((ruleId) => !existingRuleIds.has(ruleId)) };
   },
 };

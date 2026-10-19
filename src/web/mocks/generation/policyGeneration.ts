@@ -1,5 +1,5 @@
-import type { Jurisdiction } from "@/features/regulations/types";
-import type { RegulationSource } from "@/features/wizard/types";
+import { toJurisdiction, type RegulationKind } from "@/features/regulations/api/dto";
+import type { RegulationSource, RegulationTarget } from "@/features/wizard/types";
 import { assertUnreachable } from "@/lib/assertUnreachable";
 
 import type { MockPolicyRecord, MockRegulationRecord } from "../store/mockDatabase";
@@ -29,37 +29,46 @@ export function describeRegulationSource(source: RegulationSource): string {
   }
 }
 
-function inferJurisdiction(sourceLabel: string): Jurisdiction {
-  if (/eur-lex|\(EU\)|EBA/i.test(sourceLabel)) {
-    return "EU";
+type NewRegulationTarget = Extract<RegulationTarget, { kind: "new" }>;
+
+const MAX_CODE_LENGTH = 28;
+
+function inferRegulationKind(url: string): RegulationKind {
+  if (/eur-lex/i.test(url)) {
+    return "eu_reg";
   }
-  if (/fatf/i.test(sourceLabel)) {
-    return "INTL";
+  if (/fatf|eba\.europa/i.test(url)) {
+    return "guidance";
   }
-  return "CZ";
+  return "law";
+}
+
+/** Stands in for the backend import (BE-02): the metadata of the regulation follows from its URL. */
+export function deriveRegulationFromUrl(url: string): NewRegulationTarget {
+  const title = describeUrl(url);
+  const code = title.length > MAX_CODE_LENGTH ? `${title.slice(0, MAX_CODE_LENGTH - 2)}…` : title;
+  return { kind: "new", code, title, regulationKind: inferRegulationKind(url), sourceUrl: url };
 }
 
 export function buildGeneratedRegulation({
   id,
-  source,
-  regulationName,
+  regulation,
+  versionLabel,
   now,
 }: {
   id: string;
-  source: RegulationSource;
-  regulationName: string;
+  regulation: NewRegulationTarget;
+  versionLabel: string;
   now: string;
 }): MockRegulationRecord {
-  const sourceLabel = describeRegulationSource(source);
-  const name = regulationName.trim() || sourceLabel;
   return {
     id,
-    name,
-    shortName: name.length > 28 ? `${name.slice(0, 26)}…` : name,
-    jurisdiction: inferJurisdiction(`${name} ${sourceLabel}`),
+    name: regulation.title,
+    shortName: regulation.code,
+    jurisdiction: toJurisdiction(regulation.regulationKind),
     description: "Regulace přidaná přes wizard. Povinnosti byly extrahovány automaticky a čekají na ověření.",
-    sourceUrl: source.kind === "url" ? source.url : "",
-    version: `Nahráno ${now.slice(0, 10)}`,
+    sourceUrl: regulation.sourceUrl ?? "",
+    version: versionLabel,
     lastCheckedAt: now,
     keyProvisions: [
       "čl. 1 Předmět úpravy",
@@ -74,10 +83,12 @@ export const GENERAL_PROVISIONS_REF = "Obecná ustanovení";
 export function buildGeneratedPolicy({
   id,
   regulation,
+  sourceLabel,
   now,
 }: {
   id: string;
   regulation: MockRegulationRecord;
+  sourceLabel: string;
   now: string;
 }): MockPolicyRecord {
   const provisionRef = regulation.keyProvisions[1] ?? regulation.keyProvisions[0] ?? GENERAL_PROVISIONS_REF;
@@ -89,6 +100,7 @@ export function buildGeneratedPolicy({
     status: "draft",
     origin: "generated",
     text: [
+      `Zdroj: ${sourceLabel}.`,
       `1. Účel. Tento předpis provádí povinnosti z regulace „${regulation.name}“, zejména ${provisionRef} (${regulation.shortName}).`,
       "2. Monitoring. Instituce průběžně sleduje transakce klientů a porovnává je s jejich rizikovým profilem.",
       "3. Vysoce rizikové země. Transakce nad 10 000 CZK s účastí vysoce rizikové země se předávají k posouzení.",

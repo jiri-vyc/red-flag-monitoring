@@ -9,6 +9,8 @@ import type {
 export type BatchesCapabilities = {
   /** Upload a transactions CSV, which creates a batch (evaluation run) and starts its evaluation. */
   canUploadBatch: boolean;
+  /** Start an evaluation run of the active rules over the transactions already in the system. */
+  canStartRun: boolean;
 };
 
 export interface BatchesService {
@@ -17,6 +19,8 @@ export interface BatchesService {
   loadBatch(batchId: string): Promise<Batch>;
   /** Every upload creates a new batch, even for an identical file. Evaluation starts immediately. */
   uploadBatch(input: { file: File; uploadedBy: string }): Promise<Batch>;
+  /** Starts a new evaluation run (a batch) with the active enabled rules. */
+  startRun(input: { startedBy: string }): Promise<Batch>;
   loadBatchTransactions(input: LoadBatchTransactionsInput): Promise<BatchTransactionPage>;
   loadTransactionEvaluation(input: {
     batchId: string;

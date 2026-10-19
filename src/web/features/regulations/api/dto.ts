@@ -1,11 +1,30 @@
 import { z } from "zod";
 
+import { assertUnreachable } from "@/lib/assertUnreachable";
 import { requestJson } from "@/lib/httpClient";
+
+import type { Jurisdiction } from "../types";
 
 // Response DTOs of /api/regulations (src/backend/src/delivery/http/regulationsRouter.ts).
 
 export const REGULATION_KINDS = ["law", "decree", "eu_reg", "eu_dir", "guidance"] as const;
 export type RegulationKind = (typeof REGULATION_KINDS)[number];
+
+// The backend has no jurisdiction; it follows from the kind of act. Guidance is mostly FATF / EBA level.
+export function toJurisdiction(kind: RegulationKind): Jurisdiction {
+  switch (kind) {
+    case "law":
+    case "decree":
+      return "CZ";
+    case "eu_reg":
+    case "eu_dir":
+      return "EU";
+    case "guidance":
+      return "INTL";
+    default:
+      return assertUnreachable(kind);
+  }
+}
 
 export const regulationDtoSchema = z.object({
   id: z.string(),

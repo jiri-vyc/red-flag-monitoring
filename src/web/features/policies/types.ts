@@ -25,3 +25,9 @@ export const policySchema = z.object({
 export type Policy = z.infer<typeof policySchema>;
 
 export type UpdatePolicyTextInput = { policyId: string; text: string };
+
+/**
+ * Approving a policy version makes the backend draft the rules that implement it (in `draft` status, awaiting
+ * their own review). `draftedRuleIds` are the rules created by this approval; the mock drafts none.
+ */
+export type PolicyApproval = { policy: Policy; draftedRuleIds: string[] };

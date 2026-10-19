@@ -9,7 +9,7 @@ import {
   subscribeToGlobalApiMode,
 } from "./apiMode";
 
-// The build-time env of a typical live deployment: the wizard has no API yet, so it stays mocked.
+// A live build that pins one service to mock through its per-service override.
 jest.mock("./env.client", () => ({
   clientEnv: { NEXT_PUBLIC_API_MODE: "live", NEXT_PUBLIC_API_MODE_WIZARD: "mock" },
 }));

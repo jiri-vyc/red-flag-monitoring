@@ -2,6 +2,7 @@
 
 import { FileText, ListChecks } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/ui/KeyValueList";
@@ -11,6 +12,7 @@ import { EmptyState, QueryView } from "@/components/ui/StateViews";
 import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useRules } from "@/features/rules/api/hooks";
 import { RuleStatusBadge, RuleTypeBadge } from "@/features/rules/components/RuleBadges";
+import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 
@@ -57,8 +59,20 @@ function RelatedRules({ policy }: { policy: Policy }) {
   );
 }
 
+/** The backend drafts the policy's rules when it is approved; they still need their own review. */
+function DraftedRulesNotice({ draftedRuleCount }: { draftedRuleCount: number }) {
+  const { t } = useI18n();
+  return (
+    <Notice tone="ai" title={t.policies.approved}>
+      {formatMessage(t.policies.draftedRules, { count: draftedRuleCount })}{" "}
+      <Link href="/rules">{t.policies.reviewDraftedRules}</Link>
+    </Notice>
+  );
+}
+
 function PolicyDetail({ policy }: { policy: Policy }) {
   const { t, locale } = useI18n();
+  const [draftedRuleCount, setDraftedRuleCount] = useState(0);
   const isDraft = policy.status === "draft";
   return (
     <>
@@ -72,6 +86,7 @@ function PolicyDetail({ policy }: { policy: Policy }) {
           </>
         }
       />
+      {draftedRuleCount > 0 && <DraftedRulesNotice draftedRuleCount={draftedRuleCount} />}
       <Card tone={policy.origin === "generated" ? "ai" : "default"}>
         <KeyValueList
           items={[
@@ -106,7 +121,11 @@ function PolicyDetail({ policy }: { policy: Policy }) {
         {isDraft ? (
           <>
             <Notice tone="info">{t.policies.editDraftHint}</Notice>
-            <PolicyTextEditor key={policy.updatedAt} policy={policy} />
+            <PolicyTextEditor
+              key={policy.updatedAt}
+              policy={policy}
+              onApproved={({ draftedRuleIds }) => setDraftedRuleCount(draftedRuleIds.length)}
+            />
           </>
         ) : (
           <div className={styles.text}>{policy.text}</div>

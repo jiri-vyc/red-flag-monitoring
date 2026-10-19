@@ -105,3 +105,49 @@ describe("livePoliciesService", () => {
     });
   });
 });
+
+describe("livePoliciesService.approvePolicy", () => {
+  beforeEach(() => requestJsonMock.mockReset());
+
+  it("submits and approves the draft, and reports the rules the backend drafted on approval", async () => {
+    const requests = serveEndpoints();
+    const rulesBeforeApproval = ENDPOINTS["GET /rules"];
+    const fallbackImplementation = requestJsonMock.getMockImplementation()!;
+    let isApproved = false;
+    requestJsonMock.mockImplementation(async (options) => {
+      const { path, method = "GET" } = options;
+      if (method === "POST" && path.endsWith("/submit")) {
+        requests.push({ path, method });
+        return { ...MULTI_REGULATION_VERSION, status: "pending_review" };
+      }
+      if (method === "POST" && path.endsWith("/review")) {
+        requests.push({ path, method, jsonBody: options.jsonBody });
+        isApproved = true;
+        return { ...MULTI_REGULATION_VERSION, status: "approved" };
+      }
+      if (method === "GET" && path === "/rules" && isApproved) {
+        requests.push({ path, method });
+        return [...(rulesBeforeApproval as object[]), { id: "rule-drafted", policyId: "policy-multi" }];
+      }
+      return fallbackImplementation(options);
+    });
+
+    const { policy, draftedRuleIds } = await livePoliciesService.approvePolicy({
+      policyId: "policy-multi",
+      approvedBy: CURRENT_USER.name,
+    });
+
+    const writes = requests.filter(({ method }) => method !== "GET");
+    expect(writes.map(({ path }) => path)).toEqual([
+      "/internal-policies/policy-multi/versions/policy-multi-v1/submit",
+      "/internal-policies/policy-multi/versions/policy-multi-v1/review",
+    ]);
+    expect(writes[1]?.jsonBody).toEqual({
+      decision: "approved",
+      reviewedBy: CURRENT_USER.id,
+      reviewComment: null,
+    });
+    expect(policy.ruleIds).toEqual(["rule-1", "rule-drafted"]);
+    expect(draftedRuleIds).toEqual(["rule-drafted"]);
+  });
+});

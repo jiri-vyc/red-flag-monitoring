@@ -29,6 +29,9 @@ export const evaluationRunPageDtoSchema = z.object({
   total: z.number().int(),
 });
 
+/** Response of POST /evaluation-runs (backend EvaluationRun); the web reloads the run summary by its id. */
+export const startedRunDtoSchema = z.object({ id: z.string() });
+
 export const evaluationRunSummaryDtoSchema = z.object({
   run: evaluationRunListItemDtoSchema,
   ruleVersions: z.array(z.object({ ruleVersionId: z.string() })),
@@ -73,16 +76,47 @@ const evaluatedOperandSchema = z.object({
 });
 export type EvaluatedOperandDto = z.infer<typeof evaluatedOperandSchema>;
 
+const evaluatedConditionSchema = z.object({
+  label: z.string(),
+  left: evaluatedOperandSchema,
+  op: z.string(),
+  right: evaluatedOperandSchema,
+  result: z.boolean(),
+});
+export type EvaluatedConditionDto = z.infer<typeof evaluatedConditionSchema>;
+
+/** A nested group of the rule definition with its own result (backend EvaluatedConditionGroup). */
+export type EvaluatedConditionGroupDto = {
+  label: string;
+  match: "any" | "all";
+  conditions: EvaluatedConditionNodeDto[];
+  result: boolean;
+};
+export type EvaluatedConditionNodeDto = EvaluatedConditionDto | EvaluatedConditionGroupDto;
+
+const evaluatedConditionGroupSchema: z.ZodType<EvaluatedConditionGroupDto> = z.object({
+  label: z.string(),
+  match: z.enum(["any", "all"]),
+  // A getter defers the recursive reference until the node schema below exists.
+  get conditions() {
+    return z.array(evaluatedConditionNodeSchema);
+  },
+  result: z.boolean(),
+});
+
+const evaluatedConditionNodeSchema: z.ZodType<EvaluatedConditionNodeDto> = z.union([
+  evaluatedConditionSchema,
+  evaluatedConditionGroupSchema,
+]);
+
+export function isEvaluatedConditionGroup(
+  node: EvaluatedConditionNodeDto,
+): node is EvaluatedConditionGroupDto {
+  return "match" in node;
+}
+
 const deterministicTraceSchema = z.object({
-  conditions: z.array(
-    z.object({
-      label: z.string(),
-      left: evaluatedOperandSchema,
-      op: z.string(),
-      right: evaluatedOperandSchema,
-      result: z.boolean(),
-    }),
-  ),
+  conditions: z.array(evaluatedConditionNodeSchema),
   summary: z.string(),
 });
 

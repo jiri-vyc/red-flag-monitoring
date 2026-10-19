@@ -2,7 +2,7 @@ import { CURRENT_USER } from "@/config/currentUser";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
 
-import type { RuleDto, RuleVersionDto, RuleWithVersionsDto } from "./dto";
+import { ruleDefinitionDtoSchema, type RuleDto, type RuleVersionDto, type RuleWithVersionsDto } from "./dto";
 import { deriveRuleStatus, liveRulesService, toRule } from "./live";
 
 // Mutations are verified against a mocked HTTP client, never against the shared backend database.
@@ -385,5 +385,43 @@ describe("liveRulesService mutations", () => {
       }),
     ).toThrow(ApiError);
     expect(requestJsonMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ruleDefinitionDtoSchema", () => {
+  const amountCondition = (id: string) => ({
+    id,
+    label: "Částka",
+    left: { feature: "tx_amount_czk" },
+    op: ">",
+    right: { value: 1000 },
+  });
+  const nestedDefinition = (innerId: string) => ({
+    match: "any",
+    features: ["tx_amount_czk"],
+    conditions: [
+      amountCondition("amount"),
+      { id: "group", label: "Rizikový klient", match: "all", conditions: [amountCondition(innerId)] },
+    ],
+  });
+
+  it("accepts nested condition groups like the backend", () => {
+    expect(ruleDefinitionDtoSchema.safeParse(nestedDefinition("inner")).success).toBe(true);
+  });
+
+  it("rejects condition ids repeated across nested groups", () => {
+    const parseResult = ruleDefinitionDtoSchema.safeParse(nestedDefinition("amount"));
+
+    expect(parseResult.success).toBe(false);
+    expect(parseResult.error?.issues[0]?.message).toBe("Condition ids must be unique across nested groups");
+  });
+
+  it("rejects an empty group", () => {
+    const definition = {
+      ...nestedDefinition("inner"),
+      conditions: [{ id: "group", label: "Prázdná", match: "all", conditions: [] }],
+    };
+
+    expect(ruleDefinitionDtoSchema.safeParse(definition).success).toBe(false);
   });
 });

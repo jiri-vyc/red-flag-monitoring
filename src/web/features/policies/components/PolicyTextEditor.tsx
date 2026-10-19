@@ -9,11 +9,17 @@ import { ErrorState } from "@/components/ui/StateViews";
 import { useI18n } from "@/i18n/I18nProvider";
 
 import { useApprovePolicy, useUpdatePolicyText } from "../api/hooks";
-import type { Policy } from "../types";
+import type { Policy, PolicyApproval } from "../types";
 import styles from "./PolicyDetailScreen.module.css";
 
+type PolicyTextEditorProps = {
+  policy: Policy;
+  showApprove?: boolean;
+  onApproved?: (approval: PolicyApproval) => void;
+};
+
 /** Editable text of a draft policy, with save and approve actions. */
-export function PolicyTextEditor({ policy, showApprove = true }: { policy: Policy; showApprove?: boolean }) {
+export function PolicyTextEditor({ policy, showApprove = true, onApproved }: PolicyTextEditorProps) {
   const { t } = useI18n();
   const [draftText, setDraftText] = useState(policy.text);
   const updateTextMutation = useUpdatePolicyText();
@@ -47,7 +53,7 @@ export function PolicyTextEditor({ policy, showApprove = true }: { policy: Polic
             variant="success"
             icon={<CircleCheck aria-hidden="true" />}
             disabled={hasUnsavedChanges || approveMutation.isPending}
-            onClick={() => approveMutation.mutate(policy.id)}
+            onClick={() => approveMutation.mutate(policy.id, { onSuccess: onApproved })}
           >
             {t.policies.approve}
           </Button>

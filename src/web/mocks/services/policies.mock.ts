@@ -51,12 +51,14 @@ export const mockPoliciesService: PoliciesService = {
     const record = findPolicyRecord(policyId);
     assertPolicyIsDraft(record);
     const now = new Date().toISOString();
-    return persistPolicyRecord({
+    const policy = persistPolicyRecord({
       ...record,
       status: "approved",
       approvedBy,
       approvedAt: now,
       updatedAt: now,
     });
+    // Unlike the backend, the mock drafts no rules on approval; the mock wizard generates them itself.
+    return { policy, draftedRuleIds: [] };
   },
 };

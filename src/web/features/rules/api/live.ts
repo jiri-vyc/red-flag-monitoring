@@ -16,6 +16,7 @@ import type { Rule, RuleConfig, RuleContent, RuleStatus, RuleVersion, WhitelistE
 import type { RulesService } from "./contract";
 import {
   BACKEND_RISK_PROFILES,
+  fetchPolicyRulesWithVersions,
   fetchRuleWithVersions,
   fetchRulesWithVersions,
   findActiveVersionDto,
@@ -178,15 +179,24 @@ async function loadRegulationIndex(): Promise<Map<string, string>> {
   return indexRegulationIdByVersionId(await fetchRegulationsWithVersions());
 }
 
-async function loadRules(): Promise<Rule[]> {
+async function toRules(rulesWithVersionsRequest: Promise<RuleWithVersionsDto[]>): Promise<Rule[]> {
   const [rulesWithVersions, regulationIdByVersionId] = await Promise.all([
-    fetchRulesWithVersions(),
+    rulesWithVersionsRequest,
     loadRegulationIndex(),
   ]);
   // The web model needs at least one version; a rule whose first version was never saved is left out.
   return rulesWithVersions
     .filter(({ versions }) => versions.length > 0)
     .map((ruleWithVersions) => toRule(ruleWithVersions, regulationIdByVersionId));
+}
+
+function loadRules(): Promise<Rule[]> {
+  return toRules(fetchRulesWithVersions());
+}
+
+/** The rules that implement one policy, with their versions (e.g. the drafts created by its approval). */
+export function loadPolicyRules(policyId: string): Promise<Rule[]> {
+  return toRules(fetchPolicyRulesWithVersions(policyId));
 }
 
 async function loadRule(ruleId: string): Promise<Rule> {

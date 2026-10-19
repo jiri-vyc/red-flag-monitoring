@@ -1,4 +1,5 @@
 import type { BatchesService } from "@/features/batches/api/contract";
+import type { Batch, Transaction } from "@/features/batches/types";
 import type { MockBatchRecord } from "../store/mockDatabase";
 import { ApiError } from "@/lib/apiError";
 
@@ -8,6 +9,7 @@ import { CsvFormatError, mapCsvRowToTransaction, parseTransactionsCsv } from "..
 import { evaluateTransaction } from "../evaluation/evaluateTransaction";
 import { simulateLatency } from "../latency";
 import { throwMockNotFound } from "../notFound";
+import { SEED_TRANSACTIONS } from "../seed/transactions";
 import { readBatchRows, readMockDatabase, writeBatchRows, writeMockDatabase } from "../store/mockDatabase";
 import { countProcessedRows, mapBatchRecord } from "./batchState";
 
@@ -16,6 +18,8 @@ export const MOCK_BATCH_ROW_CAP = 2000;
 const TRANSACTION_PAGE_SIZE = 25;
 const MIN_PROCESSING_MS = 3000;
 const MAX_EXTRA_PROCESSING_MS = 5000;
+// Batch name of a run started without a file. It is data, not UI, like the rest of the mock data.
+const SEED_RUN_NAME = "Běh nad demo transakcemi";
 
 function findBatchRecord(batchId: string): MockBatchRecord {
   const record = readMockDatabase().batches.find((batch) => batch.batch.id === batchId);
@@ -38,8 +42,45 @@ function parseCursor(cursor: string | null): number {
   return Number.isInteger(offset) && offset >= 0 ? offset : 0;
 }
 
+/** Evaluates the transactions with the active rules and stores the batch with a simulated processing window. */
+function persistEvaluatedBatch({
+  fileName,
+  fileRowCount,
+  transactions,
+  uploadedBy,
+}: {
+  fileName: string;
+  fileRowCount: number;
+  transactions: Transaction[];
+  uploadedBy: string;
+}): Batch {
+  const database = readMockDatabase();
+  const ruleSnapshots = createRuleSnapshots(database);
+  const rows = evaluateBatchRows(transactions, ruleSnapshots);
+  const durationRatio = rows.length / MOCK_BATCH_ROW_CAP;
+
+  const record: MockBatchRecord = {
+    batch: {
+      id: createMockId("batch"),
+      fileName,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy,
+      fileRowCount,
+      evaluatedRowCount: rows.length,
+      activeRuleCount: ruleSnapshots.length,
+      failureReason: null,
+    },
+    startedAtMs: Date.now(),
+    durationMs: MIN_PROCESSING_MS + Math.round(durationRatio * MAX_EXTRA_PROCESSING_MS),
+    ruleSnapshots,
+  };
+  writeBatchRows(record.batch.id, rows);
+  writeMockDatabase({ ...database, batches: [...database.batches, record] });
+  return mapBatchRecord(record);
+}
+
 export const mockBatchesService: BatchesService = {
-  capabilities: { canUploadBatch: true },
+  capabilities: { canUploadBatch: true, canStartRun: true },
 
   async loadBatches() {
     await simulateLatency();
@@ -59,29 +100,24 @@ export const mockBatchesService: BatchesService = {
     if (parsedCsv.rows.length === 0) {
       throw new ApiError({ kind: "validation", message: "The file contains no valid transaction rows." });
     }
-    const database = readMockDatabase();
-    const ruleSnapshots = createRuleSnapshots(database);
-    const rows = evaluateBatchRows(parsedCsv.rows.map(mapCsvRowToTransaction), ruleSnapshots);
-    const durationRatio = rows.length / MOCK_BATCH_ROW_CAP;
+    return persistEvaluatedBatch({
+      fileName: file.name,
+      fileRowCount: parsedCsv.fileRowCount,
+      transactions: parsedCsv.rows.map(mapCsvRowToTransaction),
+      uploadedBy,
+    });
+  },
 
-    const record: MockBatchRecord = {
-      batch: {
-        id: createMockId("batch"),
-        fileName: file.name,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy,
-        fileRowCount: parsedCsv.fileRowCount,
-        evaluatedRowCount: rows.length,
-        activeRuleCount: ruleSnapshots.length,
-        failureReason: null,
-      },
-      startedAtMs: Date.now(),
-      durationMs: MIN_PROCESSING_MS + Math.round(durationRatio * MAX_EXTRA_PROCESSING_MS),
-      ruleSnapshots,
-    };
-    writeBatchRows(record.batch.id, rows);
-    writeMockDatabase({ ...database, batches: [...database.batches, record] });
-    return mapBatchRecord(record);
+  // Stands in for POST /evaluation-runs: the backend evaluates the transactions it already holds, the mock
+  // evaluates the seed transactions with the current active rules.
+  async startRun({ startedBy }) {
+    await simulateLatency();
+    return persistEvaluatedBatch({
+      fileName: SEED_RUN_NAME,
+      fileRowCount: SEED_TRANSACTIONS.length,
+      transactions: SEED_TRANSACTIONS.map(mapCsvRowToTransaction),
+      uploadedBy: startedBy,
+    });
   },
 
   async loadBatchTransactions({ batchId, bucket, cursor }) {

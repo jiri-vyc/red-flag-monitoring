@@ -16,8 +16,11 @@ import type { BatchesService } from "./contract";
 import {
   evaluationRunPageDtoSchema,
   evaluationRunSummaryDtoSchema,
+  startedRunDtoSchema,
   transactionEvaluationDetailDtoSchema,
   transactionEvaluationPageDtoSchema,
+  isEvaluatedConditionGroup,
+  type EvaluatedConditionNodeDto,
   type EvaluatedOperandDto,
   type EvaluationRunListItemDto,
   type RuleEvaluationDetailDto,
@@ -60,6 +63,11 @@ function toBatch(run: EvaluationRunListItemDto, activeRuleCount: number): Batch 
   };
 }
 
+async function loadBatch(batchId: string): Promise<Batch> {
+  const summary = await requestJson({ path: runPath(batchId), schema: evaluationRunSummaryDtoSchema });
+  return toBatch(summary.run, summary.ruleVersions.length);
+}
+
 function toTransaction(transaction: TransactionDto, amountCzk: number | null): TransactionView {
   return {
     transactionId: transaction.transactionId,
@@ -96,6 +104,28 @@ function formatOperand(operand: EvaluatedOperandDto): string {
   return name === undefined ? value : `${name} (${value})`;
 }
 
+/** Flattens nested groups depth first; a step inside a group is prefixed with the labels of its groups. */
+function toConditionTraceSteps(nodes: EvaluatedConditionNodeDto[], groupLabels: string[]): TraceStep[] {
+  return nodes.flatMap((node) => {
+    const condition = [...groupLabels, node.label].join(" › ");
+    if (isEvaluatedConditionGroup(node)) {
+      const groupStep = {
+        condition,
+        isMet: node.result,
+        detail: `${node.match} (${node.conditions.length})`,
+      };
+      return [groupStep, ...toConditionTraceSteps(node.conditions, [...groupLabels, node.label])];
+    }
+    return [
+      {
+        condition,
+        isMet: node.result,
+        detail: `${formatOperand(node.left)} ${node.op} ${formatOperand(node.right)}`,
+      },
+    ];
+  });
+}
+
 function toTraceSteps(ruleEvaluation: RuleEvaluationDetailDto): TraceStep[] {
   const { trace } = ruleEvaluation;
   if (ruleEvaluation.outcome === "error") {
@@ -105,11 +135,7 @@ function toTraceSteps(ruleEvaluation: RuleEvaluationDetailDto): TraceStep[] {
     return [];
   }
   if ("conditions" in trace) {
-    return trace.conditions.map((condition) => ({
-      condition: condition.label,
-      isMet: condition.result,
-      detail: `${formatOperand(condition.left)} ${condition.op} ${formatOperand(condition.right)}`,
-    }));
+    return toConditionTraceSteps(trace.conditions, []);
   }
   return [{ condition: trace.summary, isMet: ruleEvaluation.outcome === "hit", detail: trace.reasoning }];
 }
@@ -131,6 +157,7 @@ function toRuleEvaluation(ruleEvaluation: RuleEvaluationDetailDto): RuleEvaluati
 export const liveBatchesService: BatchesService = {
   capabilities: {
     canUploadBatch: false, // BE-01
+    canStartRun: false, // BE-01
   },
 
   async loadBatches() {
@@ -142,9 +169,17 @@ export const liveBatchesService: BatchesService = {
     return runPage.items.map((run) => toBatch(run, 0));
   },
 
-  async loadBatch(batchId) {
-    const summary = await requestJson({ path: runPath(batchId), schema: evaluationRunSummaryDtoSchema });
-    return toBatch(summary.run, summary.ruleVersions.length);
+  loadBatch,
+
+  // The endpoint exists, but the backend has no evaluation engine yet and answers 501 (BE-01). Hidden in the UI;
+  // the 501 reaches the caller as an `unsupported` ApiError.
+  async startRun() {
+    const run = await requestJson({
+      path: "/evaluation-runs",
+      method: "POST",
+      schema: startedRunDtoSchema,
+    });
+    return loadBatch(run.id);
   },
 
   // V14: runs are created by the evaluation engine, the API has no upload endpoint (BE-01). Hidden in the UI.

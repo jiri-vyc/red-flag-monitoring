@@ -88,7 +88,7 @@ export function forgetSelectedApiModeForTests(): void {
 
 /**
  * Mock: every service is mocked (full demo). Live: the API, except services the env pins to a mode
- * (e.g. the wizard stays mocked while the backend has no wizard endpoints).
+ * (e.g. NEXT_PUBLIC_API_MODE_BATCHES=mock to demo CSV uploads next to live rules).
  */
 export function getServiceMode(
   serviceName: ServiceName,

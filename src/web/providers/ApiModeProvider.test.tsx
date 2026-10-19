@@ -9,9 +9,8 @@ import { useWizardCapabilities } from "@/features/wizard/api/hooks";
 
 import { ApiModeProvider, useApiMode } from "./ApiModeProvider";
 
-jest.mock("@/config/env.client", () => ({
-  clientEnv: { NEXT_PUBLIC_API_MODE: "live", NEXT_PUBLIC_API_MODE_WIZARD: "mock" },
-}));
+// The recommended live setup: no per-service override, the wizard shares the live data source.
+jest.mock("@/config/env.client", () => ({ clientEnv: { NEXT_PUBLIC_API_MODE: "live" } }));
 
 function useCapabilitiesAndMode() {
   return {
@@ -42,9 +41,10 @@ describe("ApiModeProvider", () => {
 
     expect(result.current.apiMode).toBe("live");
     expect(result.current.batches.canUploadBatch).toBe(false);
+    expect(result.current.batches.canStartRun).toBe(false);
     expect(result.current.rules.canCreateDeterministicRule).toBe(false);
-    // The wizard is mocked while its data services are live, so it must stay hidden.
-    expect(result.current.wizard.isAvailable).toBe(false);
+    // The live wizard cannot load a regulation from a URL (BE-02).
+    expect(result.current.wizard).toEqual({ isAvailable: true, canFetchUrl: false });
   });
 
   it("switches every capability to the mock implementation and back", () => {
@@ -53,12 +53,13 @@ describe("ApiModeProvider", () => {
     act(() => result.current.changeApiMode("mock"));
     expect(result.current.apiMode).toBe("mock");
     expect(result.current.batches.canUploadBatch).toBe(true);
+    expect(result.current.batches.canStartRun).toBe(true);
     expect(result.current.rules.canCreateDeterministicRule).toBe(true);
-    expect(result.current.wizard.isAvailable).toBe(true);
+    expect(result.current.wizard).toEqual({ isAvailable: true, canFetchUrl: true });
 
     act(() => result.current.changeApiMode("live"));
     expect(result.current.batches.canUploadBatch).toBe(false);
-    expect(result.current.wizard.isAvailable).toBe(false);
+    expect(result.current.wizard.canFetchUrl).toBe(false);
   });
 
   it("drops cached data of the previous source on switch", () => {

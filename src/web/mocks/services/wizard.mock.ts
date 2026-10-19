@@ -1,13 +1,16 @@
+import { CURRENT_USER } from "@/config/currentUser";
 import type { RuleLegalBasis } from "@/features/regulations/types";
 import type { Rule } from "@/features/rules/types";
 import { submitRuleForReview } from "@/features/rules/domain/ruleLifecycle";
 import type { WizardService } from "@/features/wizard/api/contract";
-import type { RegulationSource } from "@/features/wizard/types";
+import type { RegulationTarget } from "@/features/wizard/types";
 
 import { createMockId } from "../createMockId";
 import {
   buildGeneratedPolicy,
   buildGeneratedRegulation,
+  deriveRegulationFromUrl,
+  describeRegulationSource,
   GENERAL_PROVISIONS_REF,
   WIZARD_RULE_BLUEPRINTS,
 } from "../generation/policyGeneration";
@@ -17,25 +20,54 @@ import { throwMockNotFound } from "../notFound";
 import {
   readMockDatabase,
   writeMockDatabase,
+  type MockDatabase,
   type MockPolicyRecord,
   type MockRegulationRecord,
 } from "../store/mockDatabase";
 import { mapPolicyRecord, mapRegulationRecord } from "./mappers";
+import { mockPoliciesService } from "./policies.mock";
 
 const GENERATED_BY = "RedFlag AI (návrh)";
 
-function findRegulationBySourceUrl(source: RegulationSource): MockRegulationRecord | null {
-  if (source.kind !== "url") {
-    return null;
-  }
-  const normalizedUrl = source.url.trim().replace(/\/$/, "");
-  const regulations = readMockDatabase().regulations;
-  return regulations.find((regulation) => regulation.sourceUrl.replace(/\/$/, "") === normalizedUrl) ?? null;
+function findPolicyRecord(database: MockDatabase, policyId: string): MockPolicyRecord {
+  const policy = database.policies.find((candidate) => candidate.id === policyId);
+  return policy ?? throwMockNotFound("Internal policy", policyId);
 }
 
-function findPolicyRecord(policyId: string) {
-  const policy = readMockDatabase().policies.find((candidate) => candidate.id === policyId);
-  return policy ?? throwMockNotFound("Internal policy", policyId);
+/** M1: a new wording of an existing regulation replaces the wording the mock record shows. */
+function buildRegulationRecord({
+  database,
+  target,
+  versionLabel,
+  now,
+}: {
+  database: MockDatabase;
+  target: RegulationTarget;
+  versionLabel: string;
+  now: string;
+}): MockRegulationRecord {
+  if (target.kind === "new") {
+    return buildGeneratedRegulation({ id: createMockId("reg"), regulation: target, versionLabel, now });
+  }
+  if (target.kind === "fromUrl") {
+    const regulation = deriveRegulationFromUrl(target.url);
+    return buildGeneratedRegulation({ id: createMockId("reg"), regulation, versionLabel, now });
+  }
+  const regulation = database.regulations.find((candidate) => candidate.id === target.regulationId);
+  if (!regulation) {
+    return throwMockNotFound("Regulation", target.regulationId);
+  }
+  return { ...regulation, version: versionLabel, lastCheckedAt: now };
+}
+
+function upsertRegulation(
+  regulations: MockRegulationRecord[],
+  regulation: MockRegulationRecord,
+): MockRegulationRecord[] {
+  const isExisting = regulations.some((candidate) => candidate.id === regulation.id);
+  return isExisting
+    ? regulations.map((candidate) => (candidate.id === regulation.id ? regulation : candidate))
+    : [...regulations, regulation];
 }
 
 /** M5: a rule version names its own provision; the wizard proposes the policy's citations, reviewed with the rule. */
@@ -46,91 +78,103 @@ function proposeRuleLegalBases(policy: MockPolicyRecord): RuleLegalBasis[] {
   }));
 }
 
-export const mockWizardService: WizardService = {
-  capabilities: { isAvailable: true },
+function generateRules(policy: MockPolicyRecord, now: string) {
+  const legalBases = proposeRuleLegalBases(policy);
+  return WIZARD_RULE_BLUEPRINTS.map((blueprint) => {
+    const draft = generateRuleDraft({ description: blueprint.description, type: blueprint.type });
+    const rule: Rule = {
+      id: createMockId("rule"),
+      name: deriveRuleName(blueprint.description),
+      description: blueprint.description,
+      type: blueprint.type,
+      status: "draft",
+      origin: "wizard",
+      policyId: policy.id,
+      runningVersionNumber: null,
+      versions: [
+        {
+          versionNumber: 1,
+          state: "draft",
+          content: draft.content,
+          config: {
+            sensitivity: blueprint.sensitivity,
+            riskProfiles: ["high", "medium", "low", "unknown"],
+          },
+          changeNote: "Vygenerováno wizardem z interního předpisu.",
+          createdAt: now,
+          createdBy: GENERATED_BY,
+          reviewedBy: null,
+          reviewedAt: null,
+          legalBases,
+        },
+      ],
+      whitelistAllowed: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return { rule, checkKind: draft.checkKind };
+  });
+}
 
-  async generatePolicyDraft({ source, regulationName }) {
+// Mirrors the backend flow of the live adapter: the regulation wording yields policy drafts, approving a policy
+// draft yields its rule drafts. The mock drafts one policy per wording.
+export const mockWizardService: WizardService = {
+  capabilities: { isAvailable: true, canFetchUrl: true },
+
+  async draftPolicies({ source, regulation: target, versionLabel }) {
     await simulateLatency(AI_GENERATION_LATENCY);
     const now = new Date().toISOString();
-    const existingRegulation = findRegulationBySourceUrl(source);
-    const regulation =
-      existingRegulation ??
-      buildGeneratedRegulation({ id: createMockId("reg"), source, regulationName, now });
-    const policy = buildGeneratedPolicy({ id: createMockId("pol"), regulation, now });
-
     const database = readMockDatabase();
+    const regulation = buildRegulationRecord({ database, target, versionLabel, now });
+    const policy = buildGeneratedPolicy({
+      id: createMockId("pol"),
+      regulation,
+      sourceLabel: describeRegulationSource(source),
+      now,
+    });
+
     const updatedDatabase = {
       ...database,
-      regulations: existingRegulation ? database.regulations : [...database.regulations, regulation],
+      regulations: upsertRegulation(database.regulations, regulation),
       policies: [...database.policies, policy],
     };
     writeMockDatabase(updatedDatabase);
     return {
       regulation: mapRegulationRecord(regulation, updatedDatabase),
-      policy: mapPolicyRecord(policy, updatedDatabase),
+      policies: [mapPolicyRecord(policy, updatedDatabase)],
     };
   },
 
-  async generateRules(policyId) {
+  async approvePolicyDraft(policyId) {
+    await mockPoliciesService.approvePolicy({ policyId, approvedBy: CURRENT_USER.name });
     await simulateLatency(AI_GENERATION_LATENCY);
-    const policy = findPolicyRecord(policyId);
-    const now = new Date().toISOString();
-    const legalBases = proposeRuleLegalBases(policy);
-    const generated = WIZARD_RULE_BLUEPRINTS.map((blueprint) => {
-      const draft = generateRuleDraft({ description: blueprint.description, type: blueprint.type });
-      const rule: Rule = {
-        id: createMockId("rule"),
-        name: deriveRuleName(blueprint.description),
-        description: blueprint.description,
-        type: blueprint.type,
-        status: "draft",
-        origin: "wizard",
-        policyId,
-        runningVersionNumber: null,
-        versions: [
-          {
-            versionNumber: 1,
-            state: "draft",
-            content: draft.content,
-            config: {
-              sensitivity: blueprint.sensitivity,
-              riskProfiles: ["high", "medium", "low", "unknown"],
-            },
-            changeNote: "Vygenerováno wizardem z interního předpisu.",
-            createdAt: now,
-            createdBy: GENERATED_BY,
-            reviewedBy: null,
-            reviewedAt: null,
-            legalBases,
-          },
-        ],
-        whitelistAllowed: true,
-        createdAt: now,
-        updatedAt: now,
-      };
-      return { rule, checkKind: draft.checkKind };
-    });
-
     const database = readMockDatabase();
-    writeMockDatabase({
+    const policy = findPolicyRecord(database, policyId);
+    const generated = generateRules(policy, new Date().toISOString());
+    const updatedDatabase = {
       ...database,
       rules: [...database.rules, ...generated.map(({ rule }) => rule)],
       ruleCheckKinds: {
         ...database.ruleCheckKinds,
         ...Object.fromEntries(generated.map(({ rule, checkKind }) => [rule.id, checkKind])),
       },
-    });
-    return generated.map(({ rule }) => rule);
+    };
+    writeMockDatabase(updatedDatabase);
+    return {
+      policy: mapPolicyRecord(policy, updatedDatabase),
+      rules: generated.map(({ rule }) => rule),
+    };
   },
 
-  async finishRuleReview(policyId) {
+  async finishRuleReview(policyIds) {
     await simulateLatency();
     const database = readMockDatabase();
     const now = new Date().toISOString();
+    const isWizardRule = (rule: Rule) => rule.policyId !== null && policyIds.includes(rule.policyId);
     const rules = database.rules.map((rule) =>
-      rule.policyId === policyId && rule.status === "draft" ? submitRuleForReview(rule, now) : rule,
+      isWizardRule(rule) && rule.status === "draft" ? submitRuleForReview(rule, now) : rule,
     );
     writeMockDatabase({ ...database, rules });
-    return rules.filter((rule) => rule.policyId === policyId);
+    return rules.filter(isWizardRule);
   },
 };

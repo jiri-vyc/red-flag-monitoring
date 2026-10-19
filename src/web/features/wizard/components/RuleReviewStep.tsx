@@ -7,7 +7,7 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
-import { ErrorState } from "@/components/ui/StateViews";
+import { EmptyState, ErrorState } from "@/components/ui/StateViews";
 import { formatLegalBasisRefs } from "@/features/regulations/types";
 import { useRulesCapabilities, useRuleTransition, useUpdateDraftContent } from "@/features/rules/api/hooks";
 import { RejectRulePanel } from "@/features/rules/components/RejectRulePanel";
@@ -147,11 +147,15 @@ export function RuleReviewStep({ rules, isFinishing, onRuleChange, onFinish }: R
       <Notice tone="ai" title={t.aiNotice.title}>
         {t.aiNotice.body}
       </Notice>
-      <div className={styles.generatedRules}>
-        {rules.map((rule) => (
-          <GeneratedRuleCard key={rule.id} rule={rule} onRuleChange={onRuleChange} />
-        ))}
-      </div>
+      {rules.length === 0 ? (
+        <EmptyState message={t.wizard.noRuleDrafts} />
+      ) : (
+        <div className={styles.generatedRules}>
+          {rules.map((rule) => (
+            <GeneratedRuleCard key={rule.id} rule={rule} onRuleChange={onRuleChange} />
+          ))}
+        </div>
+      )}
       <div>
         <Button size="lg" disabled={isFinishing} icon={<CircleCheck aria-hidden="true" />} onClick={onFinish}>
           {isFinishing ? t.wizard.finishing : t.wizard.finishReview}

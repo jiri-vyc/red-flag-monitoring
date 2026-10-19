@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { CURRENT_USER } from "@/config/currentUser";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
@@ -34,11 +34,20 @@ export function useUpdatePolicyText() {
   });
 }
 
+// Approval drafts rules on the backend, so rule lists, counters and regulation citations change too.
+function invalidatePolicyApprovalQueries(queryClient: QueryClient) {
+  return Promise.all(
+    [policyQueryKeys.all, ["rules"], ["dashboard"], ["regulations"]].map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey }),
+    ),
+  );
+}
+
 export function useApprovePolicy() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (policyId: string) =>
       policiesService.approvePolicy({ policyId, approvedBy: CURRENT_USER.name }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: policyQueryKeys.all }),
+    onSuccess: () => invalidatePolicyApprovalQueries(queryClient),
   });
 }

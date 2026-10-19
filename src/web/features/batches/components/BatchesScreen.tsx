@@ -1,17 +1,20 @@
 "use client";
 
+import { Play } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
 import tableStyles from "@/components/ui/DataTable.module.css";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { EmptyState, QueryView } from "@/components/ui/StateViews";
+import { EmptyState, ErrorState, QueryView } from "@/components/ui/StateViews";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
-import { useBatches, useBatchesCapabilities } from "../api/hooks";
+import { useBatches, useBatchesCapabilities, useStartEvaluationRun } from "../api/hooks";
 import type { Batch, BatchStatus } from "../types";
 import { BucketCountsInline } from "./BucketCountsInline";
 import { UploadDropzone } from "./UploadDropzone";
@@ -87,13 +90,32 @@ function BatchHistoryTable({ batches }: { batches: Batch[] }) {
 export function BatchesScreen() {
   const { t } = useI18n();
   const batchesQuery = useBatches();
-  const { canUploadBatch } = useBatchesCapabilities();
+  const { canUploadBatch, canStartRun } = useBatchesCapabilities();
+  const router = useRouter();
+  const startRunMutation = useStartEvaluationRun();
+  // A started run opens on its detail, which polls the progress.
+  const startRun = () =>
+    startRunMutation.mutate(undefined, {
+      onSuccess: (batch) => router.push(`/batches/${encodeURIComponent(batch.id)}`),
+    });
   return (
     <>
       <PageHeader
         title={t.batches.title}
         description={canUploadBatch ? t.batches.subtitle : t.batches.subtitleReadOnly}
+        actions={
+          canStartRun && (
+            <Button
+              icon={<Play aria-hidden="true" />}
+              disabled={startRunMutation.isPending}
+              onClick={startRun}
+            >
+              {startRunMutation.isPending ? t.batches.startingRun : t.batches.startRun}
+            </Button>
+          )
+        }
       />
+      {startRunMutation.error && <ErrorState error={startRunMutation.error} />}
       {canUploadBatch ? <UploadDropzone /> : <Notice tone="info">{t.batches.readOnlyNote}</Notice>}
       <Card title={t.batches.history}>
         <QueryView query={batchesQuery}>{(batches) => <BatchHistoryTable batches={batches} />}</QueryView>

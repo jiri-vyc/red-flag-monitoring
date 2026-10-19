@@ -11,7 +11,8 @@ import { mockWizardService } from "@/mocks/services/wizard.mock";
 import type { WizardCapabilities, WizardService } from "./contract";
 import { liveWizardService } from "./live";
 
-// The wizard creates and edits regulations, policies and rules, so it must use the same data source as they do.
+// The wizard creates and edits regulations, policies and rules, so it must use the same data source as they do:
+// it is available when all of them are live, or all of them are mocked.
 const WIZARD_DATA_SERVICES: readonly ServiceName[] = ["regulations", "policies", "rules"];
 
 const wizardImplementations: ServiceImplementations<WizardService> = {
@@ -27,5 +28,5 @@ export function getWizardCapabilities(globalApiMode: ApiMode): WizardCapabilitie
     (serviceName) => getServiceMode(serviceName, globalApiMode) === wizardMode,
   );
   const { capabilities } = selectServiceImplementation("wizard", wizardImplementations, globalApiMode);
-  return { isAvailable: capabilities.isAvailable && isDataSourceShared };
+  return { ...capabilities, isAvailable: capabilities.isAvailable && isDataSourceShared };
 }

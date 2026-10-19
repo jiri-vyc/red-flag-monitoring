@@ -3,6 +3,7 @@
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { LoadingRing } from "@/components/ui/LoadingRing";
 import { ProgressBar } from "@/components/ui/Progress";
 import { StepProgress, type ProgressStep, type StepState } from "@/components/ui/StepProgress";
 
@@ -46,6 +47,7 @@ export function AiProgress({ title, stepLabels }: { title: string; stepLabels: s
         </span>
         <h2>{title}</h2>
       </div>
+      <LoadingRing label={stepLabels[activeIndex]} />
       <StepProgress steps={steps} />
       <ProgressBar percent={percent} label={title} />
     </section>

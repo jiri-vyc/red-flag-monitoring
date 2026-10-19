@@ -10,17 +10,19 @@ import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/ui/StateViews";
 import { useUpdatePolicyText } from "@/features/policies/api/hooks";
+import type { Policy } from "@/features/policies/types";
 import { useRegulation } from "@/features/regulations/api/hooks";
+import type { Regulation } from "@/features/regulations/types";
 import type { Rule } from "@/features/rules/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
 import {
+  useApprovePolicyDraft,
+  useDraftPolicies,
   useFinishRuleReview,
-  useGeneratePolicyDraft,
-  useGenerateRules,
   useWizardCapabilities,
 } from "../api/hooks";
-import type { GeneratePolicyInput, PolicyDraftResult } from "../types";
+import type { ApprovedPolicyDraft, DraftPoliciesInput, PolicyDraftResult } from "../types";
 import { AiProgress } from "./AiProgress";
 import { PolicyDraftStep } from "./PolicyDraftStep";
 import { RuleReviewStep } from "./RuleReviewStep";
@@ -30,9 +32,20 @@ import { WizardStepper, type WizardStep } from "./WizardStepper";
 
 type WizardState =
   | { step: "source" }
-  | { step: "policy"; draft: PolicyDraftResult }
+  /** After a failure the step keeps the approved policies and the edited texts, so a retry continues. */
+  | {
+      step: "policy";
+      draft: PolicyDraftResult;
+      approvals: ApprovedPolicyDraft[];
+      policyTexts: Record<string, string>;
+    }
   | { step: "review"; draft: PolicyDraftResult; rules: Rule[] }
   | { step: "done"; draft: PolicyDraftResult; rules: Rule[] };
+
+function findPolicyLink(policies: Policy[]): string {
+  const [onlyPolicy, ...otherPolicies] = policies;
+  return onlyPolicy && otherPolicies.length === 0 ? `/policies/${onlyPolicy.id}` : "/policies";
+}
 
 function DoneStep({
   draft,
@@ -63,7 +76,7 @@ function DoneStep({
             {t.wizard.goToRules}
           </ButtonLink>
           <ButtonLink
-            href={`/policies/${draft.policy.id}`}
+            href={findPolicyLink(draft.policies)}
             variant="secondary"
             icon={<FileText aria-hidden="true" />}
           >
@@ -78,31 +91,61 @@ function DoneStep({
   );
 }
 
-function findStepperStep(state: WizardState, isGeneratingRules: boolean): WizardStep {
-  if (state.step === "policy" && isGeneratingRules) {
+function findStepperStep(state: WizardState, isApprovingPolicies: boolean): WizardStep {
+  if (state.step === "policy" && isApprovingPolicies) {
     return "rules";
   }
   return state.step;
 }
 
-function WizardFlow({ initialValues }: { initialValues: { url?: string; regulationName?: string } }) {
+function replacePolicy(draft: PolicyDraftResult, updatedPolicy: Policy): PolicyDraftResult {
+  return {
+    ...draft,
+    policies: draft.policies.map((policy) => (policy.id === updatedPolicy.id ? updatedPolicy : policy)),
+  };
+}
+
+function WizardFlow({ existingRegulation }: { existingRegulation: Regulation | null }) {
   const { t } = useI18n();
+  const capabilities = useWizardCapabilities();
   const [state, setState] = useState<WizardState>({ step: "source" });
-  const generatePolicyMutation = useGeneratePolicyDraft();
+  // Approval runs several requests in a row, so no single mutation is pending the whole time.
+  const [isApprovingPolicies, setIsApprovingPolicies] = useState(false);
+  const draftPoliciesMutation = useDraftPolicies();
   const updatePolicyMutation = useUpdatePolicyText();
-  const generateRulesMutation = useGenerateRules();
+  const approvePolicyDraftMutation = useApprovePolicyDraft();
   const finishReviewMutation = useFinishRuleReview();
-  const isGeneratingRules = updatePolicyMutation.isPending || generateRulesMutation.isPending;
 
-  const generatePolicy = (input: GeneratePolicyInput) =>
-    generatePolicyMutation.mutate(input, { onSuccess: (draft) => setState({ step: "policy", draft }) });
+  const draftPolicies = (input: DraftPoliciesInput) =>
+    draftPoliciesMutation.mutate(input, {
+      onSuccess: (draft) => setState({ step: "policy", draft, approvals: [], policyTexts: {} }),
+    });
 
-  const generateRules = async (draft: PolicyDraftResult, policyText: string) => {
-    if (policyText !== draft.policy.text) {
-      await updatePolicyMutation.mutateAsync({ policyId: draft.policy.id, text: policyText });
+  // Saves edited texts as new policy versions, then approves each policy; the approval drafts its rules.
+  const approvePolicies = async (
+    initialDraft: PolicyDraftResult,
+    initialApprovals: ApprovedPolicyDraft[],
+    policyTexts: Record<string, string>,
+  ) => {
+    let draft = initialDraft;
+    const approvals = [...initialApprovals];
+    const isApproved = (policyId: string) => approvals.some((approval) => approval.policy.id === policyId);
+    setIsApprovingPolicies(true);
+    try {
+      for (const policy of initialDraft.policies.filter((candidate) => !isApproved(candidate.id))) {
+        const text = policyTexts[policy.id] ?? policy.text;
+        if (text !== policy.text) {
+          draft = replacePolicy(draft, await updatePolicyMutation.mutateAsync({ policyId: policy.id, text }));
+        }
+        approvals.push(await approvePolicyDraftMutation.mutateAsync(policy.id));
+      }
+      setState({ step: "review", draft, rules: approvals.flatMap((approval) => approval.rules) });
+    } catch {
+      // The failure is rendered from the mutation error state; the progress so far is kept for a retry.
+      setState({ step: "policy", draft, approvals, policyTexts });
+    } finally {
+      setIsApprovingPolicies(false);
     }
-    const rules = await generateRulesMutation.mutateAsync(draft.policy.id);
-    setState({ step: "review", draft, rules });
   };
 
   const replaceReviewedRule = (updatedRule: Rule) =>
@@ -116,30 +159,32 @@ function WizardFlow({ initialValues }: { initialValues: { url?: string; regulati
     );
 
   const finishReview = (draft: PolicyDraftResult) =>
-    finishReviewMutation.mutate(draft.policy.id, {
-      onSuccess: (rules) => setState({ step: "done", draft, rules }),
-    });
+    finishReviewMutation.mutate(
+      draft.policies.map((policy) => policy.id),
+      { onSuccess: (rules) => setState({ step: "done", draft, rules }) },
+    );
 
   const restart = () => {
-    generatePolicyMutation.reset();
-    generateRulesMutation.reset();
+    draftPoliciesMutation.reset();
+    updatePolicyMutation.reset();
+    approvePolicyDraftMutation.reset();
     finishReviewMutation.reset();
     setState({ step: "source" });
   };
 
   const stepError =
-    generatePolicyMutation.error ??
+    draftPoliciesMutation.error ??
     updatePolicyMutation.error ??
-    generateRulesMutation.error ??
+    approvePolicyDraftMutation.error ??
     finishReviewMutation.error;
 
   return (
     <>
-      <WizardStepper currentStep={findStepperStep(state, isGeneratingRules)} />
-      {stepError && <ErrorState error={stepError} />}
+      <WizardStepper currentStep={findStepperStep(state, isApprovingPolicies)} />
+      {stepError && !isApprovingPolicies && <ErrorState error={stepError} />}
 
       {state.step === "source" &&
-        (generatePolicyMutation.isPending ? (
+        (draftPoliciesMutation.isPending ? (
           <AiProgress
             title={t.wizard.policyProgressTitle}
             stepLabels={[
@@ -151,16 +196,18 @@ function WizardFlow({ initialValues }: { initialValues: { url?: string; regulati
           />
         ) : (
           <SourceStep
-            initialValues={{ ...initialValues, kind: initialValues.url ? "url" : "file" }}
-            onSubmit={generatePolicy}
+            existingRegulation={existingRegulation}
+            capabilities={capabilities}
+            onSubmit={draftPolicies}
           />
         ))}
 
       {state.step === "policy" &&
-        (isGeneratingRules ? (
+        (isApprovingPolicies ? (
           <AiProgress
             title={t.wizard.rulesProgressTitle}
             stepLabels={[
+              t.wizard.rulesProgress.approving,
               t.wizard.rulesProgress.analysing,
               t.wizard.rulesProgress.deterministic,
               t.wizard.rulesProgress.agentic,
@@ -170,10 +217,9 @@ function WizardFlow({ initialValues }: { initialValues: { url?: string; regulati
         ) : (
           <PolicyDraftStep
             draft={state.draft}
-            // The failure is rendered from the mutation error state above, so the rejected promise needs no handler.
-            onGenerateRules={(policyText) =>
-              void generateRules(state.draft, policyText).catch(() => undefined)
-            }
+            initialPolicyTexts={state.policyTexts}
+            approvedPolicyIds={state.approvals.map((approval) => approval.policy.id)}
+            onApprove={(policyTexts) => void approvePolicies(state.draft, state.approvals, policyTexts)}
           />
         ))}
 
@@ -197,13 +243,8 @@ function WizardForRegulation({ regulationId }: { regulationId: string }) {
   if (regulationQuery.isPending) {
     return <LoadingRing label={t.common.loading} />;
   }
-  // A missing regulation only means there is nothing to prefill; the wizard still works.
-  const regulation = regulationQuery.data;
-  return (
-    <WizardFlow
-      initialValues={{ url: regulation?.sourceUrl ?? "", regulationName: regulation?.name ?? "" }}
-    />
-  );
+  // A missing regulation only means the wizard creates a new one instead of adding a wording.
+  return <WizardFlow existingRegulation={regulationQuery.data ?? null} />;
 }
 
 function WizardContent({ regulationId }: { regulationId: string | null }) {
@@ -219,7 +260,7 @@ function WizardContent({ regulationId }: { regulationId: string | null }) {
   return regulationId ? (
     <WizardForRegulation regulationId={regulationId} />
   ) : (
-    <WizardFlow initialValues={{}} />
+    <WizardFlow existingRegulation={null} />
   );
 }
 

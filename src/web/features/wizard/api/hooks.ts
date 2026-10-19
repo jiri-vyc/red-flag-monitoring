@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
-import type { GeneratePolicyInput } from "../types";
+import type { DraftPoliciesInput } from "../types";
 import type { WizardCapabilities } from "./contract";
 import { getWizardCapabilities, wizardService } from "./service";
 
@@ -15,25 +15,26 @@ export function useWizardCapabilities(): WizardCapabilities {
   return getWizardCapabilities(apiMode);
 }
 
+// The wizard writes regulations, policies and rules, which every screen except batches shows.
 function useInvalidateGeneratedArtifacts() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== "batches" });
 }
 
-export function useGeneratePolicyDraft() {
+export function useDraftPolicies() {
   useServiceUsage("wizard");
   const invalidateGeneratedArtifacts = useInvalidateGeneratedArtifacts();
   return useMutation({
-    mutationFn: (input: GeneratePolicyInput) => wizardService.generatePolicyDraft(input),
+    mutationFn: (input: DraftPoliciesInput) => wizardService.draftPolicies(input),
     onSuccess: invalidateGeneratedArtifacts,
   });
 }
 
-export function useGenerateRules() {
+export function useApprovePolicyDraft() {
   useServiceUsage("wizard");
   const invalidateGeneratedArtifacts = useInvalidateGeneratedArtifacts();
   return useMutation({
-    mutationFn: (policyId: string) => wizardService.generateRules(policyId),
+    mutationFn: (policyId: string) => wizardService.approvePolicyDraft(policyId),
     onSuccess: invalidateGeneratedArtifacts,
   });
 }
@@ -42,7 +43,7 @@ export function useFinishRuleReview() {
   useServiceUsage("wizard");
   const invalidateGeneratedArtifacts = useInvalidateGeneratedArtifacts();
   return useMutation({
-    mutationFn: (policyId: string) => wizardService.finishRuleReview(policyId),
+    mutationFn: (policyIds: string[]) => wizardService.finishRuleReview(policyIds),
     onSuccess: invalidateGeneratedArtifacts,
   });
 }

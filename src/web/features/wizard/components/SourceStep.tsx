@@ -6,48 +6,141 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, fieldStyles } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { REGULATION_KINDS, type RegulationKind } from "@/features/regulations/api/dto";
+import type { Regulation } from "@/features/regulations/types";
+import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
 
+import type { WizardCapabilities } from "../api/contract";
 import {
-  buildRegulationSource,
-  type SourceFormErrorKey,
+  areRegulationFieldsShown,
+  buildDraftPoliciesInput,
+  isSourceKindSupported,
+  MARKDOWN_FILE_ACCEPT,
+  SOURCE_KINDS,
+  type SourceFormErrors,
   type SourceFormValues,
-  type SourceKind,
 } from "../sourceForm";
-import type { GeneratePolicyInput } from "../types";
+import type { DraftPoliciesInput } from "../types";
 import styles from "./Wizard.module.css";
 
 type SourceStepProps = {
-  initialValues: Partial<SourceFormValues>;
-  onSubmit: (input: GeneratePolicyInput) => void;
+  /** Set when the wizard adds a new wording to this regulation instead of creating one. */
+  existingRegulation: Regulation | null;
+  capabilities: WizardCapabilities;
+  onSubmit: (input: DraftPoliciesInput) => void;
 };
 
-const SOURCE_KINDS: SourceKind[] = ["file", "url", "text"];
+const DEFAULT_REGULATION_KIND: RegulationKind = "law";
 
-export function SourceStep({ initialValues, onSubmit }: SourceStepProps) {
-  const { t } = useI18n();
-  const [values, setValues] = useState<SourceFormValues>({
+function createInitialValues(versionLabel: string): SourceFormValues {
+  return {
     kind: "file",
     file: null,
     url: "",
     text: "",
-    regulationName: "",
-    ...initialValues,
-  });
-  const [errorKey, setErrorKey] = useState<SourceFormErrorKey | null>(null);
+    code: "",
+    title: "",
+    regulationKind: DEFAULT_REGULATION_KIND,
+    sourceUrl: "",
+    versionLabel,
+  };
+}
+
+/** Metadata the backend needs to create a regulation (POST /regulations). */
+function NewRegulationFields({
+  values,
+  errors,
+  onChange,
+}: {
+  values: SourceFormValues;
+  errors: SourceFormErrors;
+  onChange: (changes: Partial<SourceFormValues>) => void;
+}) {
+  const { t } = useI18n();
+  const errorMessage = (field: keyof SourceFormErrors) => {
+    const errorKey = errors[field];
+    return errorKey ? t.wizard[errorKey] : null;
+  };
+  return (
+    <>
+      <Field label={t.wizard.regulationCode} htmlFor="wizard-regulation-code" error={errorMessage("code")}>
+        <input
+          id="wizard-regulation-code"
+          className={fieldStyles.input}
+          value={values.code}
+          placeholder={t.wizard.regulationCodePlaceholder}
+          onChange={(event) => onChange({ code: event.target.value })}
+        />
+      </Field>
+      <Field label={t.wizard.regulationTitle} htmlFor="wizard-regulation-title" error={errorMessage("title")}>
+        <input
+          id="wizard-regulation-title"
+          className={fieldStyles.input}
+          value={values.title}
+          placeholder={t.wizard.regulationTitlePlaceholder}
+          onChange={(event) => onChange({ title: event.target.value })}
+        />
+      </Field>
+      <Field label={t.wizard.regulationKind} htmlFor="wizard-regulation-kind">
+        <select
+          id="wizard-regulation-kind"
+          className={fieldStyles.select}
+          value={values.regulationKind}
+          onChange={(event) => onChange({ regulationKind: event.target.value as RegulationKind })}
+        >
+          {REGULATION_KINDS.map((kind) => (
+            <option key={kind} value={kind}>
+              {t.wizard.regulationKindLabel[kind]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field
+        label={t.wizard.regulationSourceUrl}
+        htmlFor="wizard-regulation-source-url"
+        error={errorMessage("sourceUrl")}
+      >
+        <input
+          id="wizard-regulation-source-url"
+          type="url"
+          className={fieldStyles.input}
+          value={values.sourceUrl}
+          placeholder="https://www.zakonyprolidi.cz/cs/2008-253"
+          onChange={(event) => onChange({ sourceUrl: event.target.value })}
+        />
+      </Field>
+    </>
+  );
+}
+
+export function SourceStep({ existingRegulation, capabilities, onSubmit }: SourceStepProps) {
+  const { t } = useI18n();
+  const [defaultVersionLabel] = useState(() =>
+    formatMessage(t.wizard.versionLabelDefault, { date: new Date().toISOString().slice(0, 10) }),
+  );
+  const [values, setValues] = useState<SourceFormValues>(() => createInitialValues(defaultVersionLabel));
+  const [errors, setErrors] = useState<SourceFormErrors>({});
   const updateValues = (changes: Partial<SourceFormValues>) =>
     setValues((current) => ({ ...current, ...changes }));
-  const errorMessage = errorKey ? t.wizard[errorKey] : null;
+  const sourceError = errors.source ? t.wizard[errors.source] : null;
+  const isSourceSupported = isSourceKindSupported(values.kind, capabilities);
+  const isRegulationFormShown = areRegulationFieldsShown(values.kind);
 
   const submitSource = () => {
-    const sourceResult = buildRegulationSource(values);
-    if (!sourceResult.isValid) {
-      setErrorKey(sourceResult.errorKey);
+    const result = buildDraftPoliciesInput(values, {
+      existingRegulationId: existingRegulation?.id ?? null,
+      capabilities,
+      defaultVersionLabel,
+    });
+    if (!result.isValid) {
+      setErrors(result.errors);
       return;
     }
-    setErrorKey(null);
-    onSubmit({ source: sourceResult.source, regulationName: values.regulationName });
+    setErrors({});
+    onSubmit(result.input);
   };
 
   return (
@@ -60,12 +153,20 @@ export function SourceStep({ initialValues, onSubmit }: SourceStepProps) {
           submitSource();
         }}
       >
+        {existingRegulation && (
+          <Notice tone="info" title={t.wizard.newWordingTitle}>
+            {formatMessage(t.wizard.newWordingBody, {
+              name: existingRegulation.name,
+              code: existingRegulation.shortName,
+            })}
+          </Notice>
+        )}
         <SegmentedControl
           label={t.wizard.sourceTitle}
           options={SOURCE_KINDS.map((kind) => ({ value: kind, label: t.wizard.sourceKind[kind] }))}
           value={values.kind}
           onChange={(kind) => {
-            setErrorKey(null);
+            setErrors({});
             updateValues({ kind });
           }}
         />
@@ -74,7 +175,7 @@ export function SourceStep({ initialValues, onSubmit }: SourceStepProps) {
             label={t.wizard.fileLabel}
             htmlFor="wizard-file"
             hint={t.wizard.fileHint}
-            error={errorMessage}
+            error={sourceError}
           >
             <label className={styles.filePicker}>
               <FileUp aria-hidden="true" />
@@ -82,7 +183,7 @@ export function SourceStep({ initialValues, onSubmit }: SourceStepProps) {
               <input
                 id="wizard-file"
                 type="file"
-                accept=".pdf,.md,.markdown,application/pdf,text/markdown"
+                accept={MARKDOWN_FILE_ACCEPT}
                 className="visually-hidden"
                 onChange={(event) => updateValues({ file: event.target.files?.[0] ?? null })}
               />
@@ -90,19 +191,26 @@ export function SourceStep({ initialValues, onSubmit }: SourceStepProps) {
           </Field>
         )}
         {values.kind === "url" && (
-          <Field label={t.wizard.urlLabel} htmlFor="wizard-url" error={errorMessage}>
-            <input
-              id="wizard-url"
-              type="url"
-              className={fieldStyles.input}
-              value={values.url}
-              placeholder="https://eur-lex.europa.eu/eli/reg/2024/1624/oj"
-              onChange={(event) => updateValues({ url: event.target.value })}
-            />
-          </Field>
+          <>
+            <Field label={t.wizard.urlLabel} htmlFor="wizard-url" hint={t.wizard.urlHint} error={sourceError}>
+              <input
+                id="wizard-url"
+                type="url"
+                className={fieldStyles.input}
+                value={values.url}
+                placeholder="https://eur-lex.europa.eu/eli/reg/2024/1624/oj"
+                onChange={(event) => updateValues({ url: event.target.value })}
+              />
+            </Field>
+            {!isSourceSupported && (
+              <Notice tone="info" title={t.wizard.urlUnsupportedTitle}>
+                {t.wizard.urlUnsupportedBody}
+              </Notice>
+            )}
+          </>
         )}
         {values.kind === "text" && (
-          <Field label={t.wizard.textLabel} htmlFor="wizard-text" error={errorMessage}>
+          <Field label={t.wizard.textLabel} htmlFor="wizard-text" error={sourceError}>
             <textarea
               id="wizard-text"
               className={fieldStyles.textarea}
@@ -112,17 +220,31 @@ export function SourceStep({ initialValues, onSubmit }: SourceStepProps) {
             />
           </Field>
         )}
-        <Field label={t.wizard.regulationName} htmlFor="wizard-regulation-name">
-          <input
-            id="wizard-regulation-name"
-            className={fieldStyles.input}
-            value={values.regulationName}
-            placeholder={t.wizard.regulationNamePlaceholder}
-            onChange={(event) => updateValues({ regulationName: event.target.value })}
-          />
-        </Field>
+        {isRegulationFormShown && !existingRegulation && (
+          <NewRegulationFields values={values} errors={errors} onChange={updateValues} />
+        )}
+        {isRegulationFormShown && (
+          <Field
+            label={t.wizard.versionLabel}
+            htmlFor="wizard-version-label"
+            hint={t.wizard.versionLabelHint}
+            error={errors.versionLabel ? t.wizard[errors.versionLabel] : null}
+          >
+            <input
+              id="wizard-version-label"
+              className={fieldStyles.input}
+              value={values.versionLabel}
+              onChange={(event) => updateValues({ versionLabel: event.target.value })}
+            />
+          </Field>
+        )}
         <div>
-          <Button type="submit" size="lg" icon={<Sparkles aria-hidden="true" />}>
+          <Button
+            type="submit"
+            size="lg"
+            icon={<Sparkles aria-hidden="true" />}
+            disabled={!isSourceSupported}
+          >
             {t.wizard.generatePolicy}
           </Button>
         </div>

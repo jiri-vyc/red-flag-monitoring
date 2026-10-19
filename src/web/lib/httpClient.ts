@@ -1,9 +1,11 @@
 import { z } from "zod";
 
-import { ApiError } from "./apiError";
+import { ApiError, type ApiErrorKind } from "./apiError";
 
 // The backend rejects invalid input (400), conflicting state (409) and business rule violations (422).
 const VALIDATION_STATUSES = [400, 409, 422];
+// 501: the endpoint exists but the backend has no implementation yet (NotImplementedError).
+const NOT_IMPLEMENTED_STATUS = 501;
 
 const backendErrorBodySchema = z.object({ error: z.string() });
 
@@ -47,6 +49,13 @@ async function readBackendErrorMessage(response: Response): Promise<string | nul
   return parseResult.success ? parseResult.data.error : null;
 }
 
+function findErrorKind(status: number): ApiErrorKind {
+  if (status === NOT_IMPLEMENTED_STATUS) {
+    return "unsupported";
+  }
+  return VALIDATION_STATUSES.includes(status) ? "validation" : "http";
+}
+
 /** Calls the backend through the /api proxy and validates the response DTO. Never falls back to mock data. */
 export async function requestJson<TSchema extends z.ZodType>(
   options: RequestOptions<TSchema>,
@@ -59,7 +68,7 @@ export async function requestJson<TSchema extends z.ZodType>(
   if (!response.ok) {
     const backendMessage = await readBackendErrorMessage(response);
     throw new ApiError({
-      kind: VALIDATION_STATUSES.includes(response.status) ? "validation" : "http",
+      kind: findErrorKind(response.status),
       status: response.status,
       message: `Backend responded ${response.status} ${response.statusText} for /api${options.path}${backendMessage ? `: ${backendMessage}` : ""}`,
     });
