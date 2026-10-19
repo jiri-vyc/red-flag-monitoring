@@ -32,7 +32,14 @@ sso_account_id = 526983806399
 sso_role_name = ai-hackathon-TeamAdmin
 region = eu-central-1
 output = json
+
+# For the Node.js backend: reuses the CLI's 12 h role credentials (see below).
+[profile hackathon-sdk]
+credential_process = aws configure export-credentials --profile hackathon --format process
+region = eu-central-1
 ```
+
+The backend uses `hackathon-sdk`, not `hackathon`. With a plain SSO profile the AWS SDK for Node.js needs the SSO access token, which expires after 1 hour, and refreshing it fails for this directory (`InvalidGrantException`). The backend then answers 500 with `Token is expired` in its log, even though the AWS CLI still works. The `credential_process` profile makes the SDK take the CLI's role credentials, which last the whole 12 h session.
 
 Then log in and check the account. The login lasts 12 hours.
 
@@ -57,14 +64,13 @@ browser → web (localhost:3000) → /api proxy → backend (localhost:4000) →
    DATABASE_AUTH=iam
    DATABASE_URL=postgres://postgres@database-1.cluster-c9m6a2a047k1.eu-central-1.rds.amazonaws.com:5432/main
    AWS_REGION=eu-central-1
-   AWS_PROFILE=hackathon
+   AWS_PROFILE=hackathon-sdk
    ```
 
-3. Create `src/web/.env.local`. The wizard has no API yet, so it stays on mock data (and is hidden while the other sections are live). The dashboard is live too: the web composes it from the rules, regulations, internal policies and evaluation runs endpoints:
+3. Create `src/web/.env.local`. Every section is live, including the wizard (regulation text or a Markdown file, policy drafts, rule drafts created on policy approval) and the dashboard, which the web composes from the rules, regulations, internal policies and evaluation runs endpoints. Do not pin the wizard to mock: it is shown only when it shares the data source with regulations, policies and rules.
 
    ```env
    NEXT_PUBLIC_API_MODE=live
-   NEXT_PUBLIC_API_MODE_WIZARD=mock
    BACKEND_URL=http://localhost:4000
    ```
 
@@ -80,10 +86,10 @@ browser → web (localhost:3000) → /api proxy → backend (localhost:4000) →
 Notes:
 
 - **Restart `npm run dev` after changing `.env.local`.** `NEXT_PUBLIC_*` values are read at start/build time.
-- **Data source switch.** `NEXT_PUBLIC_API_MODE` only sets the default. The **Data source: Mock / Live** switch in the sidebar footer overrides it per browser (kept in localStorage) without a rebuild. Mock runs the whole web on browser demo data, including features the API does not have yet (CSV upload, the wizard, draft editing). Live uses the API with the env per-service overrides. A live error screen offers Retry and "Switch to mock"; the web never switches on its own.
-- **Writes go to `main`.** Creating, approving or whitelisting in the web writes to the shared team database through the API. For experiments use your own copy: `db/create-wip.sh <name>`, then point `DATABASE_URL` at `wip_<name>`.
-- **Not in the API yet:** CSV batch upload, the wizard, draft editing and deterministic rule generation. In live mode the web hides them (see the capabilities in `todo-web.md` and the backend plan in `backend-todo.md`). A blue dot in the sidebar marks sections on mock data. Without `.env.local` the web runs fully on browser mock data and needs no backend.
-- **Errors:** "Token for hackathon does not exist" or an expired session means you need `aws sso login --profile hackathon` again. The first request after idle can take ~15 s while the cluster resumes.
+- **Data source switch.** `NEXT_PUBLIC_API_MODE` only sets the default. The **Data source: Mock / Live** switch in the sidebar footer overrides it per browser (kept in localStorage) without a rebuild. Mock runs the whole web on browser demo data, including features the API does not have yet (CSV upload, starting an evaluation run, loading a regulation from a URL in the wizard, draft editing). Live uses the API with the env per-service overrides. A live error screen offers Retry and "Switch to mock"; the web never switches on its own.
+- **Writes go to `main`.** Creating, approving, whitelisting or running the wizard in the web writes to the shared team database through the API. For experiments use your own copy: `db/create-wip.sh <name>`, then point `DATABASE_URL` at `wip_<name>`.
+- **Not in the API yet:** CSV batch upload, starting an evaluation run (`POST /evaluation-runs` answers 501, no engine yet), loading a regulation from a URL in the wizard, draft editing and deterministic rule generation. In live mode the web hides or disables them (see the capabilities in `todo-web.md` and the backend plan in `backend-todo.md`). The wizard's policy and rule drafts come from a placeholder generator on the backend for now (titles start with `[DUMMY]`). A blue dot in the sidebar marks sections on mock data. Without `.env.local` the web runs fully on browser mock data and needs no backend.
+- **Errors:** "Token for hackathon does not exist", "Token is expired" or a 500 from `/api/database-status` (the sidebar shows "Database unreachable") means the SSO session ended: run `aws sso login --profile hackathon` and restart `npm run dev`. If it happens about an hour after login, check that `src/backend/.env` uses `AWS_PROFILE=hackathon-sdk`. The first request after idle can take ~15 s while the cluster resumes.
 - **Stop `npm run dev` when done.** An open connection keeps the cluster billing.
 
 ## Connect to the database with DBeaver

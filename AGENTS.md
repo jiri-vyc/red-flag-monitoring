@@ -68,6 +68,17 @@ Schema and data transforms change only through TypeORM migrations in `src/backen
 4. Never edit, rename or delete a migration once it has been applied to `main`; write a new one.
 5. Never run `migration:generate` against `main` or `golden`, only against your `wip_<name>`.
 
+## Documentation sync
+
+Every change to the backend or its API (new or changed endpoint, request/response shape, domain rule, data model) updates the docs in the same change:
+
+- [architecture.md](architecture.md): the architecture and data flow.
+- [backend-todo.md](backend-todo.md): mark what is done, adjust partly done items, add newly found gaps.
+- [todo-web.md](todo-web.md): web tasks that follow, the table of UI features intentionally hidden until the API supports them, and the live adapter status.
+- Any other affected docs: [README.md](README.md), [src/README.md](src/README.md), the specs in `spec/` when a decision changes.
+
+A web change that starts using a new endpoint, or hides or unhides a capability, updates the same files.
+
 ## Commits
 
 Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, e.g. `feat(triage): add red-flag scoring prompt`, `docs: add AGENTS.md`. Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`.
