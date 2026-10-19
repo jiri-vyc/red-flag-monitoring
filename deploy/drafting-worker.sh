@@ -8,7 +8,8 @@ bundle="$BUILD_DIR/drafting-worker"
 archive="$BUILD_DIR/drafting-worker.zip"
 database="${RFM_DATABASE:-main}"
 handler="backend/dist/draftingWorker.handler"
-environment="Variables={NODE_ENV=production,DATABASE_AUTH=iam,DATABASE_URL=postgres://postgres@$(cluster_endpoint):5432/$database}"
+# Drafts with Claude on Bedrock (default model in backend/src/config.ts), signed with the execution role's credentials.
+environment="Variables={NODE_ENV=production,DATABASE_AUTH=iam,DATABASE_URL=postgres://postgres@$(cluster_endpoint):5432/$database,DRAFT_GENERATOR=bedrock,BEDROCK_AUTH=iam}"
 
 build_backend_bundle "$bundle"
 rm -f "$archive"

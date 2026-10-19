@@ -31,8 +31,11 @@ export type AppConfig = {
 
 const LOCAL_ENGINE_VERSION = "local";
 
-// apiKey is null when no Bedrock API key is configured; a short-term key is then generated from AWS credentials.
-export type BedrockConfig = { region: string; modelId: string; apiKey: string | null };
+// How Bedrock calls authenticate: a configured Bedrock API key, a short-term key signed with the AWS credentials
+// (local development with an SSO profile), or plain IAM signing with the credentials (Lambda execution roles).
+export type BedrockAuth =
+  { kind: "api_key"; apiKey: string } | { kind: "short_term_api_key" } | { kind: "iam" };
+export type BedrockConfig = { region: string; modelId: string; auth: BedrockAuth };
 
 // Who writes the wizard drafts (#1, #2): a placeholder without an LLM, or Claude on Amazon Bedrock.
 export type DraftGeneratorConfig = { mode: "dummy" } | { mode: "bedrock"; bedrock: BedrockConfig };
@@ -43,8 +46,24 @@ export function parseBedrockConfig(environment: NodeJS.ProcessEnv): BedrockConfi
   return {
     region: environment.BEDROCK_REGION || environment.AWS_REGION || DEFAULT_BEDROCK_REGION,
     modelId: environment.BEDROCK_MODEL_ID || DEFAULT_BEDROCK_MODEL_ID,
-    apiKey: environment.AWS_BEARER_TOKEN_BEDROCK || null,
+    auth: parseBedrockAuth(environment),
   };
+}
+
+function parseBedrockAuth(environment: NodeJS.ProcessEnv): BedrockAuth {
+  const apiKey = environment.AWS_BEARER_TOKEN_BEDROCK;
+
+  if (apiKey) {
+    return { kind: "api_key", apiKey };
+  }
+
+  const kind = environment.BEDROCK_AUTH || "short_term_api_key";
+
+  if (kind === "short_term_api_key" || kind === "iam") {
+    return { kind };
+  }
+
+  throw new InvalidConfigError(`BEDROCK_AUTH must be "short_term_api_key" or "iam", got "${kind}"`);
 }
 
 export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {

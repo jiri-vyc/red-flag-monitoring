@@ -21,7 +21,7 @@ describe("parseAppConfig", () => {
       bedrock: {
         region: "eu-central-1",
         modelId: "eu.anthropic.claude-opus-4-5-20251101-v1:0",
-        apiKey: null,
+        auth: { kind: "short_term_api_key" },
       },
     });
   });
@@ -155,11 +155,11 @@ describe("parseAppConfig", () => {
 });
 
 describe("parseBedrockConfig", () => {
-  it("defaults to Claude Opus 4.5 through the EU inference profile in Frankfurt", () => {
+  it("defaults to Claude Opus 4.5 through the EU inference profile with a short-term API key", () => {
     expect(parseBedrockConfig({})).toEqual({
       region: "eu-central-1",
       modelId: "eu.anthropic.claude-opus-4-5-20251101-v1:0",
-      apiKey: null,
+      auth: { kind: "short_term_api_key" },
     });
   });
 
@@ -173,19 +173,27 @@ describe("parseBedrockConfig", () => {
     expect(parseBedrockConfig({ AWS_REGION: "eu-north-1" }).region).toBe("eu-north-1");
   });
 
-  it("uses the configured model and Bedrock API key", () => {
-    const config = parseBedrockConfig({
-      BEDROCK_MODEL_ID: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
-      AWS_BEARER_TOKEN_BEDROCK: "bedrock-api-key",
-    });
+  it("uses the configured model", () => {
+    expect(
+      parseBedrockConfig({ BEDROCK_MODEL_ID: "eu.anthropic.claude-haiku-4-5-20251001-v1:0" }).modelId,
+    ).toBe("eu.anthropic.claude-haiku-4-5-20251001-v1:0");
+  });
 
-    expect(config).toMatchObject({
-      modelId: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
-      apiKey: "bedrock-api-key",
-    });
+  it("uses a configured Bedrock API key over BEDROCK_AUTH", () => {
+    expect(
+      parseBedrockConfig({ AWS_BEARER_TOKEN_BEDROCK: "bedrock-api-key", BEDROCK_AUTH: "iam" }).auth,
+    ).toEqual({ kind: "api_key", apiKey: "bedrock-api-key" });
   });
 
   it("treats an empty Bedrock API key as not configured", () => {
-    expect(parseBedrockConfig({ AWS_BEARER_TOKEN_BEDROCK: "" }).apiKey).toBeNull();
+    expect(parseBedrockConfig({ AWS_BEARER_TOKEN_BEDROCK: "" }).auth).toEqual({ kind: "short_term_api_key" });
+  });
+
+  it("signs with IAM credentials when BEDROCK_AUTH=iam", () => {
+    expect(parseBedrockConfig({ BEDROCK_AUTH: "iam" }).auth).toEqual({ kind: "iam" });
+  });
+
+  it("rejects an unknown BEDROCK_AUTH", () => {
+    expect(() => parseBedrockConfig({ BEDROCK_AUTH: "password" })).toThrow(InvalidConfigError);
   });
 });

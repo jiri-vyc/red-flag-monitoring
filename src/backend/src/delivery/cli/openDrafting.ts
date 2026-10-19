@@ -5,6 +5,7 @@ import type { NewDraftingJob } from "../../application/drafting/draftingJobPorts
 import { type DatabaseConfig, parseAppConfig, parseBedrockConfig } from "../../config";
 import type { DraftingJob } from "../../domain/draftingJob";
 import { createDraftingJobExecutor } from "../../draftingJobComposition";
+import { describeBedrockAuth } from "../../infrastructure/bedrock/createBedrockClient";
 import { createDataSource } from "../../infrastructure/database/createDataSource";
 import { TypeOrmDraftingJobRepository } from "../../infrastructure/database/repositories/TypeOrmDraftingJobRepository";
 import { TypeOrmInternalPolicyRepository } from "../../infrastructure/database/repositories/TypeOrmInternalPolicyRepository";
@@ -26,7 +27,9 @@ export async function openDrafting(): Promise<CliDrafting> {
   const bedrockConfig = parseBedrockConfig(process.env);
   const dataSource = createDataSource(appConfig.database);
 
-  console.log(`Model: ${bedrockConfig.modelId} (${bedrockConfig.region})`);
+  console.log(
+    `Model: ${bedrockConfig.modelId} (${bedrockConfig.region}), auth: ${describeBedrockAuth(bedrockConfig.auth)}`,
+  );
   console.log(`Database: ${describeDatabase(appConfig.database)}\n`);
   await dataSource.initialize();
 
