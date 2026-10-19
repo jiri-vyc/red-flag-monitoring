@@ -7,7 +7,7 @@ Status: **návrh**, not yet agreed by the team. Extends [spec.md §4.2, §7.2](s
 - **#1** (regulation → policy drafts) and **#2** (policy approval → rule drafts): this design is the async plumbing both need. Jiri's Bedrock code (`draftInternalPolicy.ts`, `extractRuleCandidates.ts`) is the LLM half; the worker calls it.
 - **#2** asks what happens when generation fails after the approval is written. Here: the approval and the `rules_from_policy` job are inserted in one transaction, a failure ends as a `failed` job, and `POST /api/drafting-jobs/:id/retry` regenerates.
 - **#1** keeps `POST /api/regulations/:regulationId/versions/:versionId/draft-policies` as the entry point. Here it becomes an alias that returns `202` with a job (see [API](#api)).
-- **#3** (evaluation engine, Filip): out of scope. A full run over ~400 000 transactions has the same "longer than an HTTP request" problem. If Filip needs it, `DraftingJobDispatcher` and the worker entry point generalize to evaluation runs.
+- **#3** (evaluation engine, Filip, `67806b0`): out of scope, but it already solved the same problem for evaluation runs: `EvaluationRunLauncher` port, `InProcessEvaluationRunLauncher` / `LambdaEvaluationRunLauncher`, worker entry point `evaluationWorker.ts`, composition in `evaluationRunComposition.ts`, `EVALUATION_WORKER_FUNCTION`. The drafting worker below copies that pattern and its names.
 
 ## Problem
 
@@ -15,6 +15,7 @@ Both LLM steps are too slow for a synchronous HTTP request. A full policy draft 
 
 - `POST /api/regulations/:id/versions/:versionId/draft-policies` and the approve branch of `POST /api/internal-policies/:id/versions/:vid/review` call the generator inline (Filip's stub, `DummyDraftGenerator`).
 - Jiri's Bedrock drafter and rule extractor run only from the CLI.
+- Radek's live wizard (`3f62af6`, `src/web/features/wizard/api/live.ts`) creates the regulation and its version through the existing endpoints, then calls `draft-policies` and expects `InternalPolicyVersion[]` in the response. Switching that endpoint to `202` is a breaking change for `liveWizardService.draftPolicies`; agree it with Radek.
 - A Lambda Web Function freezes once it has responded, so "respond, then keep working" in the API process is not reliable.
 
 ## Flow
@@ -24,7 +25,7 @@ sequenceDiagram
     participant FE as Web
     participant API as rfm-api (Web Function)
     participant DB as Aurora main
-    participant W as rfm-drafting-worker (Lambda, 15 min)
+    participant W as drafting worker (Lambda, 15 min)
     participant BR as Bedrock
 
     FE->>API: POST /api/drafting-jobs {source: text|markdown|url}
@@ -141,17 +142,20 @@ A job runs for minutes, up to 15. The web does not need second-level freshness.
 
 Changed endpoints:
 
-- `POST /api/internal-policies/:id/versions/:vid/review` with `approved`: records the review and inserts a `rules_from_policy` job in the same transaction, then dispatches it. Response adds `rulesJob`. Removes today's inline `draftRules` call.
+- `POST /api/internal-policies/:id/versions/:vid/review` with `approved`: records the review and inserts a `rules_from_policy` job in the same transaction, then launches it. Response adds `rulesJob`. Removes today's inline `draftRules` call.
 - `POST /api/regulations/:id/versions/:versionId/draft-policies` (the #1 entry point) becomes a thin alias: it creates a `policy_from_regulation` job for an existing regulation version and returns `202` with the `DraftingJobDto`.
 
 ## Worker
 
-- New Lambda (Event Function, Node 22, arm64, 900 s, reserved concurrency ~3 to stay under Bedrock quotas) built from the same `backend/dist` with a second entry point, `delivery/lambda/draftingWorker.ts`. Same layering: delivery → application use case `runDraftingJob(jobId)` → ports.
-- Ports in `application/drafting/`: `DraftingJobRepository`, `DraftingJobDispatcher`, `RegulationSourceFetcher`, plus the existing `InternalPolicyDrafter` and `RuleCandidateExtractor`.
-- `DraftingJobDispatcher` implementations:
-  - `LambdaDraftingJobDispatcher`: `lambda:InvokeFunction`, `InvocationType=Event`. Used when `DRAFTING_WORKER_FUNCTION` is set.
-  - `InProcessDraftingJobDispatcher`: runs the use case on `setImmediate` in the local backend. Local dev and tests need no Lambda.
-- If dispatch fails after the insert, the API marks the job `failed` with `dispatch_failed` and still returns 202, so the web sees it and can retry.
+Mirrors Filip's evaluation worker (`evaluationWorker.ts`, `LambdaEvaluationRunLauncher`):
+
+- Classic Lambda (900 s, reserved concurrency ~3 to stay under Bedrock quotas) built from the same `backend/dist`, entry point `draftingWorker.ts` next to `evaluationWorker.ts`. Event payload `{ jobId }`. Wiring in `draftingJobComposition.ts`, shared by `main.ts` and the worker.
+- Ports in `application/drafting/`: `DraftingJobRepository`, `DraftingJobLauncher`, `RegulationSourceFetcher`, plus the existing `InternalPolicyDrafter` and `RuleCandidateExtractor`. The use case `DraftingJobExecutor.executeJob(jobId)` does the claim, the LLM calls and the final transaction.
+- `DraftingJobLauncher` implementations:
+  - `LambdaDraftingJobLauncher`: `InvocationType=Event`. Used when `DRAFTING_WORKER_FUNCTION` is set.
+  - `InProcessDraftingJobLauncher`: runs the executor in the local backend. Local dev and tests need no Lambda.
+- If the launch fails after the insert, the job is marked `failed` right away, as `EvaluationRunUseCases.launchCreatedRun` does, so it never stays `pending`.
+- Option: one worker Lambda for both, with `{ type: "evaluationRun" | "draftingJob", id }`. Neither worker has a deploy script yet. Decide with Filip.
 
 ### `policy_from_regulation`
 
@@ -168,7 +172,7 @@ Changed endpoints:
 
 ## Infrastructure changes
 
-- `deploy/worker.sh` and a `rfm-drafting-worker-execution` role in `deploy/roles.sh`: logs, `rds-db:connect`, `bedrock:InvokeModel` on `eu.anthropic.*` profiles.
+- A deploy script for the worker and its execution role in `deploy/roles.sh` (or the shared worker, see above): logs, `rds-db:connect`, `bedrock:InvokeModel` on `eu.anthropic.*` profiles.
 - `rfm-api-execution`: add `lambda:InvokeFunction` on the worker ARN.
 - Bedrock auth on Lambda: use the role's SigV4 credentials, not the bearer API key path in `createBedrockClient.ts`. The roles do not grant `bedrock:CallWithBearerToken`.
 - Async invoke config: `MaximumRetryAttempts=0`, `MaximumEventAgeInSeconds=900`.
