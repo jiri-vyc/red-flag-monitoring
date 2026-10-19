@@ -1,9 +1,9 @@
 # Red-flag monitoring – high-level specifikace
 
-- **Verze:** 0.2, 2026-10-19
+- **Verze:** 0.3, 2026-10-19
 - **Zdroje:**
   - `P1`, `P2`: rozhovor týmu, [přepis](transcript/transcript.md). Citace `P1 05:04` znamená část 1, čas 05:04.
-  - `N`: Notion stránka [RedFlag tool spec](https://app.notion.com/p/3fe931fc277e8059bc51c2d5894ecbf3) (stav k 2026-10-19 13:37). Odkazovaný Miro board s architekturou je privátní a není zde zapracovaný.
+  - `N`: Notion stránka [RedFlag tool spec](https://app.notion.com/p/3fe931fc277e8059bc51c2d5894ecbf3) (stav k 2026-10-19 13:53). Odkazovaný Miro board s architekturou je privátní a není zde zapracovaný.
 - **Kontext challenge:** [knowledgebase/finreg/README.md](../knowledgebase/finreg/README.md)
 
 ## Jak číst tento dokument
@@ -20,7 +20,7 @@ Požadavky používají `musí`, `nesmí`, `měl by`, `může`.
 
 Systém vyhodnocuje platební transakce podle sady pravidel a vytváří AML události (red flags). Každou událost roztřídí, prioritizuje, eskaluje na správnou osobu a zapíše do auditovatelného logu.
 
-Pravidla vznikají z interních předpisů, které vycházejí z regulací. Uživatel je může nechat vygenerovat průvodcem (wizardem) ze seznamu regulací a popisu businessu, nebo je vytvořit ručně. Každé pravidlo schvaluje člověk.
+Pravidla vznikají z interních předpisů, které vycházejí z regulací. Uživatel je může nechat vygenerovat průvodcem (wizardem) ze seznamu regulací, nebo je vytvořit ručně. Každé pravidlo schvaluje člověk.
 
 Hackathonová challenge pokrývá kroky Review → Escalate → Audit. Náš systém navíc řeší správu pravidel: jejich vznik, verze, schválení a aktualizaci při změně regulace.
 
@@ -40,9 +40,11 @@ Hackathonová challenge pokrývá kroky Review → Escalate → Audit. Náš sys
 | D10 | Pravidlo má **stav**: `draft`, `pending_for_review`, `update_for_review`, `active`, `inactive`. Přepínač on/off odpovídá stavům `active` a `inactive`. Platnost od–do se v MVP neřeší. | N; P2 01:52 |
 | D11 | Pravidlo má **whitelist klientů**, na které se nevztahuje. | P2 03:03–03:15 |
 | D12 | Klient má **risk profil**, který může být i neznámý. Pravidlo nativně určuje, pro které risk profily platí. | P2 03:34–04:54 |
-| D13 | **Citlivost** je v MVP globální koeficient, kterým se násobí skóre pravidla. | P2 05:49 |
-| D14 | Pravidla se zakládají **wizardem** (z regulací a popisu businessu) nebo **ručně**. | N |
+| D13 | **Citlivost** je nastavení **každého pravidla** na škále **0–100**. Nahrazuje původní návrh globálního koeficientu z rozhovoru. | N; mění P2 05:49 |
+| D14 | Pravidla se zakládají **wizardem** (ze seznamu regulací) nebo **ručně**. V MVP uživatel zadá do wizardu přímo text regulace. | N |
 | D15 | Systém eviduje **interní uživatele s rolemi** a vede **audit log**. | N |
+| D16 | Vyhodnocení v MVP je **PoC run**, který uživatel spustí ručně z dashboardu. Spustí všechna pravidla. | N |
+| D17 | **Zpracování AML událostí** (schvalovací proces) je v MVP **nice-to-have**. | N |
 
 ## 3. Doménový model
 
@@ -65,7 +67,7 @@ erDiagram
 | --- | --- | --- |
 | **Regulace** | Právní předpis, např. AML zákon, AMLR nebo seznamy EU/FATF. | název, odkaz na zdroj, platná verze, datum poslední kontroly aktualizace |
 | **Interní předpis** | Interní pravidlo instituce. Typicky vychází z regulace. | FK regulace, název, text, stav (draft / schválený) |
-| **Pravidlo** | Kontrola, která se spouští nad transakcí. | FK předpis, typ (deterministické / agentní), stav, platné risk profily, whitelist klientů |
+| **Pravidlo** | Kontrola, která se spouští nad transakcí. | FK předpis, typ (deterministické / agentní), stav, platné risk profily, whitelist klientů, citlivost 0–100 |
 | **Verze pravidla** | Neměnný snapshot pravidla. | číslo verze, text pravidla (agentní) nebo kód + lidský přepis (deterministické), schválil, kdy |
 | **Klient** | Klient instituce, data z client logu. | ID, země, typ, PEP, risk profil, AML risk score, projektované a historické objemy |
 | **Transakce** | Platební transakce, data z transaction logu. | ID, klient, datum a čas, částka, měna, země plátce a příjemce, typ |
@@ -96,12 +98,12 @@ Vazby a upřesnění:
 
 **Wizard (předpisy → pravidla)** (N):
 
-1. Uživatel zadá seznam regulací, které musí instituce splňovat, a/nebo obecný popis businessu.
+1. Uživatel zadá seznam regulací, které musí instituce splňovat. V MVP zadá přímo text regulace (bez stahování ze zdroje).
 2. Systém zavolá API a vytvoří draft interního předpisu.
 3. Systém zavolá API a z předpisu vytvoří sadu pravidel ve stavu `draft`.
 4. Pravidla jdou ke schválení. Reviewer vidí vedle sebe kód pravidla a jeho lidský přepis.
 
-**Ruční tvorba** (N): uživatel zadá popis pravidla a odkaz na regulaci nebo předpis. Systém z popisu vygeneruje kód (deterministické) nebo text (agentní) a pravidlo jde ke schválení.
+**Ruční tvorba** (N): uživatel zadá popis pravidla, odkaz na regulaci nebo předpis, whitelist klientů, citlivost a risk profily, pro které se pravidlo spouští. Systém z popisu vygeneruje kód (deterministické) nebo text (agentní) a pravidlo jde ke schválení.
 
 - **Návrh:** generování předpisů a pravidel běží přes Amazon Bedrock. Každý vygenerovaný artefakt **musí** odkazovat na konkrétní ustanovení zdrojové regulace, aby šel ověřit.
 
@@ -129,12 +131,12 @@ Vazby a upřesnění:
 | Stav `active` / `inactive` | Vypnuté pravidlo se nespouští. Datum platnosti se v MVP neřeší. | Rozhodnutí |
 | Whitelist klientů | Pravidlo se nespouští pro vyjmenované klienty. | Rozhodnutí |
 | Platné risk profily | Pravidlo se spouští jen pro klienty s uvedeným risk profilem (např. `high`, `low`, `unknown`). | Rozhodnutí |
-| Citlivost | `skóre_po_citlivosti = min(100, skóre × citlivost)`. MVP: jeden globální koeficient. | Rozhodnutí (rozsah otevřený) |
-| Citlivost per pravidlo nebo per risk profil | Jemnější nastavení citlivosti. | Mimo MVP |
+| Citlivost | Každé pravidlo má citlivost 0–100. **Návrh výpočtu:** `skóre_po_citlivosti = skóre × citlivost / 100`, tedy citlivost skóre jen snižuje nebo nechá stejné. | Rozhodnutí (výpočet otevřený) |
+| Citlivost per risk profil | Jiná citlivost pro různé risk profily klienta. | Mimo MVP |
 
 ## 5. Vyhodnocení
 
-- Vyhodnocovací run zpracuje transakci jednou. Spustí všechna pravidla ve stavu `active` (případně jejich poslední schválenou verzi), která platí pro risk profil klienta a z jejichž whitelistu klient není vyjmutý.
+- V MVP uživatel spouští vyhodnocovací run ručně z dashboardu (PoC vyhodnocení, N). Run zpracuje transakci jednou. Spustí všechna pravidla ve stavu `active` (případně jejich poslední schválenou verzi), která platí pro risk profil klienta a z jejichž whitelistu klient není vyjmutý.
 - Každé vyhodnocení pravidla **musí** uložit vlastní kontext a trace. Compliance officer musí v detailu vidět, která pravidla prošla, která ne a s jakým skóre (P1 05:04, 06:49).
 - Příklad: 100 transakcí a 10 pravidel dá 100 vyhodnocení transakce a 1 000 vyhodnocení pravidel.
 - Systém **musí** zvládnout projít celý dataset challenge (~400 000 transakcí za červenec 2026).
@@ -156,22 +158,89 @@ Povinné CSV obsahuje jeden řádek na AML událost. Viz [knowledgebase](../know
 | `alert_id`, `alert_type`, `client_id`, `transaction_id` | AML událost + pravidlo | Návrh |
 | `triage` (`FP`/`REVIEW`) | LLM nad vyhodnocením transakce | Návrh |
 | `priority` (0–100) | Skóre po citlivosti + rizikové faktory klienta | Návrh |
-| `executive_role`, `executive_person`, `approver` | User a role + eskalační matice + pravidla střetu zájmů | Návrh (matice chybí) |
+| `executive_role`, `executive_person`, `approver` | User a role + eskalační matice + pravidla střetu zájmů | Návrh (matice chybí; zpracování událostí je v N jen nice-to-have) |
 | `reason`, `log` | Trace vyhodnocení pravidel + audit log | Návrh |
 
 ## 7. Uživatelské rozhraní
 
-Dashboard (N) **musí** obsahovat:
+Zdroj sekce je Notion (N), pokud bod nemá jiný typ.
 
-- **Wizard** pro tvorbu předpisů a pravidel (viz [4.2](#42-vznik-pravidel)).
-- **Pravidla:** výpis pravidel se stavem, odkazem na zdrojový předpis a regulaci, a tlačítkem pro vytvoření nového pravidla.
-- **Detail pravidla:** kód a lidský přepis vedle sebe, akce schválit / zamítnout, historie verzí.
-- **Regulace:** seznam regulací, tlačítko „zkontrolovat aktualizace“ a přidání nové regulace.
+### 7.1 Dashboard
 
-**Návrh** (z rozhovoru a challenge, v Notionu zatím není):
+Dashboard je vstupní obrazovka. **Musí** obsahovat:
 
-- **Detail vyhodnocení:** transakce, klient, jeho historie, výsledky všech pravidel se skóre a trace. Slouží jako podklad pro rozhodnutí o AML události.
-- **Fronta AML událostí:** seznam událostí přiřazených přihlášenému uživateli, seřazený podle priority.
+- vstup do wizardu ([7.2](#72-wizard-předpisy--pravidla)),
+- výpis pravidel ([7.3](#73-pravidla)),
+- správu regulací ([7.4](#74-regulace)),
+- PoC vyhodnocení ([7.5](#75-poc-vyhodnocení)),
+- audit log ([7.7](#77-audit-log)).
+
+### 7.2 Wizard (předpisy → pravidla)
+
+Postup viz [4.2](#42-vznik-pravidel).
+
+1. **Zadání regulací.** Uživatel zadá seznam regulací, které instituce musí splňovat. V MVP vloží přímo text regulace.
+2. **Draft předpisu.** Systém zavolá API a zobrazí vygenerovaný draft interního předpisu.
+3. **Sada pravidel.** Systém zavolá API a zobrazí vygenerovaná pravidla.
+4. **Schválení.** U každého pravidla jsou vedle sebe kód pravidla a lidský přepis. Uživatel pravidlo schválí, nebo zamítne.
+
+- **Návrh:** uživatel může draft předpisu před krokem 3 upravit.
+- **Návrh:** u každého vygenerovaného předpisu a pravidla je odkaz na ustanovení zdrojové regulace.
+
+### 7.3 Pravidla
+
+**Výpis pravidel:**
+
+- seznam pravidel se stavem (`draft`, `pending_for_review`, `update_for_review`, `active`, `inactive`),
+- tlačítko pro vytvoření nového pravidla,
+- **Návrh:** u pravidla odkaz na zdrojový předpis a regulaci a filtr podle stavu.
+
+**Ruční tvorba pravidla** (formulář):
+
+| Pole | Popis |
+| --- | --- |
+| Popis pravidla | Text v přirozeném jazyce. Systém z něj vygeneruje kód (deterministické) nebo text (agentní). |
+| Zdroj | Odkaz na regulaci nebo interní předpis. Viz [otázku 3](#10-otevřené-otázky). |
+| Whitelist klientů | Klienti, pro které se pravidlo nespouští. |
+| Citlivost | Hodnota 0–100. |
+| Risk profily | Rizikové kategorie klienta, pro které se pravidlo spouští. |
+
+Po uložení jde pravidlo do stavu `pending_for_review`.
+
+**Návrh – detail pravidla:**
+
+- kód a lidský přepis vedle sebe,
+- akce schválit / zamítnout / zapnout / vypnout,
+- historie verzí a u každé verze, kdo ji schválil a kdy,
+- proklik na předpis a regulaci.
+
+### 7.4 Regulace
+
+- **Zkontrolovat aktualizace:** tlačítko projde seznam regulací a zjistí, zda mají aktualizaci. Pro dotčená pravidla navrhne nové verze ve stavu `update_for_review`. Viz [otázku 10](#10-otevřené-otázky).
+- **Přidat regulaci:** uživatel přidá novou regulaci ke splnění. Systém vytvoří sadu pravidel stejně jako wizard.
+
+### 7.5 PoC vyhodnocení
+
+1. Uživatel ručně spustí run vyhodnocení všech pravidel.
+2. Systém zobrazí výsledky vyhodnocení.
+3. U transakcí, které pravidly neprojdou, systém zobrazí AML události.
+4. Ke každé AML události systém zobrazí celý potřebný kontext: transakci, klienta, jeho historii a výsledky všech pravidel se skóre a trace.
+
+- **Návrh:** během runu systém zobrazí průběh (počet zpracovaných transakcí), protože celý dataset má ~400 000 transakcí.
+- **Návrh:** výsledky jde exportovat do povinného CSV ([sekce 6](#6-mapování-na-výstup-challenge)).
+
+### 7.6 Zpracování AML událostí (nice-to-have)
+
+- Schvalovací proces AML události: triage, přiřazení odpovědné osobě a schvalovateli, rozhodnutí.
+- **Návrh:** fronta událostí přiřazených přihlášenému uživateli, seřazená podle priority.
+- **Návrh:** UI nedovolí uživateli rozhodnout o vlastním klientovi ani schválit vlastní rozhodnutí (střet zájmů).
+
+### 7.7 Audit log
+
+- Záznam všech vyhodnocení.
+- U každého vyhodnocení: která pravidla prošla, která ne a v jaké verzi.
+- Z pravidla jde prokliknout na interní předpis a z předpisu na regulaci.
+- **Návrh:** audit log zobrazí i změny pravidel, schválení a rozhodnutí o AML událostech ([sekce 8](#8-nefunkční-požadavky)).
 
 ## 8. Nefunkční požadavky
 
@@ -184,25 +253,26 @@ Dashboard (N) **musí** obsahovat:
 
 - Live prevention mód.
 - Batching nebo inkrementální vyhodnocení (např. jednou za hodinu per klient).
+- Stahování regulací z webu (scraping) (N). V MVP uživatel zadává text regulace ručně.
 - Optimalizace nákladů (N).
 - Caching chování per uživatel nebo entita (N).
 - Časová platnost pravidel (datum od–do).
-- Citlivost per pravidlo nebo per risk profil.
+- Citlivost per risk profil.
 - Výstup pravidla jiný než skóre 0–100.
 
 ## 10. Otevřené otázky
 
-1. **MVP scope.** Sekce v Notionu je prázdná. Které části (wizard, aktualizace regulací, ruční tvorba, vyhodnocení, fronta AML událostí) jsou nutné pro demo?
+1. **MVP scope.** Sekce v Notionu je prázdná. Jako nice-to-have je zatím označené jen zpracování AML událostí. Které z ostatních částí (wizard, ruční tvorba, aktualizace regulací, PoC vyhodnocení, audit log) jsou nutné pro demo?
 2. **FK předpis → regulace.** Je FK povinný? Rozhovor počítal i s čistě interním (custom) předpisem bez regulace (P1 00:31).
 3. **Ruční pravidlo s odkazem na regulaci.** Notion u ruční tvorby uvádí „link na regulaci nebo předpis“, ale pravidlo má FK jen na předpis. Vznikne pro takové pravidlo implicitní předpis?
 4. **Verze vs. stav.** Je `update_for_review` stav pravidla, nebo stav nové verze? Spouští se mezitím předchozí schválená verze?
 5. **Granularita AML události.** Zadání požaduje u pravidel A a C jednu událost na klienta, u pravidla B jednu na transakci. Náš model vyhodnocuje per transakce. Jak se vyhodnocení transakcí agregují do událostí per klient?
 6. **Vyhodnocení per transakce, nebo per klient.** Rozhovor se přiklonil k per transakce (P1 09:13–09:51). Varianta „vyhodnocení klienta v daném čase“ zůstala otevřená.
 7. **Agregace skóre.** Jak se ze skóre pravidel spočítá skóre vyhodnocení transakce (max, vážený součet…) a jaký je práh pro vznik AML události?
-8. **Rozsah citlivosti.** Jen 0–1 (pouze snižuje), nebo i > 1 (zvyšuje)? (P2 05:49)
+8. **Výpočet citlivosti.** Citlivost je 0–100 per pravidlo (N). Jak přesně mění skóre? Návrh `skóre × citlivost / 100` skóre jen snižuje. Má jít skóre i zvýšit (P2 05:49)? Zůstává vedle toho globální koeficient z rozhovoru?
 9. **Technologie deterministických pravidel.** JavaScript, Python, nebo DSL? Kde a jak se kód spouští (sandbox)?
-10. **Kontrola aktualizací regulací.** Z jakého zdroje systém zjistí, že regulace má novou verzi (EUR-Lex, e-Sbírka, seznamy FATF)?
-11. **Eskalace a střet zájmů.** Eskalační matice a pravidla střetu zájmů zatím nemáme (20 % hodnocení). Jaké role musí mít entita User?
+10. **Kontrola aktualizací regulací.** V MVP se regulace zadává jako text a scraping je mimo rozsah. Jak tedy tlačítko „zkontrolovat aktualizace“ zjistí novou verzi? Uživatel vloží nový text, nebo systém použije zdroj (EUR-Lex, e-Sbírka, seznamy FATF)?
+11. **Eskalace a střet zájmů.** Eskalační matice a pravidla střetu zájmů zatím nemáme. Zpracování událostí je v Notionu jen nice-to-have, ale challenge za eskalaci dává 20 % hodnocení. Jaké role musí mít entita User?
 12. **Architektura.** Miro board z Notionu je privátní. Je potřeba ho zpřístupnit nebo převést do repa.
 13. **Otevřené otázky k datům** z [knowledgebase](../knowledgebase/finreg/README.md#open-questions-for-our-implementation): FX kurzy, směr transakce, okna pravidla C, verze seznamů vysoce rizikových zemí.
 
@@ -211,7 +281,7 @@ Dashboard (N) **musí** obsahovat:
 Body níže **musí** před reálným nasazením zkontrolovat compliance officer nebo právník:
 
 - **Whitelist klientů** a **omezení pravidel na risk profil** potlačují detekci. Každé přidání do whitelistu by mělo projít schválením, mít odůvodnění a záznam v audit logu. Je potřeba ověřit, zda je výjimka u regulatorně povinných pravidel (např. vysoce rizikové země, PEP) vůbec přípustná.
-- **Citlivost < 1** snižuje skóre všech pravidel. Změna globální citlivosti by měla být schvalovaná a logovaná stejně jako změna pravidla.
+- **Nízká citlivost** snižuje skóre pravidla a může potlačit detekci. Změna citlivosti by měla být schvalovaná a logovaná stejně jako změna pravidla (nová verze).
 - **Generované předpisy a pravidla** (wizard, aktualizace regulací) jsou návrhy LLM. Nesmí se aktivovat bez lidského schválení. Interní předpis jako dokument (AML zákon § 21) musí schválit odpovědná osoba instituce.
 - **Automatické `FP`** je rozhodnutí bez člověka. Výstup systému je podklad pro rozhodnutí, ne finální AML určení.
 - **Schválení pravidla právníkem** podle lidského přepisu předpokládá, že kód přepisu odpovídá. Systém by měl tuto shodu ověřovat (testy, review, LLM kontrola).
