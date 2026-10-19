@@ -1,8 +1,9 @@
 # Red-flag monitoring – high-level specifikace
 
-- **Verze:** 0.3, 2026-10-19
+- **Verze:** 0.4, 2026-10-19
 - **Zdroje:**
   - `P1`, `P2`: rozhovor týmu, [přepis](transcript/transcript.md). Citace `P1 05:04` znamená část 1, čas 05:04.
+  - `T`: rozhodnutí týmu mimo rozhovor a Notion, zapsané přímo sem.
   - `N`: Notion stránka [RedFlag tool spec](https://app.notion.com/p/3fe931fc277e8059bc51c2d5894ecbf3) (stav k 2026-10-19 13:53). Odkazovaný Miro board s architekturou je privátní a není zde zapracovaný.
 - **Kontext challenge:** [knowledgebase/finreg/README.md](../knowledgebase/finreg/README.md)
 
@@ -45,6 +46,7 @@ Hackathonová challenge pokrývá kroky Review → Escalate → Audit. Náš sys
 | D15 | Systém eviduje **interní uživatele s rolemi** a vede **audit log**. | N |
 | D16 | Vyhodnocení v MVP je **PoC run**, který uživatel spustí ručně z dashboardu. Spustí všechna pravidla. | N |
 | D17 | **Zpracování AML událostí** (schvalovací proces) je v MVP **nice-to-have**. | N |
+| D18 | Vyhodnocení spouští **jedna transakce**. Deterministická pravidla dostanou jako kontext **celou historii transakcí klienta v paměti** (rozsah historie viz [V4](datovy-model.md#rozhodnutí-vyhodnocení)). Vyhodnocení ji jednou načte z DB, nebo ji dostane od volajícího, a předá ji všem pravidlům. Pravidla se do DB sama neptají. Jde o **zjednodušení pro hackathon**: klient má v datasetu nejvýš 107 transakcí (medián 72). Při větších historiích se nahradí načítání kontextu, ne pravidla. | T 2026-10-19 |
 
 ## 3. Doménový model
 
@@ -272,7 +274,7 @@ Po uložení jde pravidlo do stavu `pending_for_review`.
 3. ~~**Ruční pravidlo s odkazem na regulaci.**~~ Vyřešeno: FK na předpis je nepovinný, právní základ má každá verze pravidla ([M4, M5](datovy-model.md#rozhodnutí-pravidla)).
 4. ~~**Verze vs. stav.**~~ Vyřešeno: `update_for_review` je odvozený stav, mezitím se spouští aktivní verze ([M6](datovy-model.md#rozhodnutí-pravidla)).
 5. **Granularita AML události.** Zadání požaduje u pravidel A a C jednu událost na klienta, u pravidla B jednu na transakci. Náš model vyhodnocuje per transakce. Jak se vyhodnocení transakcí agregují do událostí per klient?
-6. **Vyhodnocení per transakce, nebo per klient.** Rozhovor se přiklonil k per transakce (P1 09:13–09:51). Varianta „vyhodnocení klienta v daném čase“ zůstala otevřená.
+6. **Vyhodnocení per transakce, nebo per klient.** Rozhovor se přiklonil k per transakce (P1 09:13–09:51). Varianta „vyhodnocení klienta v daném čase“ zůstala otevřená. Částečně rozhodnuto v D18: spouštěčem je transakce, kontextem celá historie klienta.
 7. ~~**Agregace skóre.**~~ Vyřešeno pro MVP: skóre transakce je maximum, hranici zásahu určuje `hit_threshold` na běhu ([V7](datovy-model.md#rozhodnutí-vyhodnocení)). Práh pro vznik AML události zůstává otevřený s otázkou 5.
 8. **Výpočet citlivosti.** MVP používá `skóre × citlivost / 100` ([V7](datovy-model.md#rozhodnutí-vyhodnocení)), citlivost tedy skóre jen snižuje. Má jít skóre i zvýšit (P2 05:49)? Zůstává vedle toho globální koeficient z rozhovoru?
 9. **Technologie deterministických pravidel.** JavaScript, Python, nebo DSL? Kde a jak se kód spouští (sandbox)?
