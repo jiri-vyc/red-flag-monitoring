@@ -2,6 +2,7 @@ import type { BatchTransaction, BucketCounts, Transaction } from "@/features/bat
 import { findRunningVersion, isRuleExecutable } from "@/features/rules/domain/ruleLifecycle";
 import type { Rule, WhitelistEntry } from "@/features/rules/types";
 
+import type { MockBatchRow } from "../store/mockDatabase";
 import { evaluateTransaction, type MockRuleSnapshot } from "./evaluateTransaction";
 import type { MockCheckKind } from "./ruleChecks";
 
@@ -45,7 +46,7 @@ export function createRuleSnapshots({
 export function evaluateBatchRows(
   transactions: Transaction[],
   ruleSnapshots: MockRuleSnapshot[],
-): BatchTransaction[] {
+): MockBatchRow[] {
   return transactions.map((transaction) => {
     const evaluation = evaluateTransaction(transaction, ruleSnapshots);
     const adjustedScores = evaluation.failedRules.map((ruleEvaluation) => ruleEvaluation.adjustedScore);

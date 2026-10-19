@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/dictionaries";
 
+import { ApiModeProvider } from "./ApiModeProvider";
 import { MockUsageProvider } from "./MockUsageProvider";
 
 function createQueryClient(): QueryClient {
@@ -22,9 +23,11 @@ export function AppProviders({ initialLocale, children }: { initialLocale: Local
   const [queryClient] = useState(createQueryClient);
   return (
     <QueryClientProvider client={queryClient}>
-      <I18nProvider initialLocale={initialLocale}>
-        <MockUsageProvider>{children}</MockUsageProvider>
-      </I18nProvider>
+      <ApiModeProvider>
+        <I18nProvider initialLocale={initialLocale}>
+          <MockUsageProvider>{children}</MockUsageProvider>
+        </I18nProvider>
+      </ApiModeProvider>
     </QueryClientProvider>
   );
 }

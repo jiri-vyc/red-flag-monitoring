@@ -2,11 +2,14 @@
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { selectServiceImplementation } from "@/config/apiMode";
 import { CURRENT_USER } from "@/config/currentUser";
+import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
 import type { Bucket } from "../types";
-import { batchesService } from "./service";
+import type { BatchesCapabilities } from "./contract";
+import { batchesImplementations, batchesService } from "./service";
 
 const PROCESSING_POLL_INTERVAL_MS = 400;
 const FIRST_PAGE_CURSOR: string | null = null;
@@ -18,6 +21,12 @@ export const batchQueryKeys = {
   evaluation: (batchId: string, transactionId: string) =>
     ["batches", batchId, "evaluation", transactionId] as const,
 };
+
+/** Follows the data source selected in the sidebar. */
+export function useBatchesCapabilities(): BatchesCapabilities {
+  const { apiMode } = useApiMode();
+  return selectServiceImplementation("batches", batchesImplementations, apiMode).capabilities;
+}
 
 export function useBatches() {
   useServiceUsage("batches");

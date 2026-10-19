@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { getServiceMode, SERVICE_NAMES, type ServiceName } from "@/config/apiMode";
 
+import { useApiMode } from "./ApiModeProvider";
+
 type MockUsageContextValue = {
   mockedServicesInUse: ServiceName[];
   registerMockUsage: (serviceName: ServiceName) => () => void;
@@ -46,15 +48,16 @@ function useMockUsageContext(): MockUsageContextValue {
   return contextValue;
 }
 
-/** Called by every feature hook. Registers the service while mounted if it resolves to the mock implementation. */
+/** Called by every feature hook. Registers the service while mounted and resolved to the mock implementation. */
 export function useServiceUsage(serviceName: ServiceName): void {
   const { registerMockUsage } = useMockUsageContext();
+  const { apiMode } = useApiMode();
   useEffect(() => {
-    if (getServiceMode(serviceName) !== "mock") {
+    if (getServiceMode(serviceName, apiMode) !== "mock") {
       return;
     }
     return registerMockUsage(serviceName);
-  }, [serviceName, registerMockUsage]);
+  }, [serviceName, apiMode, registerMockUsage]);
 }
 
 export function useMockedServicesInUse(): ServiceName[] {

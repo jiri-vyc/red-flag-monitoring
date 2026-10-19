@@ -1,3 +1,5 @@
+import type { RuleLegalBasis } from "@/features/regulations/types";
+
 import {
   RULE_CONFIG_FIELDS,
   type Rule,
@@ -173,6 +175,8 @@ export function addRuleVersion(
     createdBy: author,
     reviewedBy: null,
     reviewedAt: null,
+    // Like the live adapter, a new version keeps the legal basis of the version it is based on.
+    legalBases: findRuleLegalBases(rule),
   };
   const nextStatus: RuleStatus = rule.status === "active" ? "update_for_review" : "pending_for_review";
   return { ...rule, status: nextStatus, versions: [...rule.versions, newVersion], updatedAt: now };
@@ -188,4 +192,14 @@ export function updateDraftContent(
     throw new Error(`Rule ${rule.id} has no unapproved version to edit.`);
   }
   return { ...rule, versions: replaceLatestVersion(rule, { ...latestVersion, content }), updatedAt: now };
+}
+
+/** The version that describes the rule: the running one, else the newest (it awaits review or was rejected). */
+export function findDescribingVersion(rule: Rule): RuleVersion {
+  return findRunningVersion(rule) ?? getLatestVersion(rule);
+}
+
+/** M5: the rule's legal basis is that of the describing version, never inherited from the policy. */
+export function findRuleLegalBases(rule: Rule): RuleLegalBasis[] {
+  return findDescribingVersion(rule).legalBases;
 }

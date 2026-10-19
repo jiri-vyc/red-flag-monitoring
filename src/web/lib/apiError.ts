@@ -1,4 +1,5 @@
-export type ApiErrorKind = "network" | "http" | "invalid_response" | "not_found" | "validation" | "storage";
+export type ApiErrorKind =
+  "network" | "http" | "invalid_response" | "not_found" | "validation" | "storage" | "unsupported";
 
 // Single error type thrown by every service (live and mock) so the UI can render one consistent error state.
 export class ApiError extends Error {

@@ -16,23 +16,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-import { isAnyServiceMocked } from "@/config/apiMode";
+import { getServiceMode, isAnyServiceMocked, type ApiMode } from "@/config/apiMode";
 import { CURRENT_USER } from "@/config/currentUser";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { DatabaseStatusPanel } from "@/features/databaseStatus/components/DatabaseStatusPanel";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/dictionaries";
 import { resetMockDatabase } from "@/mocks/store/mockDatabase";
+import { useApiMode } from "@/providers/ApiModeProvider";
 import { useMockedServicesInUse } from "@/providers/MockUsageProvider";
 
 import styles from "./Sidebar.module.css";
 
+// Each section is served by one service. In live mode, a section still served by mocks gets a dot next to its label;
+// in mock mode everything is mock, so the dots would carry no information.
 const NAVIGATION_ITEMS = [
-  { href: "/", labelKey: "dashboard", Icon: LayoutDashboard },
-  { href: "/regulations", labelKey: "regulations", Icon: Scale },
-  { href: "/policies", labelKey: "policies", Icon: FileText },
-  { href: "/rules", labelKey: "rules", Icon: ListChecks },
-  { href: "/batches", labelKey: "batches", Icon: Layers },
+  { href: "/", labelKey: "dashboard", service: "dashboard", Icon: LayoutDashboard },
+  { href: "/regulations", labelKey: "regulations", service: "regulations", Icon: Scale },
+  { href: "/policies", labelKey: "policies", service: "policies", Icon: FileText },
+  { href: "/rules", labelKey: "rules", service: "rules", Icon: ListChecks },
+  { href: "/batches", labelKey: "batches", service: "batches", Icon: Layers },
 ] as const;
 
 const LOCALE_OPTIONS: { value: Locale; label: string }[] = [
@@ -81,7 +84,12 @@ function MockDataPanel() {
 
 export function Sidebar() {
   const { t, locale, changeLocale } = useI18n();
+  const { apiMode, changeApiMode } = useApiMode();
   const pathname = usePathname();
+  const apiModeOptions: { value: ApiMode; label: string }[] = [
+    { value: "mock", label: t.sidebar.dataSourceMock },
+    { value: "live", label: t.sidebar.dataSourceLive },
+  ];
 
   return (
     <aside className={styles.sidebar}>
@@ -97,7 +105,7 @@ export function Sidebar() {
 
       <nav aria-label={t.nav.mainNavigation} className={styles.navigation}>
         <ul>
-          {NAVIGATION_ITEMS.map(({ href, labelKey, Icon }) => {
+          {NAVIGATION_ITEMS.map(({ href, labelKey, service, Icon }) => {
             const isActive = isNavigationItemActive(href, pathname);
             return (
               <li key={href}>
@@ -108,6 +116,14 @@ export function Sidebar() {
                 >
                   <Icon aria-hidden="true" />
                   {t.nav[labelKey]}
+                  {apiMode === "live" && getServiceMode(service, apiMode) === "mock" && (
+                    <span
+                      className={styles.mockDot}
+                      role="img"
+                      aria-label={t.sidebar.mockDataDot}
+                      title={t.sidebar.mockDataDot}
+                    />
+                  )}
                 </Link>
               </li>
             );
@@ -117,7 +133,16 @@ export function Sidebar() {
 
       <div className={styles.footer}>
         <DatabaseStatusPanel />
-        {isAnyServiceMocked() && <MockDataPanel />}
+        {isAnyServiceMocked(apiMode) && <MockDataPanel />}
+        <div className={styles.footerRow}>
+          <span className={styles.footerLabel}>{t.sidebar.dataSource}</span>
+          <SegmentedControl
+            label={t.sidebar.dataSource}
+            options={apiModeOptions}
+            value={apiMode}
+            onChange={changeApiMode}
+          />
+        </div>
         <div className={styles.footerRow}>
           <span className={styles.footerLabel}>{t.sidebar.language}</span>
           <SegmentedControl

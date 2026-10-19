@@ -7,8 +7,10 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
   {
     id: "pol-high-risk-countries",
     name: "Transakce s vysoce rizikovými zeměmi",
-    regulationId: "reg-amld",
-    sourceProvision: "čl. 18a směrnice (EU) 2015/849",
+    legalBases: [
+      { regulationId: "reg-amld", ref: "čl. 18a" },
+      { regulationId: "reg-fatf", ref: null },
+    ],
     status: "approved",
     origin: "generated",
     text: "1. Instituce sleduje každou transakci, kde plátce, příjemce nebo klient pochází ze země na seznamu vysoce rizikových třetích zemí EU nebo FATF.\n2. Transakce nad 10 000 CZK s takovou zemí se vždy předává k posouzení AML analytikovi.\n3. Seznam zemí se aktualizuje nejméně jednou měsíčně.",
@@ -20,8 +22,10 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
   {
     id: "pol-pep",
     name: "Politicky exponované osoby",
-    regulationId: "reg-amld",
-    sourceProvision: "čl. 20 směrnice (EU) 2015/849",
+    legalBases: [
+      { regulationId: "reg-amld", ref: "čl. 20" },
+      { regulationId: "reg-aml-act", ref: "§ 9a" },
+    ],
     status: "approved",
     origin: "manual",
     text: "1. U klientů, kteří jsou politicky exponovanými osobami, instituce uplatňuje zesílenou kontrolu.\n2. Odchozí platby PEP nad 100 000 CZK se posuzují jednotlivě. Platba s nejasným směrem se posuzuje jako odchozí.\n3. Příchozí platby ze zahraničí se posuzují s ohledem na původ prostředků.",
@@ -33,8 +37,7 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
   {
     id: "pol-client-profile",
     name: "Odchylky od profilu klienta",
-    regulationId: "reg-aml-act",
-    sourceProvision: "§ 9 odst. 2 zákona č. 253/2008 Sb. (průběžné sledování)",
+    legalBases: [{ regulationId: "reg-aml-act", ref: "§ 9 odst. 2" }],
     status: "approved",
     origin: "generated",
     text: "1. Instituce průběžně porovnává transakce klienta s jeho deklarovaným a historickým profilem.\n2. Jednorázová transakce vyšší než dvojnásobek maximální transakce za předchozí čtvrtletí je neobvyklá.\n3. Transakce nad 500 000 CZK se vždy zaznamenává k posouzení.",
@@ -46,8 +49,10 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
   {
     id: "pol-reporting",
     name: "Oznamování podezřelých obchodů",
-    regulationId: "reg-aml-act",
-    sourceProvision: "§ 18 zákona č. 253/2008 Sb.",
+    legalBases: [
+      { regulationId: "reg-aml-act", ref: "§ 18" },
+      { regulationId: "reg-fau-methodology-4", ref: null },
+    ],
     status: "approved",
     origin: "manual",
     text: "1. Podezřelý obchod oznamuje kontaktní osoba Finančnímu analytickému úřadu bez zbytečného odkladu.\n2. Opakované alerty u téhož klienta se eskalují vedoucímu AML.\n3. Každé rozhodnutí o oznámení se zaznamenává do auditního logu s odůvodněním.",
@@ -59,8 +64,10 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
   {
     id: "pol-suspicious-indicators",
     name: "Indikátory podezřelého obchodu",
-    regulationId: "reg-fau-methodology-4",
-    sourceProvision: "§ 6 zákona č. 253/2008 Sb.; Metodika FAÚ č. 4",
+    legalBases: [
+      { regulationId: "reg-aml-act", ref: "§ 6" },
+      { regulationId: "reg-fau-methodology-4", ref: "Indikátory podezřelého obchodu" },
+    ],
     status: "draft",
     origin: "generated",
     text: "1. Za indikátor podezřelého obchodu se považuje zejména rozdělování plateb pod hranicí 15 000 EUR.\n2. Indikátorem je průtokový účet: příchozí prostředky jsou do několika hodin odeslány na jiný účet.\n3. Analytik posuzuje indikátory v kontextu celé historie klienta.",
@@ -72,8 +79,7 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
   {
     id: "pol-transfer-information",
     name: "Informace doprovázející převody",
-    regulationId: "reg-tfr",
-    sourceProvision: "čl. 4 nařízení (EU) 2023/1113",
+    legalBases: [{ regulationId: "reg-tfr", ref: "čl. 4" }],
     status: "draft",
     origin: "generated",
     text: "1. Každý převod musí obsahovat úplné údaje o plátci a příjemci.\n2. Převod s chybějícím účtem plátce se zastaví a předá k doplnění údajů.",
@@ -85,8 +91,7 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
   {
     id: "pol-risk-factors",
     name: "Rizikové faktory ML/TF",
-    regulationId: "reg-eba-gl-2021-02",
-    sourceProvision: "EBA/GL/2021/02, obecný pokyn 2 (rizikové faktory)",
+    legalBases: [{ regulationId: "reg-eba-gl-2021-02", ref: "obecný pokyn 2 (rizikové faktory)" }],
     status: "approved",
     origin: "generated",
     text: "1. Rizikový profil klienta zohledňuje typ klienta, zemi, PEP status a chování.\n2. Remitence klientů s vysokým rizikem do zahraničí se posuzují zvlášť.\n3. Neobvyklé chování vůči profilu posuzuje agent a výsledek kontroluje analytik.",
@@ -98,8 +103,7 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
   {
     id: "pol-ongoing-monitoring",
     name: "Průběžný monitoring dle AMLR",
-    regulationId: "reg-amlr",
-    sourceProvision: "AMLR, ustanovení o průběžném monitoringu obchodního vztahu",
+    legalBases: [{ regulationId: "reg-amlr", ref: "průběžný monitoring obchodního vztahu" }],
     status: "draft",
     origin: "generated",
     text: "1. Příprava na AMLR (účinnost od 10. 7. 2027): monitoring musí pokrývat celý obchodní vztah.\n2. Platby do zemí, kam klient dosud neplatil, se posuzují s ohledem na jeho profil.",
@@ -107,5 +111,18 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
     updatedAt: "2026-10-16T09:00:00.000Z",
     approvedBy: null,
     approvedAt: null,
+  },
+  {
+    // M3: a purely internal policy cites no regulation.
+    id: "pol-internal-escalation",
+    name: "Interní eskalace opakovaných alertů",
+    legalBases: [],
+    status: "approved",
+    origin: "manual",
+    text: "1. Klient s opakovanými alerty v krátkém období se posuzuje jako celek, ne po jednotlivých transakcích.\n2. Návrh eskalace předává analytik vedoucímu AML s odkazem na dotčené transakce.",
+    createdAt: "2026-09-10T09:00:00.000Z",
+    updatedAt: "2026-09-12T10:00:00.000Z",
+    approvedBy: APPROVER,
+    approvedAt: "2026-09-12T10:00:00.000Z",
   },
 ];

@@ -35,7 +35,12 @@ function buildPolicyDraftForm({ source, regulationName }: GeneratePolicyInput): 
   return formBody;
 }
 
+// The backend has no wizard endpoints yet; the calls below are the proposed API (backend-todo.md).
 export const liveWizardService: WizardService = {
+  capabilities: {
+    isAvailable: false, // BE-02, BE-03
+  },
+
   generatePolicyDraft: (input) =>
     requestJson({
       path: "/wizard/policy-drafts",

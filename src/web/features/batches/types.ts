@@ -44,8 +44,12 @@ export const transactionSchema = z.object({
 });
 export type Transaction = z.infer<typeof transactionSchema>;
 
+/** A transaction as shown in a batch. The live API knows the CZK amount only from the rule results. */
+export const transactionViewSchema = transactionSchema.extend({ amountCzk: z.number().nullable() });
+export type TransactionView = z.infer<typeof transactionViewSchema>;
+
 export const batchTransactionSchema = z.object({
-  transaction: transactionSchema,
+  transaction: transactionViewSchema,
   bucket: bucketSchema,
   failedRuleCount: z.number(),
   maxAdjustedScore: z.number(),
@@ -80,7 +84,7 @@ export type SkipReason = z.infer<typeof skipReasonSchema>;
 
 export const transactionEvaluationSchema = z.object({
   batchId: z.string(),
-  transaction: transactionSchema,
+  transaction: transactionViewSchema,
   client: z.object({
     id: z.string(),
     riskProfile: riskProfileSchema,

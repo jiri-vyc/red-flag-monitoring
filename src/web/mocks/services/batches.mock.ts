@@ -39,6 +39,8 @@ function parseCursor(cursor: string | null): number {
 }
 
 export const mockBatchesService: BatchesService = {
+  capabilities: { canUploadBatch: true },
+
   async loadBatches() {
     await simulateLatency();
     const nowMs = Date.now();

@@ -1,3 +1,4 @@
+import type { RuleLegalBasis } from "@/features/regulations/types";
 import type {
   RiskProfile,
   Rule,
@@ -21,6 +22,8 @@ type SeedVersion = {
   createdAt: string;
   /** Overrides the rule's default seed config for this version only. */
   configChanges?: Partial<RuleConfig>;
+  /** Overrides the rule's default legal basis for this version only (M5). */
+  legalBases?: RuleLegalBasis[];
 };
 
 type SeedRuleInput = Omit<
@@ -32,6 +35,8 @@ type SeedRuleInput = Omit<
   whitelistAllowed?: boolean;
   /** Default config shared by every seed version unless a version overrides it. */
   config: RuleConfig;
+  /** Default legal basis shared by every seed version unless a version overrides it. */
+  legalBases: RuleLegalBasis[];
   versions: SeedVersion[];
   checkKind: MockCheckKind;
 };
@@ -40,7 +45,13 @@ export type SeedRule = { rule: Rule; checkKind: MockCheckKind };
 
 const REVIEWED_STATES: readonly RuleVersionState[] = ["approved", "superseded", "rejected"];
 
-function buildSeedVersion(seedVersion: SeedVersion, versionIndex: number, config: RuleConfig): RuleVersion {
+type SeedVersionDefaults = { config: RuleConfig; legalBases: RuleLegalBasis[] };
+
+function buildSeedVersion(
+  seedVersion: SeedVersion,
+  versionIndex: number,
+  { config, legalBases }: SeedVersionDefaults,
+): RuleVersion {
   const isReviewed = REVIEWED_STATES.includes(seedVersion.state);
   return {
     versionNumber: versionIndex + 1,
@@ -52,6 +63,7 @@ function buildSeedVersion(seedVersion: SeedVersion, versionIndex: number, config
     createdBy: AUTHOR,
     reviewedBy: isReviewed ? REVIEWER : null,
     reviewedAt: isReviewed ? seedVersion.createdAt.replace("T09", "T15") : null,
+    legalBases: seedVersion.legalBases ?? legalBases,
   };
 }
 
@@ -59,11 +71,12 @@ function buildSeedRule({
   versions,
   checkKind,
   config,
+  legalBases,
   whitelistAllowed = true,
   ...ruleFields
 }: SeedRuleInput): SeedRule {
   const ruleVersions = versions.map((seedVersion, versionIndex) =>
-    buildSeedVersion(seedVersion, versionIndex, config),
+    buildSeedVersion(seedVersion, versionIndex, { config, legalBases }),
   );
   const firstVersion = ruleVersions[0];
   const lastVersion = ruleVersions.at(-1);
@@ -186,8 +199,10 @@ export const SEED_RULES: SeedRule[] = [
     status: "active",
     config: { sensitivity: 90, riskProfiles: ALL_PROFILES },
     policyId: "pol-high-risk-countries",
-    regulationId: "reg-amld",
-    sourceProvision: "čl. 18a směrnice (EU) 2015/849",
+    legalBases: [
+      { regulationId: "reg-amld", ref: "čl. 18a odst. 1" },
+      { regulationId: "reg-fatf", ref: "R.19" },
+    ],
     runningVersionNumber: 2,
     checkKind: "high_risk_jurisdiction",
     versions: [
@@ -199,6 +214,7 @@ export const SEED_RULES: SeedRule[] = [
         state: "superseded",
         changeNote: "První verze z wizardu.",
         createdAt: "2026-09-05T09:00:00.000Z",
+        legalBases: [{ regulationId: "reg-amld", ref: "čl. 18a" }],
       },
       {
         content: deterministic(
@@ -220,8 +236,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "active",
     config: { sensitivity: 100, riskProfiles: ALL_PROFILES },
     policyId: "pol-pep",
-    regulationId: "reg-amld",
-    sourceProvision: "čl. 20 směrnice (EU) 2015/849",
+    legalBases: [{ regulationId: "reg-amld", ref: "čl. 20 písm. b)" }],
     runningVersionNumber: 1,
     checkKind: "pep_outgoing",
     versions: [
@@ -244,8 +259,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "update_for_review",
     config: { sensitivity: 70, riskProfiles: ["high", "medium", "unknown"] },
     policyId: "pol-client-profile",
-    regulationId: "reg-aml-act",
-    sourceProvision: "§ 9 odst. 2 zákona č. 253/2008 Sb.",
+    legalBases: [{ regulationId: "reg-aml-act", ref: "§ 9 odst. 2 písm. d)" }],
     runningVersionNumber: 2,
     checkKind: "client_max_exceeded",
     versions: [
@@ -287,8 +301,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "active",
     config: { sensitivity: 80, riskProfiles: ALL_PROFILES },
     policyId: "pol-client-profile",
-    regulationId: "reg-aml-act",
-    sourceProvision: "§ 9 odst. 2 zákona č. 253/2008 Sb.",
+    legalBases: [{ regulationId: "reg-aml-act", ref: "§ 9 odst. 2 písm. d)" }],
     runningVersionNumber: 1,
     checkKind: "large_amount",
     versions: [
@@ -311,8 +324,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "active",
     config: { sensitivity: 75, riskProfiles: ["high"] },
     policyId: "pol-risk-factors",
-    regulationId: "reg-eba-gl-2021-02",
-    sourceProvision: "EBA/GL/2021/02, obecný pokyn 2",
+    legalBases: [{ regulationId: "reg-eba-gl-2021-02", ref: "obecný pokyn 2.9" }],
     runningVersionNumber: 1,
     checkKind: "high_risk_remittance",
     versions: [
@@ -335,8 +347,10 @@ export const SEED_RULES: SeedRule[] = [
     status: "active",
     config: { sensitivity: 85, riskProfiles: ALL_PROFILES },
     policyId: "pol-suspicious-indicators",
-    regulationId: "reg-fau-methodology-4",
-    sourceProvision: "§ 6 zákona č. 253/2008 Sb.; Metodika FAÚ č. 4",
+    legalBases: [
+      { regulationId: "reg-aml-act", ref: "§ 6 odst. 1 písm. b)" },
+      { regulationId: "reg-fau-methodology-4", ref: "Indikátory podezřelého obchodu" },
+    ],
     runningVersionNumber: 2,
     checkKind: "agentic_context",
     versions: [
@@ -364,8 +378,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "inactive",
     config: { sensitivity: 50, riskProfiles: ["high", "medium"] },
     policyId: "pol-client-profile",
-    regulationId: "reg-aml-act",
-    sourceProvision: "§ 9 odst. 2 zákona č. 253/2008 Sb.",
+    legalBases: [{ regulationId: "reg-aml-act", ref: "§ 9 odst. 2 písm. d)" }],
     runningVersionNumber: 1,
     checkKind: "night_activity",
     versions: [
@@ -388,8 +401,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "pending_for_review",
     config: { sensitivity: 65, riskProfiles: ALL_PROFILES },
     policyId: "pol-suspicious-indicators",
-    regulationId: "reg-fau-methodology-4",
-    sourceProvision: "§ 6 zákona č. 253/2008 Sb.",
+    legalBases: [{ regulationId: "reg-aml-act", ref: "§ 6 odst. 1 písm. b)" }],
     runningVersionNumber: null,
     checkKind: "threshold_structuring",
     versions: [
@@ -412,8 +424,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "pending_for_review",
     config: { sensitivity: 60, riskProfiles: ["high", "medium", "unknown"] },
     policyId: "pol-risk-factors",
-    regulationId: "reg-eba-gl-2021-02",
-    sourceProvision: "EBA/GL/2021/02, obecný pokyn 2",
+    legalBases: [{ regulationId: "reg-eba-gl-2021-02", ref: "obecný pokyn 2.9" }],
     runningVersionNumber: null,
     checkKind: "agentic_context",
     versions: [
@@ -435,8 +446,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "draft",
     config: { sensitivity: 70, riskProfiles: ALL_PROFILES },
     policyId: "pol-transfer-information",
-    regulationId: "reg-tfr",
-    sourceProvision: "čl. 4 nařízení (EU) 2023/1113",
+    legalBases: [{ regulationId: "reg-tfr", ref: "čl. 4 odst. 1" }],
     runningVersionNumber: null,
     checkKind: "threshold_structuring",
     versions: [
@@ -459,8 +469,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "draft",
     config: { sensitivity: 55, riskProfiles: ["high", "medium"] },
     policyId: "pol-ongoing-monitoring",
-    regulationId: "reg-amlr",
-    sourceProvision: "AMLR, průběžný monitoring obchodního vztahu",
+    legalBases: [{ regulationId: "reg-amlr", ref: "průběžný monitoring obchodního vztahu" }],
     runningVersionNumber: null,
     checkKind: "agentic_context",
     versions: [
@@ -483,8 +492,7 @@ export const SEED_RULES: SeedRule[] = [
     status: "update_for_review",
     config: { sensitivity: 80, riskProfiles: ALL_PROFILES },
     policyId: "pol-pep",
-    regulationId: "reg-amld",
-    sourceProvision: "čl. 20 směrnice (EU) 2015/849",
+    legalBases: [{ regulationId: "reg-amld", ref: "čl. 20" }],
     runningVersionNumber: 1,
     checkKind: "agentic_context",
     versions: [
@@ -514,9 +522,9 @@ export const SEED_RULES: SeedRule[] = [
     type: "deterministic",
     status: "inactive",
     config: { sensitivity: 60, riskProfiles: ALL_PROFILES },
-    policyId: "pol-reporting",
-    regulationId: "reg-aml-act",
-    sourceProvision: "§ 18 zákona č. 253/2008 Sb.",
+    // M4: a manual rule may stand without a policy.
+    policyId: null,
+    legalBases: [{ regulationId: "reg-aml-act", ref: "§ 18" }],
     runningVersionNumber: null,
     checkKind: "large_amount",
     versions: [
@@ -535,9 +543,8 @@ export const SEED_RULES: SeedRule[] = [
     type: "agentic",
     status: "active",
     config: { sensitivity: 70, riskProfiles: ["high", "medium"] },
-    policyId: "pol-reporting",
-    regulationId: "reg-aml-act",
-    sourceProvision: "§ 18 zákona č. 253/2008 Sb.",
+    policyId: "pol-internal-escalation",
+    legalBases: [{ regulationId: "reg-aml-act", ref: "§ 18 odst. 1" }],
     runningVersionNumber: 1,
     checkKind: "agentic_context",
     versions: [

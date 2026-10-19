@@ -1,10 +1,31 @@
-import { resolveService } from "@/config/apiMode";
+import {
+  getServiceMode,
+  resolveService,
+  selectServiceImplementation,
+  type ApiMode,
+  type ServiceImplementations,
+  type ServiceName,
+} from "@/config/apiMode";
 import { mockWizardService } from "@/mocks/services/wizard.mock";
 
-import type { WizardService } from "./contract";
+import type { WizardCapabilities, WizardService } from "./contract";
 import { liveWizardService } from "./live";
 
-export const wizardService = resolveService<WizardService>("wizard", {
+// The wizard creates and edits regulations, policies and rules, so it must use the same data source as they do.
+const WIZARD_DATA_SERVICES: readonly ServiceName[] = ["regulations", "policies", "rules"];
+
+const wizardImplementations: ServiceImplementations<WizardService> = {
   mock: mockWizardService,
   live: liveWizardService,
-});
+};
+
+export const wizardService = resolveService("wizard", wizardImplementations);
+
+export function getWizardCapabilities(globalApiMode: ApiMode): WizardCapabilities {
+  const wizardMode = getServiceMode("wizard", globalApiMode);
+  const isDataSourceShared = WIZARD_DATA_SERVICES.every(
+    (serviceName) => getServiceMode(serviceName, globalApiMode) === wizardMode,
+  );
+  const { capabilities } = selectServiceImplementation("wizard", wizardImplementations, globalApiMode);
+  return { isAvailable: capabilities.isAvailable && isDataSourceShared };
+}

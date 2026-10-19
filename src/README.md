@@ -107,7 +107,7 @@ Copy `.env.example` to `.env` in each package if you need to override defaults. 
 | backend | `DATABASE_AUTH`              | `password`              | `iam` for Aurora `database-1`: fresh IAM token per connection, TLS verified                             |
 | backend | `AWS_REGION`                 | none                    | Required with `DATABASE_AUTH=iam` (`eu-central-1`)                                                      |
 | web     | `BACKEND_URL`                | `http://localhost:4000` | Server-only. Backend base URL for the `/api/*` proxy; baked into the rewrite at build time              |
-| web     | `NEXT_PUBLIC_API_MODE`       | `mock`                  | Default data source for all feature services: `mock` or `live`                                          |
+| web     | `NEXT_PUBLIC_API_MODE`       | `mock`                  | Default data source (`mock` or `live`); the sidebar switch overrides it per browser                     |
 | web     | `NEXT_PUBLIC_API_MODE_<SVC>` | (unset)                 | Per-service override, `<SVC>` is `REGULATIONS`, `POLICIES`, `RULES`, `BATCHES`, `WIZARD` or `DASHBOARD` |
 
 Web env is validated with Zod in `web/config/env.client.ts` (`NEXT_PUBLIC_*` only, inlined at build time) and `web/config/env.server.ts` (`server-only`). Future secrets (API keys) must never use the `NEXT_PUBLIC_` prefix; on AWS pass them to the Web Function with `--env` in `deploy/web.sh` (or keep them in Secrets Manager).
@@ -139,7 +139,7 @@ src/
     ├── i18n/               en/cs dictionaries and the locale provider (cookie-persisted)
     ├── lib/                HTTP client, ApiError, formatting
     ├── mocks/              all mock services, seed data and the mock evaluation engine
-    └── providers/          React Query, i18n and mock-usage providers
+    └── providers/          React Query, data source (api mode), i18n and mock-usage providers
 ```
 
 Web routes: `/` dashboard, `/regulations[/id]`, `/policies[/id]`, `/rules`, `/rules/new`, `/rules/[id]`, `/batches`, `/batches/[id]?bucket=ok|to_check|alert`, `/batches/[id]/transactions/[transactionId]`, `/wizard[?regulationId=]`.
@@ -153,8 +153,10 @@ component → features/<f>/api/hooks.ts → service.ts (resolveService) → live
                                                                      → mocks/services/<f>.mock.ts (localStorage)
 ```
 
-- The mode comes from `NEXT_PUBLIC_API_MODE` (default `mock`) and optional per-service overrides. There is no runtime toggle.
-- Live mode calls relative `/api/...` (proxied to `BACKEND_URL`) and fails explicitly with an error state and Retry. It never falls back to mocks.
+- The global data source is switched at runtime with **Data source: Mock / Live** in the sidebar footer. `NEXT_PUBLIC_API_MODE` (default `mock`) only sets the default; the sidebar choice overrides it per browser (localStorage `redflag.apiMode`). Priority: localStorage, then env, then `mock`.
+- **Mock** puts every service on mock data (full demo, all capabilities on). **Live** uses the API, except services pinned by `NEXT_PUBLIC_API_MODE_<SVC>` (e.g. `WIZARD=mock`); capabilities hide what live cannot do yet.
+- `resolveService` returns a proxy that picks the implementation on every call, and the capability hooks read the mode from `useApiMode()` (`providers/ApiModeProvider.tsx`), so the UI never branches on the mode itself. A switch resets the React Query cache, so data of the two sources never mixes. The server renders the env default and the stored choice applies right after hydration.
+- Live mode calls relative `/api/...` (proxied to `BACKEND_URL`) and fails explicitly with an error state, Retry and "Switch to mock". It never falls back to mocks on its own.
 - Mock state lives in the browser's localStorage. "Reset demo data" in the sidebar restores the deterministic seed. While a screen uses a mocked service, the sidebar shows "Mock data, not connected to API". The sidebar's Database panel (`features/databaseStatus/`) has no mock and always calls `/api/database-status`.
 - Seed data (`mocks/seed/`) is sampled from the synthetic vendor datasets (30 clients, 150 transactions) plus regulations from `knowledgebase/regulace/seznam_regulaci.md`, 8 policies and 14 rules. Provision references and the high-risk country list are illustrative demo values.
 - Batches in mock mode: the CSV is parsed and evaluated in the browser. Only the first 2,000 rows are stored (localStorage is ~5 MB); the UI shows evaluated vs. file rows. Progress is simulated (3–8 s). Score thresholds (fail ≥ 40, alert ≥ 75 after sensitivity) are demo values that need compliance review.
@@ -163,7 +165,7 @@ component → features/<f>/api/hooks.ts → service.ts (resolveService) → live
 
 1. Check the endpoints the backend exposes against `features/<f>/api/live.ts` (the current paths are a proposed contract, e.g. `POST /api/batches` multipart, `GET /api/batches/:id/transactions?bucket=&cursor=`).
 2. If the backend DTO differs from the domain type, map it in `live.ts` only; keep `types.ts` and the UI unchanged.
-3. Switch the service with `NEXT_PUBLIC_API_MODE_<SVC>=live` (or `NEXT_PUBLIC_API_MODE=live` for all) and rebuild.
+3. Switch the service with `NEXT_PUBLIC_API_MODE_<SVC>=live` (or `NEXT_PUBLIC_API_MODE=live` for all) and rebuild, then select Live in the sidebar.
 
 ## Where to edit
 

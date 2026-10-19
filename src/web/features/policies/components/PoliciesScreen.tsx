@@ -5,7 +5,7 @@ import Link from "next/link";
 import tableStyles from "@/components/ui/DataTable.module.css";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
-import { RegulationLink } from "@/features/regulations/components/RegulationLink";
+import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDate } from "@/lib/format";
 
@@ -24,7 +24,7 @@ function PoliciesTable({ policies }: { policies: Policy[] }) {
         <thead>
           <tr>
             <th scope="col">{t.common.name}</th>
-            <th scope="col">{t.common.sourceRegulation}</th>
+            <th scope="col">{t.common.sourceRegulations}</th>
             <th scope="col">{t.common.status}</th>
             <th scope="col">{t.policies.origin}</th>
             <th scope="col" className={tableStyles.numeric}>
@@ -39,11 +39,10 @@ function PoliciesTable({ policies }: { policies: Policy[] }) {
               <td>
                 <Link href={`/policies/${policy.id}`} className={tableStyles.primaryCell}>
                   {policy.name}
-                  <span className={tableStyles.secondaryText}>{policy.sourceProvision}</span>
                 </Link>
               </td>
               <td>
-                <RegulationLink regulationId={policy.regulationId} />
+                <LegalBasisList legalBases={policy.legalBases} emptyLabel={t.policies.internalPolicy} />
               </td>
               <td>
                 <PolicyStatusBadge status={policy.status} />

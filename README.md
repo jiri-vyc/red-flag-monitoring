@@ -14,11 +14,83 @@ See [AGENTS.md](AGENTS.md) for working rules.
 
 Both run as AWS Lambda Web Functions (`rfm-web`, `rfm-api`) in the team account `526983806399`, `eu-central-1`. The API uses the Aurora database `main`. The web proxies `/api/*` to the API and calls the real backend (`NEXT_PUBLIC_API_MODE=live`). The URLs stay the same across redeploys. Both endpoints are public and have no authentication, so use synthetic and organiser data only. To deploy, see [src/README.md](src/README.md#deployment).
 
+## Set up AWS CLI access (once per machine)
+
+There are no access keys, only SSO. Full guide: the organisers' "AWS Participant Guide" on Notion.
+
+Add this to `~/.aws/config`, or run `aws configure sso` with the same values. The SSO region is `eu-north-1` on purpose; all work happens in `eu-central-1`.
+
+```ini
+[sso-session hackathon]
+sso_start_url = https://d-c3676ff6eb.awsapps.com/start
+sso_region = eu-north-1
+sso_registration_scopes = sso:account:access
+
+[profile hackathon]
+sso_session = hackathon
+sso_account_id = 526983806399
+sso_role_name = ai-hackathon-TeamAdmin
+region = eu-central-1
+output = json
+```
+
+Then log in and check the account. The login lasts 12 hours.
+
+```bash
+aws sso login --profile hackathon
+aws sts get-caller-identity --profile hackathon   # Account must be 526983806399
+```
+
+## Run the web locally against the Aurora database
+
+The browser never talks to the database. The web proxies `/api/*` to the local backend, and the backend connects to Aurora `main` with a fresh IAM token per connection.
+
+```
+browser → web (localhost:3000) → /api proxy → backend (localhost:4000) → Aurora database-1 / main
+```
+
+1. Log in to AWS (see above): `aws sso login --profile hackathon`
+2. Create `src/backend/.env`:
+
+   ```env
+   PORT=4000
+   DATABASE_AUTH=iam
+   DATABASE_URL=postgres://postgres@database-1.cluster-c9m6a2a047k1.eu-central-1.rds.amazonaws.com:5432/main
+   AWS_REGION=eu-central-1
+   AWS_PROFILE=hackathon
+   ```
+
+3. Create `src/web/.env.local`. The wizard has no API yet, so it stays on mock data (and is hidden while the other sections are live). The dashboard is live too: the web composes it from the rules, regulations, internal policies and evaluation runs endpoints:
+
+   ```env
+   NEXT_PUBLIC_API_MODE=live
+   NEXT_PUBLIC_API_MODE_WIZARD=mock
+   BACKEND_URL=http://localhost:4000
+   ```
+
+4. Start both from `src/`:
+
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+5. Open http://localhost:3000. Dashboard, Regulations, Internal policies, Rules and Batches now read from Aurora, and the sidebar no longer shows "Mock data, not connected to API". If the sidebar's **Data source** shows Mock, this browser remembers an earlier choice: switch it to Live. Check the backend alone with `curl localhost:4000/api/rules`.
+
+Notes:
+
+- **Restart `npm run dev` after changing `.env.local`.** `NEXT_PUBLIC_*` values are read at start/build time.
+- **Data source switch.** `NEXT_PUBLIC_API_MODE` only sets the default. The **Data source: Mock / Live** switch in the sidebar footer overrides it per browser (kept in localStorage) without a rebuild. Mock runs the whole web on browser demo data, including features the API does not have yet (CSV upload, the wizard, draft editing). Live uses the API with the env per-service overrides. A live error screen offers Retry and "Switch to mock"; the web never switches on its own.
+- **Writes go to `main`.** Creating, approving or whitelisting in the web writes to the shared team database through the API. For experiments use your own copy: `db/create-wip.sh <name>`, then point `DATABASE_URL` at `wip_<name>`.
+- **Not in the API yet:** CSV batch upload, the wizard, draft editing and deterministic rule generation. In live mode the web hides them (see the capabilities in `todo-web.md` and the backend plan in `backend-todo.md`). A blue dot in the sidebar marks sections on mock data. Without `.env.local` the web runs fully on browser mock data and needs no backend.
+- **Errors:** "Token for hackathon does not exist" or an expired session means you need `aws sso login --profile hackathon` again. The first request after idle can take ~15 s while the cluster resumes.
+- **Stop `npm run dev` when done.** An open connection keeps the cluster billing.
+
 ## Connect to the database with DBeaver
 
 The Aurora cluster `database-1` (team AWS account, `eu-central-1`) has no passwords, only short-lived IAM tokens.
 
-1. Log in to AWS: `aws sso login --profile hackathon`
+1. Log in to AWS: `aws sso login --profile hackathon` (first time: [set up AWS CLI access](#set-up-aws-cli-access-once-per-machine))
 2. In DBeaver create a **PostgreSQL** connection:
    - Host: `database-1.cluster-c9m6a2a047k1.eu-central-1.rds.amazonaws.com`
    - Port: `5432`

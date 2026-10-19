@@ -17,8 +17,13 @@ export function formatTime(isoDate: string, locale: Locale): string {
   return new Intl.DateTimeFormat(INTL_LOCALES[locale], { timeStyle: "medium" }).format(new Date(isoDate));
 }
 
+/** Same fallback as formatDateTime: an empty or unparseable value is returned as is. */
 export function formatDate(isoDate: string, locale: Locale): string {
-  return new Intl.DateTimeFormat(INTL_LOCALES[locale], { dateStyle: "medium" }).format(new Date(isoDate));
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return isoDate;
+  }
+  return new Intl.DateTimeFormat(INTL_LOCALES[locale], { dateStyle: "medium" }).format(date);
 }
 
 export function formatNumber(value: number, locale: Locale): string {

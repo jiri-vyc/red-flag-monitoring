@@ -3,8 +3,10 @@ import {
   addRuleVersion,
   approveRule,
   findPendingVersion,
+  findRuleLegalBases,
   findRunningVersion,
   getChangedConfigFields,
+  getLatestVersion,
   isRuleExecutable,
   rejectRule,
   RuleTransitionError,
@@ -15,6 +17,7 @@ const NOW = "2026-10-19T10:00:00.000Z";
 const REVIEW = { reviewer: "Reviewer", now: NOW };
 const INITIAL_CONFIG: RuleConfig = { sensitivity: 80, riskProfiles: ["high"] };
 const UPDATED_CONFIG: RuleConfig = { sensitivity: 50, riskProfiles: ["high", "medium"] };
+const INITIAL_LEGAL_BASES = [{ regulationId: "reg-1", ref: "§ 6 odst. 1 písm. b)" }];
 
 function createDraftRule(): Rule {
   return {
@@ -24,9 +27,7 @@ function createDraftRule(): Rule {
     type: "agentic",
     status: "draft",
     origin: "manual",
-    policyId: "pol-1",
-    regulationId: "reg-1",
-    sourceProvision: "§ 6",
+    policyId: null,
     runningVersionNumber: null,
     versions: [
       {
@@ -39,6 +40,7 @@ function createDraftRule(): Rule {
         createdBy: "Author",
         reviewedBy: null,
         reviewedAt: null,
+        legalBases: INITIAL_LEGAL_BASES,
       },
     ],
     whitelistAllowed: true,
@@ -150,6 +152,42 @@ describe("rule lifecycle", () => {
 
     expect(updatedRule.status).toBe("pending_for_review");
     expect(isRuleExecutable(updatedRule)).toBe(false);
+  });
+
+  it("takes the rule's legal basis from the running version, else the newest one (M5)", () => {
+    const draftRule = createDraftRule();
+    expect(findRuleLegalBases(draftRule)).toEqual(INITIAL_LEGAL_BASES);
+
+    const activeRule = approveRule(draftRule, REVIEW);
+    const ruleWithNewBasis: typeof activeRule = {
+      ...activeRule,
+      versions: [
+        ...activeRule.versions,
+        {
+          ...getLatestVersion(activeRule),
+          versionNumber: 2,
+          state: "pending_review",
+          legalBases: [{ regulationId: "reg-2", ref: "čl. 18a" }],
+        },
+      ],
+      status: "update_for_review",
+    };
+    expect(findRuleLegalBases(ruleWithNewBasis)).toEqual(INITIAL_LEGAL_BASES);
+    expect(findRuleLegalBases(approveRule(ruleWithNewBasis, REVIEW))).toEqual([
+      { regulationId: "reg-2", ref: "čl. 18a" },
+    ]);
+  });
+
+  it("keeps the legal basis of the base version on a new version", () => {
+    const updatedRule = addRuleVersion(approveRule(createDraftRule(), REVIEW), {
+      content: { type: "agentic", ruleText: "v2" },
+      config: UPDATED_CONFIG,
+      changeNote: "change",
+      author: "Author",
+      now: NOW,
+    });
+
+    expect(updatedRule.versions[1]?.legalBases).toEqual(INITIAL_LEGAL_BASES);
   });
 
   it("lists config fields that differ, ignoring list order", () => {

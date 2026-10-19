@@ -10,11 +10,11 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
 import { PolicyLink } from "@/features/policies/components/PolicyLink";
-import { RegulationLink } from "@/features/regulations/components/RegulationLink";
+import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useI18n } from "@/i18n/I18nProvider";
 
-import { useRules } from "../api/hooks";
-import { findRunningVersion, getLatestVersion } from "../domain/ruleLifecycle";
+import { useRules, useRulesCapabilities } from "../api/hooks";
+import { findDescribingVersion } from "../domain/ruleLifecycle";
 import { RULE_STATUSES, type Rule, type RuleStatus } from "../types";
 import { RuleStatusBadge, RuleTypeBadge } from "./RuleBadges";
 import styles from "./RulesScreen.module.css";
@@ -23,7 +23,7 @@ type StatusFilter = RuleStatus | "all";
 
 /** The running version's sensitivity; rules that never ran show the proposed value of their latest version. */
 function getDisplayedSensitivity(rule: Rule): number {
-  return (findRunningVersion(rule) ?? getLatestVersion(rule)).config.sensitivity;
+  return findDescribingVersion(rule).config.sensitivity;
 }
 
 function RulesTable({ rules }: { rules: Rule[] }) {
@@ -53,7 +53,6 @@ function RulesTable({ rules }: { rules: Rule[] }) {
               <td>
                 <Link href={`/rules/${rule.id}`} className={tableStyles.primaryCell}>
                   {rule.name}
-                  <span className={tableStyles.secondaryText}>{rule.sourceProvision}</span>
                 </Link>
               </td>
               <td>
@@ -64,10 +63,17 @@ function RulesTable({ rules }: { rules: Rule[] }) {
               </td>
               <td className={tableStyles.numeric}>{getDisplayedSensitivity(rule)}</td>
               <td>
-                <PolicyLink policyId={rule.policyId} />
+                {rule.policyId === null ? (
+                  <span className={tableStyles.secondaryText}>{t.rules.noPolicy}</span>
+                ) : (
+                  <PolicyLink policyId={rule.policyId} />
+                )}
               </td>
               <td>
-                <RegulationLink regulationId={rule.regulationId} />
+                <LegalBasisList
+                  legalBases={findDescribingVersion(rule).legalBases}
+                  emptyLabel={t.rules.noLegalBasis}
+                />
               </td>
               <td className={tableStyles.secondaryText}>
                 {rule.runningVersionNumber === null
@@ -113,15 +119,18 @@ function FilteredRules({ rules }: { rules: Rule[] }) {
 export function RulesScreen() {
   const { t } = useI18n();
   const rulesQuery = useRules();
+  const { canCreateDeterministicRule, canCreateAgenticRule } = useRulesCapabilities();
   return (
     <>
       <PageHeader
         title={t.rules.title}
         description={t.rules.subtitle}
         actions={
-          <ButtonLink href="/rules/new" icon={<Plus aria-hidden="true" />}>
-            {t.rules.newRule}
-          </ButtonLink>
+          (canCreateDeterministicRule || canCreateAgenticRule) && (
+            <ButtonLink href="/rules/new" icon={<Plus aria-hidden="true" />}>
+              {t.rules.newRule}
+            </ButtonLink>
+          )
         }
       />
       <QueryView query={rulesQuery}>{(rules) => <FilteredRules rules={rules} />}</QueryView>

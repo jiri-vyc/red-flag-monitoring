@@ -59,3 +59,10 @@
   border-radius: var(--radius-md);
   font-weight: 600;
 }
+
+.citedRefs {
+  margin-right: auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+}

@@ -9,8 +9,12 @@ import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
+import { useBatchesCapabilities } from "@/features/batches/api/hooks";
 import { BucketCountsInline } from "@/features/batches/components/BucketCountsInline";
+import { formatLegalBasisRefs } from "@/features/regulations/types";
 import { RuleStatusBadge, RuleTypeBadge } from "@/features/rules/components/RuleBadges";
+import { findRuleLegalBases } from "@/features/rules/domain/ruleLifecycle";
+import { useWizardCapabilities } from "@/features/wizard/api/hooks";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 
@@ -61,6 +65,7 @@ function WizardCallToAction() {
 
 function DashboardContent({ summary }: { summary: DashboardSummary }) {
   const { t, locale } = useI18n();
+  const { canUploadBatch } = useBatchesCapabilities();
   return (
     <>
       <div className={`${styles.stats} rf-stagger`}>
@@ -109,7 +114,7 @@ function DashboardContent({ summary }: { summary: DashboardSummary }) {
           }
         >
           {summary.recentBatches.length === 0 ? (
-            <EmptyState message={t.dashboard.noBatches} />
+            <EmptyState message={canUploadBatch ? t.dashboard.noBatches : t.dashboard.noBatchesReadOnly} />
           ) : (
             <ul className={styles.list}>
               {summary.recentBatches.map((batch) => (
@@ -149,7 +154,7 @@ function DashboardContent({ summary }: { summary: DashboardSummary }) {
                   <Link href={`/rules/${rule.id}`} className={styles.listItem}>
                     <span className={styles.listMain}>
                       <strong>{rule.name}</strong>
-                      <small>{rule.sourceProvision}</small>
+                      <small>{formatLegalBasisRefs(findRuleLegalBases(rule))}</small>
                     </span>
                     <span className={styles.badges}>
                       <RuleTypeBadge type={rule.type} />
@@ -169,18 +174,22 @@ function DashboardContent({ summary }: { summary: DashboardSummary }) {
 export function DashboardScreen() {
   const { t } = useI18n();
   const summaryQuery = useDashboardSummary();
+  const { canUploadBatch } = useBatchesCapabilities();
+  const { isAvailable: isWizardAvailable } = useWizardCapabilities();
   return (
     <>
       <PageHeader
         title={t.dashboard.title}
         description={t.dashboard.subtitle}
         actions={
-          <ButtonLink href="/batches" variant="secondary" icon={<Upload aria-hidden="true" />}>
-            {t.dashboard.uploadBatch}
-          </ButtonLink>
+          canUploadBatch && (
+            <ButtonLink href="/batches" variant="secondary" icon={<Upload aria-hidden="true" />}>
+              {t.dashboard.uploadBatch}
+            </ButtonLink>
+          )
         }
       />
-      <WizardCallToAction />
+      {isWizardAvailable && <WizardCallToAction />}
       <QueryView query={summaryQuery}>{(summary) => <DashboardContent summary={summary} />}</QueryView>
     </>
   );

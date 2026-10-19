@@ -1,8 +1,6 @@
-import type { BatchTransaction } from "@/features/batches/types";
-
 import { createRuleSnapshots, evaluateBatchRows } from "../evaluation/batchEvaluation";
 import { mapCsvRowToTransaction } from "../evaluation/csvTransactions";
-import type { MockBatchRecord, MockDatabase, MockSeed } from "../store/mockDatabase";
+import type { MockBatchRecord, MockBatchRow, MockDatabase, MockSeed } from "../store/mockDatabase";
 import { SEED_POLICIES } from "./policies";
 import { SEED_REGULATIONS } from "./regulations";
 import { SEED_RULES } from "./rules";
@@ -43,7 +41,7 @@ export function buildSeedDatabase(): MockSeed {
   const ruleSnapshots = createRuleSnapshots({ rules, ruleCheckKinds, whitelistEntries });
   const transactions = SEED_TRANSACTIONS.map(mapCsvRowToTransaction);
 
-  const batchRows: Record<string, BatchTransaction[]> = {};
+  const batchRows: Record<string, MockBatchRow[]> = {};
   const batches: MockBatchRecord[] = SEED_BATCH_DEFINITIONS.map((definition) => {
     const rows = evaluateBatchRows(transactions.slice(definition.from, definition.to), ruleSnapshots);
     batchRows[definition.id] = rows;

@@ -11,10 +11,15 @@ import { Notice } from "@/components/ui/Notice";
 import { EmptyState, ErrorState, QueryView } from "@/components/ui/StateViews";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
-// Suggestions only: the input accepts any client ID, so it also works against the live backend.
+// Demo client IDs, offered only when the rules service can suggest clients (the mock).
 import { SEED_CLIENTS } from "@/mocks/seed/clients";
 
-import { useAddWhitelistEntry, useRemoveWhitelistEntry, useRuleWhitelist } from "../api/hooks";
+import {
+  useAddWhitelistEntry,
+  useRemoveWhitelistEntry,
+  useRulesCapabilities,
+  useRuleWhitelist,
+} from "../api/hooks";
 import type { Rule, WhitelistEntry } from "../types";
 import {
   validateWhitelistEntryForm,
@@ -85,6 +90,7 @@ function WhitelistTable({ ruleId, entries }: { ruleId: string; entries: Whitelis
 function AddWhitelistEntryForm({ ruleId }: { ruleId: string }) {
   const { t } = useI18n();
   const addMutation = useAddWhitelistEntry();
+  const { canSuggestWhitelistClients } = useRulesCapabilities();
   const [values, setValues] = useState<WhitelistEntryFormValues>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -117,23 +123,25 @@ function AddWhitelistEntryForm({ ruleId }: { ruleId: string }) {
       <Field
         label={t.whitelist.clientId}
         htmlFor="rule-whitelist-client"
-        hint={t.whitelist.clientIdHint}
+        hint={canSuggestWhitelistClients ? t.whitelist.clientIdHint : t.whitelist.clientIdHintNoSuggestions}
         error={translateError("clientId")}
       >
         <input
           id="rule-whitelist-client"
           className={fieldStyles.input}
-          list={CLIENT_SUGGESTIONS_ID}
+          list={canSuggestWhitelistClients ? CLIENT_SUGGESTIONS_ID : undefined}
           value={values.clientId}
           onChange={(event) => updateValues({ clientId: event.target.value })}
           placeholder="K000024"
           aria-describedby="rule-whitelist-client-hint"
         />
-        <datalist id={CLIENT_SUGGESTIONS_ID}>
-          {SEED_CLIENTS.map((client) => (
-            <option key={client.id} value={client.id} />
-          ))}
-        </datalist>
+        {canSuggestWhitelistClients && (
+          <datalist id={CLIENT_SUGGESTIONS_ID}>
+            {SEED_CLIENTS.map((client) => (
+              <option key={client.id} value={client.id} />
+            ))}
+          </datalist>
+        )}
       </Field>
       <Field
         label={t.whitelist.reason}

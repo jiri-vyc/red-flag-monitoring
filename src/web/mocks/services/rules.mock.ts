@@ -9,7 +9,13 @@ import {
   submitRuleForReview,
   updateDraftContent,
 } from "@/features/rules/domain/ruleLifecycle";
-import type { AddWhitelistEntryInput, Rule, WhitelistEntry } from "@/features/rules/types";
+import type { RuleLegalBasis } from "@/features/regulations/types";
+import type {
+  AddWhitelistEntryInput,
+  CreateManualRuleInput,
+  Rule,
+  WhitelistEntry,
+} from "@/features/rules/types";
 import { CLIENT_ID_PATTERN } from "@/features/rules/whitelistEntryForm";
 import { ApiError } from "@/lib/apiError";
 
@@ -78,12 +84,39 @@ function validateNewWhitelistEntry({ ruleId, clientId, reason }: AddWhitelistEnt
   }
 }
 
-function findPolicyRegulationId(policyId: string): string {
-  const policy = readMockDatabase().policies.find((candidate) => candidate.id === policyId);
-  return policy?.regulationId ?? throwMockNotFound("Internal policy", policyId);
+/** Mirrors the backend: a policy is optional (M4), a rule version needs 1..N unique legal bases (M5). */
+function validateManualRuleSource({
+  policyId,
+  legalBases,
+}: Pick<CreateManualRuleInput, "policyId" | "legalBases">): RuleLegalBasis[] {
+  const database = readMockDatabase();
+  if (policyId !== null && !database.policies.some((policy) => policy.id === policyId)) {
+    throwMockNotFound("Internal policy", policyId);
+  }
+  const trimmedLegalBases = legalBases.map(({ regulationId, ref }) => ({ regulationId, ref: ref.trim() }));
+  if (trimmedLegalBases.length === 0 || trimmedLegalBases.some(({ ref }) => ref === "")) {
+    throwValidation("A rule needs at least one legal basis with a provision reference.");
+  }
+  for (const { regulationId } of trimmedLegalBases) {
+    if (!database.regulations.some((regulation) => regulation.id === regulationId)) {
+      throwMockNotFound("Regulation", regulationId);
+    }
+  }
+  const uniqueKeys = new Set(trimmedLegalBases.map(({ regulationId, ref }) => `${regulationId}|${ref}`));
+  if (uniqueKeys.size !== trimmedLegalBases.length) {
+    throwValidation("Legal bases must be unique.");
+  }
+  return trimmedLegalBases;
 }
 
 export const mockRulesService: RulesService = {
+  capabilities: {
+    canEditDraftContent: true,
+    canCreateDeterministicRule: true,
+    canCreateAgenticRule: true,
+    canSuggestWhitelistClients: true,
+  },
+
   async loadRules() {
     await simulateLatency();
     return readMockDatabase().rules;
@@ -94,9 +127,9 @@ export const mockRulesService: RulesService = {
     return findRule(ruleId);
   },
 
-  async createManualRule({ description, policyId, type, sensitivity, riskProfiles, author }) {
+  async createManualRule({ description, policyId, type, sensitivity, riskProfiles, legalBases, author }) {
     await simulateLatency(AI_GENERATION_LATENCY);
-    const policy = readMockDatabase().policies.find((candidate) => candidate.id === policyId);
+    const validLegalBases = validateManualRuleSource({ policyId, legalBases });
     const generatedDraft = generateRuleDraft({ description, type });
     const now = new Date().toISOString();
     const rule: Rule = {
@@ -107,8 +140,6 @@ export const mockRulesService: RulesService = {
       status: "pending_for_review",
       origin: "manual",
       policyId,
-      regulationId: findPolicyRegulationId(policyId),
-      sourceProvision: policy?.sourceProvision ?? "",
       runningVersionNumber: null,
       versions: [
         {
@@ -121,6 +152,7 @@ export const mockRulesService: RulesService = {
           createdBy: author,
           reviewedBy: null,
           reviewedAt: null,
+          legalBases: validLegalBases,
         },
       ],
       // Whitelist entries are added on the detail page afterwards.
@@ -134,8 +166,13 @@ export const mockRulesService: RulesService = {
   submitRuleForReview: (ruleId) => transitionRule(ruleId, submitRuleForReview),
   approveRule: ({ ruleId, reviewer }) =>
     transitionRule(ruleId, (rule, now) => approveRule(rule, { reviewer, now })),
-  rejectRule: ({ ruleId, reviewer }) =>
-    transitionRule(ruleId, (rule, now) => rejectRule(rule, { reviewer, now })),
+  // The web rule version has no review comment, so the mock only checks that a reason was given.
+  rejectRule: ({ ruleId, reviewer, comment }) => {
+    if (comment.trim() === "") {
+      return throwValidation("A rejection needs a reason.");
+    }
+    return transitionRule(ruleId, (rule, now) => rejectRule(rule, { reviewer, now }));
+  },
   activateRule: (ruleId) => transitionRule(ruleId, activateRule),
   deactivateRule: (ruleId) => transitionRule(ruleId, deactivateRule),
   createRuleVersion: ({ ruleId, content, config, changeNote, author }) =>

@@ -18,6 +18,8 @@ Regulation → Internal policy → Rule → Rule version
 Client → Transaction → Transaction evaluation → 1..N rule evaluations → AML event
 ```
 
+Relations (data model M3 to M5): a policy cites 0..N regulations through its legal bases, each with an optional provision `ref` (a purely internal policy cites none). A rule may have no policy. Each rule version has its own 1..N legal bases (regulation + required `ref`), not inherited from the policy. The web shows the legal basis of the running version, else of the newest one (`findRuleLegalBases`), and derives a regulation's related policies and rules from these legal bases. The live adapters map backend regulation wordings (`regulationVersionId`) to regulations, and a new manual rule cites the newest wording.
+
 Rule statuses: `draft`, `pending_for_review`, `update_for_review`, `active`, `inactive`. A rule returns a score of 0–100 and a trace. The adjusted score is `score × sensitivity / 100`. Each rule version holds its content (code + Czech explanation, or agentic rule text) and its config (sensitivity, risk profiles). Any edit of content or config creates a new version that goes to review (data model M7). Evaluation always uses the running approved version, never a pending one. The client whitelist is not versioned: it lives at rule level as rule × client entries with a required reason (M16), and changes apply immediately without review. Regulatory-mandatory rules have `whitelistAllowed = false`. Each batch snapshots the whitelist together with the rule versions, so past batches stay reproducible. Whitelist approval and periodic review (CNB benchmark 2/2023) are not in the MVP and need compliance review.
 
 ## Web (`src/web`)

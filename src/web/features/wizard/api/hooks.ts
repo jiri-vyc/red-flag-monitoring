@@ -2,10 +2,18 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
 import type { GeneratePolicyInput } from "../types";
-import { wizardService } from "./service";
+import type { WizardCapabilities } from "./contract";
+import { getWizardCapabilities, wizardService } from "./service";
+
+/** Follows the data source selected in the sidebar. */
+export function useWizardCapabilities(): WizardCapabilities {
+  const { apiMode } = useApiMode();
+  return getWizardCapabilities(apiMode);
+}
 
 function useInvalidateGeneratedArtifacts() {
   const queryClient = useQueryClient();

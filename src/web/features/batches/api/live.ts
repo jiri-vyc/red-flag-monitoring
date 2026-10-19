@@ -1,34 +1,217 @@
-import { z } from "zod";
-
+import { formatUserName } from "@/config/currentUser";
+import { formatRuleName } from "@/features/rules/api/dto";
+import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
 
-import { batchSchema, batchTransactionPageSchema, transactionEvaluationSchema } from "../types";
+import type {
+  Batch,
+  BatchStatus,
+  Bucket,
+  RuleEvaluation,
+  SkipReason,
+  TraceStep,
+  TransactionView,
+} from "../types";
 import type { BatchesService } from "./contract";
+import {
+  evaluationRunPageDtoSchema,
+  evaluationRunSummaryDtoSchema,
+  transactionEvaluationDetailDtoSchema,
+  transactionEvaluationPageDtoSchema,
+  type EvaluatedOperandDto,
+  type EvaluationRunListItemDto,
+  type RuleEvaluationDetailDto,
+  type TransactionDto,
+  type VerdictDto,
+} from "./dto";
 
-const batchPath = (batchId: string) => `/batches/${encodeURIComponent(batchId)}`;
+// A batch is an evaluation run. The run list endpoint allows at most 500 items per page.
+const RUN_LIST_LIMIT = 500;
+const TRANSACTION_PAGE_SIZE = 25;
+
+// Buckets are the web's names for verdicts. An `error` verdict must go to a human, like `to_check`.
+const VERDICT_BY_BUCKET: Record<Bucket, VerdictDto> = { ok: "pass", to_check: "error", alert: "flagged" };
+const BUCKET_BY_VERDICT: Record<VerdictDto, Bucket> = { pass: "ok", error: "to_check", flagged: "alert" };
+
+const SKIP_REASON_BY_DTO: Record<"whitelist" | "risk_profile", SkipReason> = {
+  whitelist: "whitelisted",
+  risk_profile: "risk_profile_not_applicable",
+};
+
+const runPath = (runId: string) => `/evaluation-runs/${encodeURIComponent(runId)}`;
+
+function toBatchStatus(status: EvaluationRunListItemDto["status"]): BatchStatus {
+  return status === "importing" || status === "running" ? "processing" : status;
+}
+
+function toBatch(run: EvaluationRunListItemDto, activeRuleCount: number): Batch {
+  return {
+    id: run.id,
+    fileName: run.fileName,
+    uploadedAt: run.createdAt,
+    uploadedBy: formatUserName(run.createdBy),
+    status: toBatchStatus(run.status),
+    fileRowCount: run.rowsTotal,
+    evaluatedRowCount: run.rowsImported,
+    processedRowCount: run.txProcessed,
+    activeRuleCount,
+    counts: { ok: run.txPassed, to_check: run.txError, alert: run.txFlagged },
+    failureReason: run.errorMessage,
+  };
+}
+
+function toTransaction(transaction: TransactionDto, amountCzk: number | null): TransactionView {
+  return {
+    transactionId: transaction.transactionId,
+    clientId: transaction.clientId,
+    bookedAt: transaction.occurredAt,
+    amount: Number(transaction.amount),
+    currency: transaction.currency,
+    amountCzk,
+    payerCountry: transaction.payerCountry,
+    payeeCountry: transaction.payeeCountry,
+    payerAccount: transaction.payerAccount ?? "",
+    payeeAccount: transaction.payeeAccount,
+    transactionType: transaction.transactionType,
+  };
+}
+
+/** The CZK amount is not a transaction column; rules record it as the `amount_czk` feature with the FX rate used. */
+function findAmountCzk(
+  transaction: TransactionDto,
+  ruleEvaluations: RuleEvaluationDetailDto[],
+): number | null {
+  const amountCzkFeature = ruleEvaluations
+    .map((ruleEvaluation) => ruleEvaluation.features?.amount_czk)
+    .find((value) => typeof value === "number");
+  if (typeof amountCzkFeature === "number") {
+    return amountCzkFeature;
+  }
+  return transaction.currency === "CZK" ? Number(transaction.amount) : null;
+}
+
+function formatOperand(operand: EvaluatedOperandDto): string {
+  const name = operand.feature ?? operand.expr ?? operand.list;
+  const value = Array.isArray(operand.value) ? operand.value.join(", ") : String(operand.value);
+  return name === undefined ? value : `${name} (${value})`;
+}
+
+function toTraceSteps(ruleEvaluation: RuleEvaluationDetailDto): TraceStep[] {
+  const { trace } = ruleEvaluation;
+  if (ruleEvaluation.outcome === "error") {
+    return [{ condition: "Evaluation error", isMet: false, detail: ruleEvaluation.errorMessage ?? "" }];
+  }
+  if (trace === null) {
+    return [];
+  }
+  if ("conditions" in trace) {
+    return trace.conditions.map((condition) => ({
+      condition: condition.label,
+      isMet: condition.result,
+      detail: `${formatOperand(condition.left)} ${condition.op} ${formatOperand(condition.right)}`,
+    }));
+  }
+  return [{ condition: trace.summary, isMet: ruleEvaluation.outcome === "hit", detail: trace.reasoning }];
+}
+
+function toRuleEvaluation(ruleEvaluation: RuleEvaluationDetailDto): RuleEvaluation {
+  return {
+    ruleId: ruleEvaluation.rule.id,
+    ruleName: formatRuleName(ruleEvaluation.rule),
+    ruleType: ruleEvaluation.rule.kind,
+    ruleVersionNumber: ruleEvaluation.ruleVersion.versionNo,
+    sensitivity: ruleEvaluation.ruleVersion.sensitivity,
+    score: ruleEvaluation.rawScore ?? 0,
+    adjustedScore: ruleEvaluation.adjustedScore ?? 0,
+    isFailed: ruleEvaluation.outcome !== "pass",
+    trace: toTraceSteps(ruleEvaluation),
+  };
+}
 
 export const liveBatchesService: BatchesService = {
-  loadBatches: () => requestJson({ path: "/batches", schema: z.array(batchSchema) }),
-  loadBatch: (batchId) => requestJson({ path: batchPath(batchId), schema: batchSchema }),
-  uploadBatch: ({ file, uploadedBy }) => {
-    const formBody = new FormData();
-    formBody.append("file", file);
-    formBody.append("uploadedBy", uploadedBy);
-    return requestJson({ path: "/batches", method: "POST", formBody, schema: batchSchema });
+  capabilities: {
+    canUploadBatch: false, // BE-01
   },
-  loadBatchTransactions: ({ batchId, bucket, cursor }) => {
-    const searchParams = new URLSearchParams({ bucket });
-    if (cursor) {
-      searchParams.set("cursor", cursor);
-    }
-    return requestJson({
-      path: `${batchPath(batchId)}/transactions?${searchParams.toString()}`,
-      schema: batchTransactionPageSchema,
+
+  async loadBatches() {
+    const runPage = await requestJson({
+      path: `/evaluation-runs?limit=${RUN_LIST_LIMIT}`,
+      schema: evaluationRunPageDtoSchema,
+    });
+    // The run list has no rule versions and the batch list does not show the rule count.
+    return runPage.items.map((run) => toBatch(run, 0));
+  },
+
+  async loadBatch(batchId) {
+    const summary = await requestJson({ path: runPath(batchId), schema: evaluationRunSummaryDtoSchema });
+    return toBatch(summary.run, summary.ruleVersions.length);
+  },
+
+  // V14: runs are created by the evaluation engine, the API has no upload endpoint (BE-01). Hidden in the UI.
+  uploadBatch: async () => {
+    throw new ApiError({
+      kind: "unsupported",
+      message: "Uploading a transactions CSV is not supported by the API yet.",
     });
   },
-  loadTransactionEvaluation: ({ batchId, transactionId }) =>
-    requestJson({
-      path: `${batchPath(batchId)}/transactions/${encodeURIComponent(transactionId)}`,
-      schema: transactionEvaluationSchema,
-    }),
+
+  async loadBatchTransactions({ batchId, bucket, cursor }) {
+    const offset = Number(cursor ?? 0);
+    const searchParams = new URLSearchParams({
+      verdict: VERDICT_BY_BUCKET[bucket],
+      limit: String(TRANSACTION_PAGE_SIZE),
+      offset: String(offset),
+    });
+    const page = await requestJson({
+      path: `${runPath(batchId)}/transactions?${searchParams.toString()}`,
+      schema: transactionEvaluationPageDtoSchema,
+    });
+    const nextOffset = page.offset + page.items.length;
+    return {
+      items: page.items.map((item) => ({
+        // The list has no rule results, so no CZK amount; only the transaction detail shows it.
+        transaction: toTransaction(item.transaction, null),
+        bucket: BUCKET_BY_VERDICT[item.verdict],
+        failedRuleCount: item.hitCount,
+        maxAdjustedScore: item.maxScore,
+      })),
+      nextCursor: nextOffset < page.total ? String(nextOffset) : null,
+      totalCount: page.total,
+    };
+  },
+
+  async loadTransactionEvaluation({ batchId, transactionId }) {
+    const detail = await requestJson({
+      path: `${runPath(batchId)}/transactions/${encodeURIComponent(transactionId)}`,
+      schema: transactionEvaluationDetailDtoSchema,
+    });
+    const { ruleEvaluations } = detail;
+    return {
+      batchId: detail.evaluation.runId,
+      transaction: toTransaction(detail.transaction, findAmountCzk(detail.transaction, ruleEvaluations)),
+      client: {
+        id: detail.client.clientId,
+        riskProfile: detail.client.amlRiskScore,
+        isPep: detail.client.isPep,
+        country: detail.client.country,
+      },
+      bucket: BUCKET_BY_VERDICT[detail.evaluation.verdict],
+      // Errored rules are listed with the failed ones: the transaction must go to a human either way.
+      failedRules: ruleEvaluations
+        .filter(({ outcome }) => outcome === "hit" || outcome === "error")
+        .map(toRuleEvaluation),
+      passedRules: ruleEvaluations.filter(({ outcome }) => outcome === "pass").map(toRuleEvaluation),
+      skippedRules: ruleEvaluations.flatMap((ruleEvaluation) =>
+        ruleEvaluation.outcome === "not_applicable" && ruleEvaluation.skipReason !== null
+          ? [
+              {
+                ruleId: ruleEvaluation.rule.id,
+                ruleName: formatRuleName(ruleEvaluation.rule),
+                reason: SKIP_REASON_BY_DTO[ruleEvaluation.skipReason],
+              },
+            ]
+          : [],
+      ),
+    };
+  },
 };

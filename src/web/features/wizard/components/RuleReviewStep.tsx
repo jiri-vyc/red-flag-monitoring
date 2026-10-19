@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
 import { ErrorState } from "@/components/ui/StateViews";
-import { useRuleTransition, useUpdateDraftContent } from "@/features/rules/api/hooks";
+import { formatLegalBasisRefs } from "@/features/regulations/types";
+import { useRulesCapabilities, useRuleTransition, useUpdateDraftContent } from "@/features/rules/api/hooks";
+import { RejectRulePanel } from "@/features/rules/components/RejectRulePanel";
 import { RuleTypeBadge } from "@/features/rules/components/RuleBadges";
 import { RuleContentEditor } from "@/features/rules/components/RuleContentEditor";
 import { RuleContentView } from "@/features/rules/components/RuleContentView";
-import { getLatestVersion } from "@/features/rules/domain/ruleLifecycle";
+import { findRuleLegalBases, getLatestVersion } from "@/features/rules/domain/ruleLifecycle";
 import type { Rule } from "@/features/rules/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
@@ -36,6 +38,8 @@ function findReviewDecision(rule: Rule): ReviewDecision {
 function GeneratedRuleCard({ rule, onRuleChange }: { rule: Rule; onRuleChange: (rule: Rule) => void }) {
   const { t } = useI18n();
   const [isEditing, setIsEditing] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const { canEditDraftContent } = useRulesCapabilities();
   const transitionMutation = useRuleTransition();
   const updateDraftMutation = useUpdateDraftContent();
   const decision = findReviewDecision(rule);
@@ -49,12 +53,12 @@ function GeneratedRuleCard({ rule, onRuleChange }: { rule: Rule; onRuleChange: (
           <div className={styles.provenance}>
             <RuleTypeBadge type={rule.type} />
             <Badge tone="ai">
-              {t.common.sourceProvision}: {rule.sourceProvision}
+              {t.common.legalBasis}: {formatLegalBasisRefs(findRuleLegalBases(rule))}
             </Badge>
             <Badge tone={DECISION_TONES[decision]}>{t.wizard.decision[decision]}</Badge>
           </div>
         </div>
-        {isPending && !isEditing && (
+        {isPending && !isEditing && !isRejecting && (
           <div className={styles.generatedRuleActions}>
             <Button
               variant="success"
@@ -70,22 +74,35 @@ function GeneratedRuleCard({ rule, onRuleChange }: { rule: Rule; onRuleChange: (
               variant="danger"
               icon={<CircleX aria-hidden="true" />}
               disabled={transitionMutation.isPending}
-              onClick={() =>
-                transitionMutation.mutate({ ruleId: rule.id, action: "reject" }, { onSuccess: onRuleChange })
-              }
+              onClick={() => {
+                transitionMutation.reset();
+                setIsRejecting(true);
+              }}
             >
               {t.rules.action.reject}
             </Button>
-            <Button
-              variant="secondary"
-              icon={<Pencil aria-hidden="true" />}
-              onClick={() => setIsEditing(true)}
-            >
-              {t.common.edit}
-            </Button>
+            {canEditDraftContent && (
+              <Button
+                variant="secondary"
+                icon={<Pencil aria-hidden="true" />}
+                onClick={() => setIsEditing(true)}
+              >
+                {t.common.edit}
+              </Button>
+            )}
           </div>
         )}
       </header>
+      {isRejecting && (
+        <RejectRulePanel
+          ruleId={rule.id}
+          onCancel={() => setIsRejecting(false)}
+          onRejected={(rejectedRule) => {
+            setIsRejecting(false);
+            onRuleChange(rejectedRule);
+          }}
+        />
+      )}
       {isEditing ? (
         <RuleContentEditor
           idPrefix={`wizard-${rule.id}`}

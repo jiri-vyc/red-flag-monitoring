@@ -69,6 +69,8 @@ export function buildGeneratedRegulation({
   };
 }
 
+export const GENERAL_PROVISIONS_REF = "Obecná ustanovení";
+
 export function buildGeneratedPolicy({
   id,
   regulation,
@@ -78,16 +80,16 @@ export function buildGeneratedPolicy({
   regulation: MockRegulationRecord;
   now: string;
 }): MockPolicyRecord {
-  const sourceProvision = `${regulation.keyProvisions[1] ?? regulation.keyProvisions[0] ?? "Obecná ustanovení"} (${regulation.shortName})`;
+  const provisionRef = regulation.keyProvisions[1] ?? regulation.keyProvisions[0] ?? GENERAL_PROVISIONS_REF;
   return {
     id,
     name: `Interní předpis: ${regulation.shortName}`,
-    regulationId: regulation.id,
-    sourceProvision,
+    // M3: the wizard drafts the policy from one regulation, so it cites just that one.
+    legalBases: [{ regulationId: regulation.id, ref: provisionRef }],
     status: "draft",
     origin: "generated",
     text: [
-      `1. Účel. Tento předpis provádí povinnosti z regulace „${regulation.name}“, zejména ${sourceProvision}.`,
+      `1. Účel. Tento předpis provádí povinnosti z regulace „${regulation.name}“, zejména ${provisionRef} (${regulation.shortName}).`,
       "2. Monitoring. Instituce průběžně sleduje transakce klientů a porovnává je s jejich rizikovým profilem.",
       "3. Vysoce rizikové země. Transakce nad 10 000 CZK s účastí vysoce rizikové země se předávají k posouzení.",
       "4. PEP. Odchozí platby politicky exponovaných osob nad 100 000 CZK se posuzují jednotlivě.",

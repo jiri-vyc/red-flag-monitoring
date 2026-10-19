@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { ruleLegalBasisSchema, type RuleLegalBasis } from "@/features/regulations/types";
+
 export const RULE_STATUSES = [
   "draft",
   "pending_for_review",
@@ -51,6 +53,8 @@ export const ruleVersionSchema = z.object({
   createdBy: z.string(),
   reviewedBy: z.string().nullable(),
   reviewedAt: z.string().nullable(),
+  /** M5: each version has its own legal basis; it is not inherited from the policy. */
+  legalBases: z.array(ruleLegalBasisSchema),
 });
 export type RuleVersion = z.infer<typeof ruleVersionSchema>;
 
@@ -64,9 +68,8 @@ export const ruleSchema = z.object({
   type: ruleTypeSchema,
   status: ruleStatusSchema,
   origin: ruleOriginSchema,
-  policyId: z.string(),
-  regulationId: z.string(),
-  sourceProvision: z.string(),
+  /** M4: a rule may stand without an internal policy. */
+  policyId: z.string().nullable(),
   /** The approved version (content + config) that evaluations run. Null until a version is approved. */
   runningVersionNumber: z.number().int().positive().nullable(),
   versions: z.array(ruleVersionSchema),
@@ -90,8 +93,10 @@ export type WhitelistEntry = z.infer<typeof whitelistEntrySchema>;
 /** The config fields become the config of version 1. */
 export type CreateManualRuleInput = RuleConfig & {
   description: string;
-  policyId: string;
+  policyId: string | null;
   type: RuleType;
+  /** The legal basis of version 1 (M5); the backend needs at least one with a provision ref. */
+  legalBases: RuleLegalBasis[];
 };
 
 export type CreateRuleVersionInput = {

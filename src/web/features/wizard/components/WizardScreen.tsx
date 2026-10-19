@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingRing } from "@/components/ui/LoadingRing";
+import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState } from "@/components/ui/StateViews";
 import { useUpdatePolicyText } from "@/features/policies/api/hooks";
@@ -13,7 +14,12 @@ import { useRegulation } from "@/features/regulations/api/hooks";
 import type { Rule } from "@/features/rules/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
-import { useFinishRuleReview, useGeneratePolicyDraft, useGenerateRules } from "../api/hooks";
+import {
+  useFinishRuleReview,
+  useGeneratePolicyDraft,
+  useGenerateRules,
+  useWizardCapabilities,
+} from "../api/hooks";
 import type { GeneratePolicyInput, PolicyDraftResult } from "../types";
 import { AiProgress } from "./AiProgress";
 import { PolicyDraftStep } from "./PolicyDraftStep";
@@ -200,6 +206,23 @@ function WizardForRegulation({ regulationId }: { regulationId: string }) {
   );
 }
 
+function WizardContent({ regulationId }: { regulationId: string | null }) {
+  const { t } = useI18n();
+  const { isAvailable } = useWizardCapabilities();
+  if (!isAvailable) {
+    return (
+      <Notice tone="info" title={t.wizard.unavailableTitle}>
+        {t.wizard.unavailableMessage}
+      </Notice>
+    );
+  }
+  return regulationId ? (
+    <WizardForRegulation regulationId={regulationId} />
+  ) : (
+    <WizardFlow initialValues={{}} />
+  );
+}
+
 export function WizardScreen({ regulationId }: { regulationId: string | null }) {
   const { t } = useI18n();
   return (
@@ -209,7 +232,7 @@ export function WizardScreen({ regulationId }: { regulationId: string | null }) 
         title={t.wizard.title}
         description={t.wizard.subtitle}
       />
-      {regulationId ? <WizardForRegulation regulationId={regulationId} /> : <WizardFlow initialValues={{}} />}
+      <WizardContent regulationId={regulationId} />
     </>
   );
 }

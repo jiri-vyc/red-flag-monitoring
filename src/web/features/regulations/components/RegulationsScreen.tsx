@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import tableStyles from "@/components/ui/DataTable.module.css";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
+import { useWizardCapabilities } from "@/features/wizard/api/hooks";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDate } from "@/lib/format";
 
@@ -63,15 +64,19 @@ function RegulationsTable({ regulations }: { regulations: Regulation[] }) {
 export function RegulationsScreen() {
   const { t } = useI18n();
   const regulationsQuery = useRegulations();
+  // A regulation is added only through the wizard, which generates its policy and rules.
+  const { isAvailable: isWizardAvailable } = useWizardCapabilities();
   return (
     <>
       <PageHeader
         title={t.regulations.title}
         description={t.regulations.subtitle}
         actions={
-          <ButtonLink href="/wizard" icon={<Plus aria-hidden="true" />}>
-            {t.regulations.addRegulation}
-          </ButtonLink>
+          isWizardAvailable && (
+            <ButtonLink href="/wizard" icon={<Plus aria-hidden="true" />}>
+              {t.regulations.addRegulation}
+            </ButtonLink>
+          )
         }
       />
       <QueryView query={regulationsQuery}>

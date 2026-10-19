@@ -1,10 +1,11 @@
 "use client";
 
-import { Inbox, TriangleAlert, RotateCcw } from "lucide-react";
+import { Database, Inbox, TriangleAlert, RotateCcw } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/i18n/I18nProvider";
 import { isApiError } from "@/lib/apiError";
+import { useApiMode } from "@/providers/ApiModeProvider";
 
 import { Button } from "./Button";
 import { LoadingRing } from "./LoadingRing";
@@ -12,6 +13,7 @@ import styles from "./StateViews.module.css";
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useI18n();
+  const { apiMode, changeApiMode } = useApiMode();
   const title = isApiError(error) ? t.errors[error.kind] : t.common.errorTitle;
   const detail = error instanceof Error ? error.message : t.common.unknownError;
   return (
@@ -19,11 +21,23 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
       <TriangleAlert className={styles.icon} aria-hidden="true" />
       <h2 className={styles.title}>{title}</h2>
       <p className={styles.detail}>{detail}</p>
-      {onRetry && (
-        <Button variant="secondary" icon={<RotateCcw aria-hidden="true" />} onClick={onRetry}>
-          {t.common.retry}
-        </Button>
-      )}
+      <div className={styles.actions}>
+        {onRetry && (
+          <Button variant="secondary" icon={<RotateCcw aria-hidden="true" />} onClick={onRetry}>
+            {t.common.retry}
+          </Button>
+        )}
+        {/* An explicit way out of a failing API; the app never falls back to mock data on its own. */}
+        {apiMode === "live" && (
+          <Button
+            variant="secondary"
+            icon={<Database aria-hidden="true" />}
+            onClick={() => changeApiMode("mock")}
+          >
+            {t.common.switchToMock}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

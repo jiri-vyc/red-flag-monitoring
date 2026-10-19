@@ -2,6 +2,20 @@
 
 Odložené úkoly pro `src/web`. Nálezy jsou z code review první implementace (2026-10-19).
 
+## Záměrně skryté v UI (čeká na API)
+
+Každá sekce běží buď celá live, nebo celá na mocku. Co live API neumí, web skryje. Řídí to `capabilities` v kontraktu služby (`features/*/api/contract.ts`), UI je čte přes hooky (`useBatchesCapabilities`, `useRulesCapabilities`, `useWizardCapabilities`), nikdy podle režimu. Mock má vše `true`. Skrytý kód zůstává, metody live adapteru pro nepodporované operace dál hází `unsupported` jako pojistku. Sekce na mocku má v menu modrou tečku. Přepínač „Zdroj dat: Mock / Live“ v patičce menu přepne za běhu celý web (volba se pamatuje v prohlížeči, env určuje jen výchozí hodnotu). Mock zapne všechny funkce pro demo, Live se řídí env včetně přepisů jednotlivých služeb. Návrhy endpointů jsou v [backend-todo.md](backend-todo.md).
+
+| Capability                         | Co je v live režimu skryté                                                                                                                                                                                                            | Kde                                                                                                                                                                                                                                                                   | Backend      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `batches.canUploadBatch`           | Nahrání CSV (dropzone), tlačítko „Nahrát dávku“ na dashboardu. Dávky jsou jen seznam běhů s poznámkou, že běhy vytváří backend.                                                                                                       | `features/batches/components/BatchesScreen.tsx`, `features/dashboard/components/DashboardScreen.tsx`                                                                                                                                                                  | BE-01        |
+| `wizard.isAvailable`               | CTA „Vytvořit pravidlo z regulace“ na dashboardu, „Přidat regulaci“, „Vytvořit pravidla z této regulace“. `/wizard` ukáže hlášku o nedostupnosti. Průvodce je dostupný, jen když wizard, regulace, předpisy i pravidla běží na mocku. | `features/dashboard/components/DashboardScreen.tsx`, `features/regulations/components/RegulationsScreen.tsx`, `features/regulations/components/RegulationDetailScreen.tsx`, `features/wizard/components/WizardScreen.tsx`, výpočet v `features/wizard/api/service.ts` | BE-02, BE-03 |
+| `rules.canEditDraftContent`        | „Upravit koncept“ v detailu pravidla, „Upravit“ v review kroku průvodce.                                                                                                                                                              | `features/rules/components/RuleDetailScreen.tsx`, `features/wizard/components/RuleReviewStep.tsx`                                                                                                                                                                     | BE-05        |
+| `rules.canCreateDeterministicRule` | Volba „Deterministické“ v ručním formuláři, nabízí se jen agentní. Když nejde vytvořit žádný typ, zmizí i tlačítko „Nové pravidlo“.                                                                                                   | `features/rules/components/ManualRuleForm.tsx`, `features/rules/components/RulesScreen.tsx`                                                                                                                                                                           | BE-04        |
+| `rules.canSuggestWhitelistClients` | Návrhy ID klientů (`datalist` z demo seedu) při přidání do whitelistu.                                                                                                                                                                | `features/rules/components/RuleWhitelistCard.tsx`                                                                                                                                                                                                                     | BE-06        |
+
+Dashboard v live režimu není skrytý ani na mocku: web ho skládá z live endpointů (`features/dashboard/api/live.ts`). Pravidla bere přes live adapter pravidel (odvozené stavy), regulace a předpisy jen počítá (`GET /regulations`, `GET /internal-policies` bez verzí) a poslední dávky bere přes live adapter dávek (`GET /evaluation-runs`). Nikdy nesahá na mock služby, takže se data nemíchají a odkazy vedou na live ID. Vlastní endpoint je volitelný (BE-07).
+
 ## Minor nálezy z review
 
 - [ ] **Neznámá měna v mocku** (`mocks/evaluation/fxRates.ts`): `convertToCzk` měny mimo tabulku tiše přepočítá kurzem 1, takže prahová pravidla vyhodnotí částku špatně. Takový řádek označit jako neplatný, nebo ho dát do TO CHECK s poznámkou „neznámý kurz“. Na živém API je potřeba oficiální kurz (ČNB fixing), to je otevřená otázka pro compliance.
@@ -20,10 +34,13 @@ Odložené úkoly pro `src/web`. Nálezy jsou z code review první implementace 
 - [ ] **Focus ring klikacího řádku** (`BatchDetail.module.css`): spoléhá na `:has()`. Bezpečnější je outline na `.rowLink:focus-visible::after`.
 - [ ] **Kopírování z řádku transakce**: odkaz přes celý řádek brání označit a zkopírovat ID klienta nebo částku. Pokud to analytici potřebují, dát buňkám `position: relative; z-index: 1`.
 - [ ] **Kontrakt `passedRules`**: API musí u splněných pravidel vracet celé `RuleEvaluation[]` včetně trace, jinak Zod v `live.ts` shodí detail transakce.
-- [ ] **Návrhy klientů ve whitelistu** (`RuleWhitelistCard.tsx`): `datalist` bere `SEED_CLIENTS` z mocků, takže v live módu nabízí demo ID. Brát klienty z API, nebo nabídku zobrazit jen v mock módu.
-- [ ] **Audit odebrání z whitelistu** (spec M16): odebrání se má zapsat do audit logu, který FE zatím nemá. Schválení a pravidelná revize výjimek (benchmark ČNB 2/2023) taky chybí a musí je posoudit compliance.
+- [x] **Návrhy klientů ve whitelistu** (`RuleWhitelistCard.tsx`): demo ID ze `SEED_CLIENTS` se nabízí jen při `rules.canSuggestWhitelistClients` (mock). Návrhy z API čekají na BE-06.
+- [ ] **Audit odebrání z whitelistu** (spec M16): odebrání se má zapsat do audit logu, který FE zatím nemá (BE-13). Schválení a pravidelná revize výjimek (benchmark ČNB 2/2023) taky chybí a musí je posoudit compliance.
 - [ ] **Načítání whitelistu u zakázaných pravidel**: `useRuleWhitelist` se volá i při `whitelistAllowed = false`. Přidat `enabled: rule.whitelistAllowed`.
-- [ ] **Další rozdíly proti `spec/datovy-model.md`**: risk profil `unknown` (M15 zná jen low/medium/high), verze předpisu a M:N vazba předpis–regulace (M3), nepovinný předpis u pravidla (M4), znění regulace (M1), právní základ s `ref` u každé verze pravidla (M5), referenční seznamy (M9), `base_score` (M7), `code` a `alert_type` u pravidla.
+- [ ] **Další rozdíly proti `spec/datovy-model.md`**: risk profil `unknown` (M15 zná jen low/medium/high), verze předpisu, znění regulace (M1), referenční seznamy (M9), `base_score` (M7), `code` a `alert_type` u pravidla.
+- [x] **Vazby regulace, předpis a pravidlo (M3 až M5)**: předpis cituje 0..N regulací s volitelným `ref`, pravidlo nemusí mít předpis a každá verze pravidla má vlastní právní základ. Mock klíč je `database.v4`.
+- [ ] **Výběr znění regulace v právním základu**: ruční pravidlo vždy cituje nejnovější znění (M1). Výběr staršího znění a upozornění na pravidla stojící na starém znění zatím chybí.
+- [ ] **Úprava právního základu u nové verze pravidla**: nová verze přebírá právní základ verze, ze které vychází. Formulář nové verze ho změnit neumí.
 - [x] **Starý klíč v localStorage**: opraveno. Reset i neplatná data smažou všechny klíče `redflag.mock.*`.
 - [ ] **Validace mock dat** (`mockDatabase.ts`): `batches[].startedAtMs/durationMs`, obsah `ruleSnapshots`, hodnoty `ruleCheckKinds` (zatím jen `z.string()`) a řádky dávek (jen `Array.isArray`) se nevalidují. Při další změně jejich tvaru hrozí stejný pád jako u `sensitivity`.
 
@@ -39,9 +56,27 @@ Odložené úkoly pro `src/web`. Nálezy jsou z code review první implementace 
 
 ## Chybějící funkce
 
-- [ ] **Audit log**: sekce se všemi akcemi (vytvoření, úprava, schválení a zamítnutí pravidla, nová verze, vyhodnocení dávky, rozhodnutí o AML události). U každé akce kdo, kdy, co, proč a verze pravidla. Podle spec je povinný (sekce 7.7 a 8).
-- [ ] **AML události**: seznam a detail (triage FP/REVIEW, priorita 0–100, odpovědná osoba, schvalovatel, stav) a export do povinného CSV podle spec sekce 6. Zpracování událostí je ve spec nice-to-have.
-- [ ] **Klienti**: detail klienta s risk profilem, PEP, AML risk score, projektovanými a historickými objemy a historií transakcí. Proklik z detailu transakce.
-- [ ] **Zkontrolovat aktualizace regulací**: tlačítko na dashboardu a u regulací. Pro dotčená pravidla navrhne nové verze ve stavu `update_for_review`. Mock to jen simuluje, scraping je mimo MVP.
+- [ ] **Audit log** (BE-13): sekce se všemi akcemi (vytvoření, úprava, schválení a zamítnutí pravidla, nová verze, vyhodnocení dávky, rozhodnutí o AML události). U každé akce kdo, kdy, co, proč a verze pravidla. Podle spec je povinný (sekce 7.7 a 8).
+- [ ] **AML události** (BE-14): seznam a detail (triage FP/REVIEW, priorita 0-100, odpovědná osoba, schvalovatel, stav) a export do povinného CSV podle spec sekce 6. Zpracování událostí je ve spec nice-to-have.
+- [ ] **Klienti** (BE-15): detail klienta s risk profilem, PEP, AML risk score, projektovanými a historickými objemy a historií transakcí. Proklik z detailu transakce.
+- [ ] **Zkontrolovat aktualizace regulací** (BE-16): tlačítko na dashboardu a u regulací. Pro dotčená pravidla navrhne nové verze ve stavu `update_for_review`. Mock to jen simuluje, scraping je mimo MVP.
 - [ ] **Mazání dávek**: hlavně kvůli limitu localStorage v mocku (dnes se při zaplnění musí udělat reset demo dat).
-- [ ] **Prahy a konfigurace vyhodnocení z API**: prahy (fail ≥ 40, alert ≥ 75), seznam vysoce rizikových zemí a kurzy jsou zatím demo hodnoty v mocku. Až je bude dodávat API, převzít je odtud.
+- [ ] **Prahy a konfigurace vyhodnocení z API** (BE-17): prahy (fail ≥ 40, alert ≥ 75), seznam vysoce rizikových zemí a kurzy jsou zatím demo hodnoty v mocku. Až je bude dodávat API, převzít je odtud.
+
+## Live napojení na backend (review 2026-10-19)
+
+- [ ] **Neatomické schválení** (`rules/api/live.ts`, `approveRule`): sekvence submit → review → PUT active-version → enable. Když selže krok po review, verze zůstane `approved`, ale ne aktivní, a UI ji nedokáže dodatečně aktivovat. Při opakování povolit aktivaci poslední schválené, zatím neaktivní verze.
+- [ ] **Test, že schválení znovu nezapne vypnuté pravidlo**: namockovat `requestJson` a ověřit, že při `activeVersionId != null` se nevolá `/enable`. Zároveň sjednotit mock (`ruleLifecycle.approveRule` pravidlo zapíná vždy).
+- [ ] **Dvojí načtení pravidla v `approveRule`**: stačí jedno `fetchRuleWithVersions`.
+- [ ] **Ruční pravidlo bez verze** (`createManualRule`): když po `POST /rules` selže vytvoření verze, zůstane v `main` pravidlo bez verze. Seznam ho jen skryje.
+- [ ] **Stav předpisu** (`policies/api/live.ts`): bere se jen poslední verze. Když je v1 approved a v2 rejected, předpis se ukáže jako draft. Doplnit fallback na poslední schválenou verzi (BE-11).
+- [ ] **Agentní pravidlo**: při úpravě promptu zůstává `humanText` ze staré verze.
+- [ ] **N+1 requesty** při načítání regulací, předpisů a pravidel (každá položka se načítá s verzemi zvlášť). Při velkém objemu dat a studeném startu Aurory to bude pomalé, vyřešit agregovaným endpointem na backendu (BE-12). Live dashboard načítá verze jen u pravidel (kvůli stavům), takže N+1 platí i pro něj.
+- [ ] **Cursor u dávek**: `Number(cursor)` dá u nevalidní hodnoty NaN a backend vrátí 400.
+- [ ] **Zpráva u chyby 400** (`httpClient.ts`): zahazují se `issues` z backendu a uživatel vidí jen „Invalid request“.
+- [x] **Komentář k zamítnutí**: zamítnutí pravidla (detail i průvodce) otevře panel s povinným důvodem (`RejectRulePanel.tsx`). Důvod jde přes `rejectRule({ ruleId, comment })` do live jako `reviewComment`. Mock ho jen validuje, protože webový model verze komentář nemá. Konstanta `REJECTION_COMMENT` je pryč. Zobrazení komentáře v historii verzí zatím chybí.
+- [x] **Dashboard na mocku**: `NEXT_PUBLIC_API_MODE_DASHBOARD=mock` už v doporučeném nastavení není. Live dashboard se skládá z live endpointů (viz odstavec pod tabulkou nahoře), test `features/dashboard/api/live.test.ts`.
+- [x] **Úprava draftu pravidla a ruční deterministické pravidlo**: v live módu jsou skryté přes `rules.canEditDraftContent` a `rules.canCreateDeterministicRule` (viz tabulka nahoře, BE-04 a BE-05). Live adapter dál hází `unsupported` jako pojistku.
+- [ ] **Model agentního ručního pravidla**: placeholder `eu.anthropic.claude-sonnet-4-5-20250929-v1:0`. Ověřit, jaký model má backend používat (BE-04).
+- [ ] **Deaktivace během `update_for_review`**: UI nenabízí vypnutí běžícího pravidla, dokud čeká update.
+- [ ] **Chybějící pole z backendu**: popis regulace (BE-08), CZK částka v seznamu transakcí (BE-09), právní základ v detailu transakce (BE-10), stavy předpisu pending_review/rejected (BE-11).

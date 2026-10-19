@@ -8,7 +8,7 @@ import { KeyValueList } from "@/components/ui/KeyValueList";
 import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
-import { RegulationLink } from "@/features/regulations/components/RegulationLink";
+import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useRules } from "@/features/rules/api/hooks";
 import { RuleStatusBadge, RuleTypeBadge } from "@/features/rules/components/RuleBadges";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -76,10 +76,9 @@ function PolicyDetail({ policy }: { policy: Policy }) {
         <KeyValueList
           items={[
             {
-              label: t.common.sourceRegulation,
-              value: <RegulationLink regulationId={policy.regulationId} />,
+              label: t.common.legalBasis,
+              value: <LegalBasisList legalBases={policy.legalBases} emptyLabel={t.policies.internalPolicy} />,
             },
-            { label: t.common.sourceProvision, value: policy.sourceProvision },
             { label: t.common.updated, value: formatDateTime(policy.updatedAt, locale) },
             {
               label: t.policies.approvedBy,

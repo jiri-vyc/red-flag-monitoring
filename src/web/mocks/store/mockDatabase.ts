@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { Batch, BatchTransaction } from "@/features/batches/types";
+import type { Batch, BatchTransaction, Transaction } from "@/features/batches/types";
 import { policySchema, type Policy } from "@/features/policies/types";
 import { regulationSchema, type Regulation } from "@/features/regulations/types";
 import { ruleSchema, whitelistEntrySchema, type Rule, type WhitelistEntry } from "@/features/rules/types";
@@ -32,16 +32,20 @@ export type MockDatabase = {
   batches: MockBatchRecord[];
 };
 
-export type MockSeed = { database: MockDatabase; batchRows: Record<string, BatchTransaction[]> };
+/** The mock engine re-evaluates stored rows, so it keeps the full transaction with its CZK amount. */
+export type MockBatchRow = BatchTransaction & { transaction: Transaction };
+
+export type MockSeed = { database: MockDatabase; batchRows: Record<string, MockBatchRow[]> };
 
 const MOCK_KEY_PREFIX = "redflag.mock.";
 // v2: sensitivity, risk profiles and whitelist moved from the rule into each rule version.
 // v3: whitelist moved out of rule versions into rule-level entries with a reason (data model M16).
-const DATABASE_KEY = `${MOCK_KEY_PREFIX}database.v3`;
+// v4: policies cite 0..N regulations, rule versions carry their own legal bases, a rule's policy is optional (M3-M5).
+const DATABASE_KEY = `${MOCK_KEY_PREFIX}database.v4`;
 const BATCH_ROWS_KEY_PREFIX = `${MOCK_KEY_PREFIX}batch-rows.v1.`;
 
 let cachedDatabase: MockDatabase | null = null;
-const cachedBatchRows = new Map<string, BatchTransaction[]>();
+const cachedBatchRows = new Map<string, MockBatchRow[]>();
 
 function getStorage(): Storage {
   if (typeof window === "undefined") {
@@ -131,18 +135,18 @@ export function writeMockDatabase(database: MockDatabase): void {
   cachedDatabase = database;
 }
 
-export function readBatchRows(batchId: string): BatchTransaction[] {
+export function readBatchRows(batchId: string): MockBatchRow[] {
   const cachedRows = cachedBatchRows.get(batchId);
   if (cachedRows) {
     return cachedRows;
   }
   const storedRows = readStorageItem(`${BATCH_ROWS_KEY_PREFIX}${batchId}`);
-  const rows = Array.isArray(storedRows) ? (storedRows as BatchTransaction[]) : [];
+  const rows = Array.isArray(storedRows) ? (storedRows as MockBatchRow[]) : [];
   cachedBatchRows.set(batchId, rows);
   return rows;
 }
 
-export function writeBatchRows(batchId: string, rows: BatchTransaction[]): void {
+export function writeBatchRows(batchId: string, rows: MockBatchRow[]): void {
   writeStorageItem(`${BATCH_ROWS_KEY_PREFIX}${batchId}`, rows);
   cachedBatchRows.set(batchId, rows);
 }

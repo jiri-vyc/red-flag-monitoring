@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 
 import { CURRENT_USER } from "@/config/currentUser";
 import { assertUnreachable } from "@/lib/assertUnreachable";
+import { selectServiceImplementation } from "@/config/apiMode";
+import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
 import type { RuleAction } from "../domain/ruleLifecycle";
@@ -15,7 +17,8 @@ import type {
   Rule,
   UpdateDraftContentInput,
 } from "../types";
-import { rulesService } from "./service";
+import type { RulesCapabilities } from "./contract";
+import { rulesImplementations, rulesService } from "./service";
 
 export const ruleQueryKeys = {
   all: ["rules"] as const,
@@ -23,7 +26,8 @@ export const ruleQueryKeys = {
   whitelist: (ruleId: string) => ["rules", ruleId, "whitelist"] as const,
 };
 
-export type RuleTransitionAction = Exclude<RuleAction, "create_version">;
+// A rejection needs a reason, so it has its own mutation (useRejectRule).
+export type RuleTransitionAction = Exclude<RuleAction, "create_version" | "reject">;
 
 // Rule changes affect counters and relations shown on other screens too.
 function invalidateRuleRelatedQueries(queryClient: QueryClient) {
@@ -47,8 +51,6 @@ function runRuleTransition({
       return rulesService.submitRuleForReview(ruleId);
     case "approve":
       return rulesService.approveRule({ ruleId, reviewer: CURRENT_USER.name });
-    case "reject":
-      return rulesService.rejectRule({ ruleId, reviewer: CURRENT_USER.name });
     case "activate":
       return rulesService.activateRule(ruleId);
     case "deactivate":
@@ -56,6 +58,12 @@ function runRuleTransition({
     default:
       return assertUnreachable(action);
   }
+}
+
+/** Follows the data source selected in the sidebar. */
+export function useRulesCapabilities(): RulesCapabilities {
+  const { apiMode } = useApiMode();
+  return selectServiceImplementation("rules", rulesImplementations, apiMode).capabilities;
 }
 
 export function useRules() {
@@ -72,6 +80,15 @@ export function useRuleTransition() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: runRuleTransition,
+    onSuccess: () => invalidateRuleRelatedQueries(queryClient),
+  });
+}
+
+export function useRejectRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ruleId, comment }: { ruleId: string; comment: string }) =>
+      rulesService.rejectRule({ ruleId, comment, reviewer: CURRENT_USER.name }),
     onSuccess: () => invalidateRuleRelatedQueries(queryClient),
   });
 }

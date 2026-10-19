@@ -3,7 +3,8 @@ import { z } from "zod";
 import { riskProfileSchema, ruleTypeSchema, type CreateManualRuleInput, type RuleConfig } from "./types";
 
 /** Error messages are dictionary keys under `ruleForm`, so the form can show them in the current language. */
-export type ManualRuleFormErrorKey = "validationDescription" | "validationPolicy" | "validationRiskProfiles";
+export type ManualRuleFormErrorKey =
+  "validationDescription" | "validationLegalBases" | "validationRiskProfiles";
 
 /** Config fields as edited in a form. */
 export type RuleConfigFormValues = {
@@ -11,10 +12,15 @@ export type RuleConfigFormValues = {
   riskProfiles: RuleConfig["riskProfiles"];
 };
 
+/** One legal basis row of the form; an empty regulation id means none is selected yet. */
+export type LegalBasisFormValues = { regulationId: string; ref: string };
+
 export type ManualRuleFormValues = RuleConfigFormValues & {
   description: string;
+  /** Empty when the rule stands without a policy (M4). */
   policyId: string;
   type: CreateManualRuleInput["type"];
+  legalBases: LegalBasisFormValues[];
 };
 
 export function toRuleConfigFormValues(config: RuleConfig): RuleConfigFormValues {
@@ -29,10 +35,17 @@ const ruleConfigFormSchema = z.object({
   riskProfiles: z.array(riskProfileSchema).min(1, "validationRiskProfiles"),
 });
 
+// M5: like the backend, a rule version needs 1..N legal bases, each with a regulation and a provision ref.
+const legalBasisFormSchema = z.object({
+  regulationId: z.string().min(1, "validationLegalBases"),
+  ref: z.string().trim().min(1, "validationLegalBases"),
+});
+
 const manualRuleFormSchema = ruleConfigFormSchema.extend({
   description: z.string().trim().min(10, "validationDescription"),
-  policyId: z.string().min(1, "validationPolicy"),
+  policyId: z.string().transform((policyId) => (policyId === "" ? null : policyId)),
   type: ruleTypeSchema,
+  legalBases: z.array(legalBasisFormSchema).min(1, "validationLegalBases"),
 });
 
 type FormErrors<Values> = Partial<Record<keyof Values, ManualRuleFormErrorKey>>;
@@ -46,7 +59,7 @@ export type RuleConfigFormErrors = FormErrors<RuleConfigFormValues>;
 
 const FIELD_BY_SCHEMA_KEY: Record<string, keyof ManualRuleFormValues> = {
   description: "description",
-  policyId: "policyId",
+  legalBases: "legalBases",
   riskProfiles: "riskProfiles",
 };
 

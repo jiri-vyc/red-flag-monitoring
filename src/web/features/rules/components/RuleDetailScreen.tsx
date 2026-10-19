@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowRight,
   CircleCheck,
   CirclePause,
   CirclePlay,
@@ -21,18 +20,20 @@ import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState, QueryView } from "@/components/ui/StateViews";
 import { PolicyLink } from "@/features/policies/components/PolicyLink";
-import { RegulationLink } from "@/features/regulations/components/RegulationLink";
+import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useI18n } from "@/i18n/I18nProvider";
 
 import {
   useCreateRuleVersion,
   useRule,
+  useRulesCapabilities,
   useRuleTransition,
   useUpdateDraftContent,
   type RuleTransitionAction,
 } from "../api/hooks";
 import {
   findPendingVersion,
+  findRuleLegalBases,
   findRunningVersion,
   getAvailableRuleActions,
   getChangedConfigFields,
@@ -51,6 +52,7 @@ import { RuleConfigFields } from "./RuleConfigFields";
 import { RuleConfigView } from "./RuleConfigView";
 import { RuleContentEditor } from "./RuleContentEditor";
 import { RuleContentView } from "./RuleContentView";
+import { RejectRulePanel } from "./RejectRulePanel";
 import styles from "./RuleDetailScreen.module.css";
 import { RuleVersionHistory } from "./RuleVersionHistory";
 import { RuleWhitelistCard } from "./RuleWhitelistCard";
@@ -58,7 +60,6 @@ import { RuleWhitelistCard } from "./RuleWhitelistCard";
 const TRANSITION_BUTTONS: Record<RuleTransitionAction, { variant: ButtonVariant; icon: ReactNode }> = {
   submit_for_review: { variant: "primary", icon: <Send aria-hidden="true" /> },
   approve: { variant: "success", icon: <CircleCheck aria-hidden="true" /> },
-  reject: { variant: "danger", icon: <CircleX aria-hidden="true" /> },
   activate: { variant: "success", icon: <CirclePlay aria-hidden="true" /> },
   deactivate: { variant: "secondary", icon: <CirclePause aria-hidden="true" /> },
 };
@@ -72,8 +73,12 @@ function isTransitionAction(action: string): action is RuleTransitionAction {
 function RuleActions({ rule, onOpenEditor }: { rule: Rule; onOpenEditor: (mode: EditorMode) => void }) {
   const { t } = useI18n();
   const transitionMutation = useRuleTransition();
+  const { canEditDraftContent } = useRulesCapabilities();
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [isRejectDone, setIsRejectDone] = useState(false);
   const availableActions = getAvailableRuleActions(rule);
-  const canEditDraft = rule.status === "draft";
+  const canEditDraft = rule.status === "draft" && canEditDraftContent;
+  const isBusy = transitionMutation.isPending || isRejecting;
 
   return (
     <div className={styles.actions}>
@@ -83,12 +88,29 @@ function RuleActions({ rule, onOpenEditor }: { rule: Rule; onOpenEditor: (mode: 
             key={action}
             variant={TRANSITION_BUTTONS[action].variant}
             icon={TRANSITION_BUTTONS[action].icon}
-            disabled={transitionMutation.isPending}
-            onClick={() => transitionMutation.mutate({ ruleId: rule.id, action })}
+            disabled={isBusy}
+            onClick={() => {
+              setIsRejectDone(false);
+              transitionMutation.mutate({ ruleId: rule.id, action });
+            }}
           >
             {t.rules.action[action]}
           </Button>
         ))}
+        {availableActions.includes("reject") && (
+          <Button
+            variant="danger"
+            icon={<CircleX aria-hidden="true" />}
+            disabled={isBusy}
+            onClick={() => {
+              transitionMutation.reset();
+              setIsRejectDone(false);
+              setIsRejecting(true);
+            }}
+          >
+            {t.rules.action.reject}
+          </Button>
+        )}
         {canEditDraft && (
           <Button
             variant="secondary"
@@ -108,7 +130,17 @@ function RuleActions({ rule, onOpenEditor }: { rule: Rule; onOpenEditor: (mode: 
           </Button>
         )}
       </div>
-      {transitionMutation.isSuccess && (
+      {isRejecting && (
+        <RejectRulePanel
+          ruleId={rule.id}
+          onCancel={() => setIsRejecting(false)}
+          onRejected={() => {
+            setIsRejecting(false);
+            setIsRejectDone(true);
+          }}
+        />
+      )}
+      {(transitionMutation.isSuccess || isRejectDone) && (
         <p className={styles.successNote} role="status">
           {t.rules.actionDone}
         </p>
@@ -156,15 +188,19 @@ function RuleConfiguration({ rule }: { rule: Rule }) {
   );
 }
 
+/** M4, M5: the policy is optional and the legal basis belongs to the running (else newest) version. */
 function RuleSourceChain({ rule }: { rule: Rule }) {
   const { t } = useI18n();
   return (
     <div className={styles.sourceChain} aria-label={t.rules.sourceChain}>
-      <RegulationLink regulationId={rule.regulationId} />
-      <ArrowRight aria-hidden="true" />
-      <PolicyLink policyId={rule.policyId} />
-      <ArrowRight aria-hidden="true" />
-      <span className={styles.provision}>{rule.sourceProvision}</span>
+      <span className={styles.sourceLabel}>{t.common.legalBasis}</span>
+      <LegalBasisList legalBases={findRuleLegalBases(rule)} emptyLabel={t.rules.noLegalBasis} />
+      <span className={styles.sourceLabel}>{t.rules.policy}</span>
+      {rule.policyId === null ? (
+        <span className={styles.noPolicy}>{t.rules.noPolicy}</span>
+      ) : (
+        <PolicyLink policyId={rule.policyId} />
+      )}
     </div>
   );
 }
@@ -300,6 +336,10 @@ function RuleDetail({ rule }: { rule: Rule }) {
         <div>
           <h3 className={configStyles.sectionTitle}>{t.rules.versionConfiguration}</h3>
           <RuleConfigView config={selectedVersion.config} />
+        </div>
+        <div>
+          <h3 className={configStyles.sectionTitle}>{t.rules.legalBasisOfVersion}</h3>
+          <LegalBasisList legalBases={selectedVersion.legalBases} emptyLabel={t.rules.noLegalBasis} />
         </div>
         <Notice tone="ai" title={t.aiNotice.title}>
           {t.aiNotice.body}

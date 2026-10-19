@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import tableStyles from "@/components/ui/DataTable.module.css";
+import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 
@@ -52,6 +53,7 @@ export function RuleVersionHistory({
               <th scope="col">{t.common.version}</th>
               <th scope="col">{t.common.status}</th>
               <th scope="col">{t.rules.configColumn}</th>
+              <th scope="col">{t.common.legalBasis}</th>
               <th scope="col">{t.rules.createdBy}</th>
               <th scope="col">{t.rules.approvedBy}</th>
               <th scope="col">{t.rules.changeNote}</th>
@@ -74,6 +76,9 @@ export function RuleVersionHistory({
                 </td>
                 <td>
                   <VersionConfigSummary config={version.config} />
+                </td>
+                <td>
+                  <LegalBasisList legalBases={version.legalBases} emptyLabel={t.rules.noLegalBasis} />
                 </td>
                 <td>
                   <span className={tableStyles.primaryCell}>

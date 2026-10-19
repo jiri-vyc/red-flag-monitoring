@@ -140,7 +140,10 @@ function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEv
               },
               {
                 label: t.transactionDetail.amountCzk,
-                value: formatAmount({ amount: transaction.amountCzk, currency: "CZK", locale }),
+                value:
+                  transaction.amountCzk === null
+                    ? t.common.noData
+                    : formatAmount({ amount: transaction.amountCzk, currency: "CZK", locale }),
               },
               { label: t.transactionDetail.type, value: transaction.transactionType },
               {

@@ -1,6 +1,11 @@
-import type { z } from "zod";
+import { z } from "zod";
 
 import { ApiError } from "./apiError";
+
+// The backend rejects invalid input (400), conflicting state (409) and business rule violations (422).
+const VALIDATION_STATUSES = [400, 409, 422];
+
+const backendErrorBodySchema = z.object({ error: z.string() });
 
 type RequestOptions<TSchema extends z.ZodType> = {
   path: string;
@@ -35,6 +40,13 @@ async function sendRequest(path: string, init: RequestInit): Promise<Response> {
   }
 }
 
+/** The backend error handler answers `{ error }`; anything else (e.g. a proxy error page) yields null. */
+async function readBackendErrorMessage(response: Response): Promise<string | null> {
+  const responseBody: unknown = await response.json().catch(() => undefined);
+  const parseResult = backendErrorBodySchema.safeParse(responseBody);
+  return parseResult.success ? parseResult.data.error : null;
+}
+
 /** Calls the backend through the /api proxy and validates the response DTO. Never falls back to mock data. */
 export async function requestJson<TSchema extends z.ZodType>(
   options: RequestOptions<TSchema>,
@@ -45,10 +57,11 @@ export async function requestJson<TSchema extends z.ZodType>(
     throw new ApiError({ kind: "not_found", status: 404, message: `Not found: /api${options.path}` });
   }
   if (!response.ok) {
+    const backendMessage = await readBackendErrorMessage(response);
     throw new ApiError({
-      kind: "http",
+      kind: VALIDATION_STATUSES.includes(response.status) ? "validation" : "http",
       status: response.status,
-      message: `Backend responded ${response.status} ${response.statusText} for /api${options.path}`,
+      message: `Backend responded ${response.status} ${response.statusText} for /api${options.path}${backendMessage ? `: ${backendMessage}` : ""}`,
     });
   }
 

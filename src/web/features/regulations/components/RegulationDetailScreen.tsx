@@ -13,12 +13,22 @@ import { usePolicies } from "@/features/policies/api/hooks";
 import { PolicyStatusBadge } from "@/features/policies/components/PolicyBadges";
 import { useRules } from "@/features/rules/api/hooks";
 import { RuleStatusBadge } from "@/features/rules/components/RuleBadges";
+import { findRuleLegalBases } from "@/features/rules/domain/ruleLifecycle";
+import { useWizardCapabilities } from "@/features/wizard/api/hooks";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 
 import { useRegulation } from "../api/hooks";
-import type { Regulation } from "../types";
+import { formatLegalBasisRefs, type LegalBasis, type Regulation } from "../types";
 import styles from "./RegulationDetailScreen.module.css";
+
+/** The provisions of this regulation that a policy or rule cites (M3, M5). */
+function CitedRefs({ legalBases, regulationId }: { legalBases: LegalBasis[]; regulationId: string }) {
+  const refs = formatLegalBasisRefs(
+    legalBases.filter((legalBasis) => legalBasis.regulationId === regulationId),
+  );
+  return refs === "" ? null : <span className={styles.citedRefs}>{refs}</span>;
+}
 
 function RelatedPolicies({ regulation }: { regulation: Regulation }) {
   const { t } = useI18n();
@@ -43,6 +53,7 @@ function RelatedPolicies({ regulation }: { regulation: Regulation }) {
               {relatedPolicies.map((policy) => (
                 <li key={policy.id}>
                   <Link href={`/policies/${policy.id}`}>{policy.name}</Link>
+                  <CitedRefs legalBases={policy.legalBases} regulationId={regulation.id} />
                   <PolicyStatusBadge status={policy.status} />
                 </li>
               ))}
@@ -77,6 +88,7 @@ function RelatedRules({ regulation }: { regulation: Regulation }) {
               {relatedRules.map((rule) => (
                 <li key={rule.id}>
                   <Link href={`/rules/${rule.id}`}>{rule.name}</Link>
+                  <CitedRefs legalBases={findRuleLegalBases(rule)} regulationId={regulation.id} />
                   <RuleStatusBadge status={rule.status} />
                 </li>
               ))}
@@ -90,6 +102,7 @@ function RelatedRules({ regulation }: { regulation: Regulation }) {
 
 function RegulationDetail({ regulation }: { regulation: Regulation }) {
   const { t, locale } = useI18n();
+  const { isAvailable: isWizardAvailable } = useWizardCapabilities();
   return (
     <>
       <PageHeader
@@ -98,9 +111,11 @@ function RegulationDetail({ regulation }: { regulation: Regulation }) {
         meta={<Badge tone="primary">{t.jurisdiction[regulation.jurisdiction]}</Badge>}
         description={regulation.name}
         actions={
-          <ButtonLink href={`/wizard?regulationId=${regulation.id}`} icon={<Sparkles aria-hidden="true" />}>
-            {t.regulations.createRules}
-          </ButtonLink>
+          isWizardAvailable && (
+            <ButtonLink href={`/wizard?regulationId=${regulation.id}`} icon={<Sparkles aria-hidden="true" />}>
+              {t.regulations.createRules}
+            </ButtonLink>
+          )
         }
       />
       <Card>

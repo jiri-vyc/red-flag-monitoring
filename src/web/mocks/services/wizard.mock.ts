@@ -1,3 +1,4 @@
+import type { RuleLegalBasis } from "@/features/regulations/types";
 import type { Rule } from "@/features/rules/types";
 import { submitRuleForReview } from "@/features/rules/domain/ruleLifecycle";
 import type { WizardService } from "@/features/wizard/api/contract";
@@ -7,12 +8,18 @@ import { createMockId } from "../createMockId";
 import {
   buildGeneratedPolicy,
   buildGeneratedRegulation,
+  GENERAL_PROVISIONS_REF,
   WIZARD_RULE_BLUEPRINTS,
 } from "../generation/policyGeneration";
 import { deriveRuleName, generateRuleDraft } from "../generation/ruleGeneration";
 import { AI_GENERATION_LATENCY, simulateLatency } from "../latency";
 import { throwMockNotFound } from "../notFound";
-import { readMockDatabase, writeMockDatabase, type MockRegulationRecord } from "../store/mockDatabase";
+import {
+  readMockDatabase,
+  writeMockDatabase,
+  type MockPolicyRecord,
+  type MockRegulationRecord,
+} from "../store/mockDatabase";
 import { mapPolicyRecord, mapRegulationRecord } from "./mappers";
 
 const GENERATED_BY = "RedFlag AI (návrh)";
@@ -31,7 +38,17 @@ function findPolicyRecord(policyId: string) {
   return policy ?? throwMockNotFound("Internal policy", policyId);
 }
 
+/** M5: a rule version names its own provision; the wizard proposes the policy's citations, reviewed with the rule. */
+function proposeRuleLegalBases(policy: MockPolicyRecord): RuleLegalBasis[] {
+  return policy.legalBases.map(({ regulationId, ref }) => ({
+    regulationId,
+    ref: ref ?? GENERAL_PROVISIONS_REF,
+  }));
+}
+
 export const mockWizardService: WizardService = {
+  capabilities: { isAvailable: true },
+
   async generatePolicyDraft({ source, regulationName }) {
     await simulateLatency(AI_GENERATION_LATENCY);
     const now = new Date().toISOString();
@@ -58,6 +75,7 @@ export const mockWizardService: WizardService = {
     await simulateLatency(AI_GENERATION_LATENCY);
     const policy = findPolicyRecord(policyId);
     const now = new Date().toISOString();
+    const legalBases = proposeRuleLegalBases(policy);
     const generated = WIZARD_RULE_BLUEPRINTS.map((blueprint) => {
       const draft = generateRuleDraft({ description: blueprint.description, type: blueprint.type });
       const rule: Rule = {
@@ -68,8 +86,6 @@ export const mockWizardService: WizardService = {
         status: "draft",
         origin: "wizard",
         policyId,
-        regulationId: policy.regulationId,
-        sourceProvision: policy.sourceProvision,
         runningVersionNumber: null,
         versions: [
           {
@@ -85,6 +101,7 @@ export const mockWizardService: WizardService = {
             createdBy: GENERATED_BY,
             reviewedBy: null,
             reviewedAt: null,
+            legalBases,
           },
         ],
         whitelistAllowed: true,
