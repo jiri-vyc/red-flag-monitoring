@@ -8,6 +8,15 @@
       "port": 4000
     },
     {
+      "name": "backend-docker",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd src/backend && DATABASE_AUTH=password DATABASE_URL=postgres://red_flag:red_flag_local@localhost:5434/red_flag_monitoring PORT=4200 npx tsx --env-file-if-exists=.env src/main.ts"
+      ],
+      "port": 4200
+    },
+    {
       "name": "web",
       "runtimeExecutable": "sh",
       "runtimeArgs": ["-c", "cd src/web && npx next dev --port 3100"],
