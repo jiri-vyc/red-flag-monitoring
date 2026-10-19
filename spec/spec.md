@@ -249,7 +249,7 @@ Po uložení jde pravidlo do stavu `pending_for_review`.
 - Data nesmí opustit hackathon prostředí bez schválení člověkem.
 - Výkon není v MVP omezení (P1 11:26). Celý dataset ale musí doběhnout v čase použitelném pro demo.
 
-## 9. Mimo rozsah MVP
+## 9. Mimo rozsah MVP (out of scope)
 
 - Live prevention mód.
 - Batching nebo inkrementální vyhodnocení (např. jednou za hodinu per klient).
@@ -259,6 +259,8 @@ Po uložení jde pravidlo do stavu `pending_for_review`.
 - Časová platnost pravidel (datum od–do).
 - Citlivost per risk profil.
 - Výstup pravidla jiný než skóre 0–100.
+- Konvertování a zpracování PDF regulací na vstupu
+- Monitoring metodických pokynů ČNB ke konkrétním hackům/incidentům -> vytvoříme pravidlo, zkontrolujeme
 
 ## 10. Otevřené otázky
 
