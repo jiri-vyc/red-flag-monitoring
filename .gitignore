@@ -1,0 +1,3 @@
+spec/audio/
+.venv/
+.DS_Store
