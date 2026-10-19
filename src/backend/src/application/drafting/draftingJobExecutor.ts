@@ -36,13 +36,22 @@ export class DraftingJobExecutor {
       return;
     }
 
+    const startedAt = clock();
+
+    console.log(`Drafting job ${jobId} (${job.kind}) started, attempt ${job.attempts}`);
+
     try {
       if (job.kind === "policy_from_regulation") {
         await this.draftPolicies(job);
       } else {
         await this.draftRules(job);
       }
+
+      console.log(`Drafting job ${jobId} succeeded after ${formatDuration(startedAt, clock())}`);
     } catch (error) {
+      console.error(
+        `Drafting job ${jobId} failed after ${formatDuration(startedAt, clock())}: ${toErrorMessage(error)}`,
+      );
       await draftingJobRepository.markJobFailed({
         jobId,
         errorMessage: toErrorMessage(error),
@@ -195,4 +204,8 @@ function requireValue<Value>(value: Value | null, field: string, job: DraftingJo
   }
 
   return value;
+}
+
+function formatDuration(startedAt: Date, finishedAt: Date): string {
+  return `${((finishedAt.getTime() - startedAt.getTime()) / 1000).toFixed(1)}s`;
 }

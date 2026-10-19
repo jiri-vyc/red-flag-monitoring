@@ -20,7 +20,12 @@ import type { PolicyLegalBasis, Regulation, RegulationVersion } from "../../doma
 import { logTokenUsage, readCompleteText } from "./modelResponse";
 import { createPolicyDraftingUserPrompt, POLICY_DRAFTING_SYSTEM_PROMPT } from "./policyDraftingPrompt";
 import { createRuleDraftingUserPrompt, RULE_DRAFTING_SYSTEM_PROMPT } from "./ruleDraftingPrompt";
-import { mapRuleProposalToDraft, parseRuleProposals, ruleProposalsJsonSchema } from "./ruleProposal";
+import {
+  mapRuleProposalToDraft,
+  parseRuleProposals,
+  type RuleProposal,
+  ruleProposalsJsonSchema,
+} from "./ruleProposal";
 
 // The approved policy every draft imitates in structure and tone (seeded from the knowledge base).
 const EXAMPLE_POLICY_CODE = "SVZ-06";
@@ -135,11 +140,14 @@ export class BedrockDraftGenerator implements DraftGenerator {
       createCodeSuffix: () => randomUUID().slice(0, 6),
     };
 
-    return parseRuleProposals(responseText).map((proposal) => mapRuleProposalToDraft(proposal, context));
+    return parseProposalsOrLogExcerpt(responseText).map((proposal) =>
+      mapRuleProposalToDraft(proposal, context),
+    );
   }
 
   private async requestText(request: ModelRequest): Promise<string> {
     const client = await this.dependencies.createClient();
+    const startedAt = Date.now();
     const message = await client.messages.create({
       model: this.dependencies.modelId,
       max_tokens: MAX_OUTPUT_TOKENS,
@@ -150,9 +158,18 @@ export class BedrockDraftGenerator implements DraftGenerator {
       }),
     });
 
+    console.log(
+      `[bedrock] ${request.operation} took ${formatSeconds(Date.now() - startedAt)} ` +
+        `stop_reason=${message.stop_reason}`,
+    );
     logTokenUsage(request.operation, this.dependencies.modelId, message.usage);
 
-    return readCompleteText(message).trim();
+    try {
+      return readCompleteText(message).trim();
+    } catch (error) {
+      logResponseExcerpt(request.operation, readTextOrEmpty(message));
+      throw error;
+    }
   }
 
   private async loadExamplePolicy(): Promise<{ title: string; body: string }> {
@@ -201,6 +218,39 @@ export class BedrockDraftGenerator implements DraftGenerator {
 
     return regulations.flat();
   }
+}
+
+// Without the model output, a malformed or cut-off response cannot be debugged except by paying for a rerun.
+const RESPONSE_EXCERPT_CHARACTERS = 500;
+
+function parseProposalsOrLogExcerpt(responseText: string): RuleProposal[] {
+  try {
+    return parseRuleProposals(responseText);
+  } catch (error) {
+    logResponseExcerpt("draftRules", responseText);
+    throw error;
+  }
+}
+
+function logResponseExcerpt(operation: string, responseText: string): void {
+  const head = responseText.slice(0, RESPONSE_EXCERPT_CHARACTERS);
+  const tail =
+    responseText.length > 2 * RESPONSE_EXCERPT_CHARACTERS
+      ? responseText.slice(-RESPONSE_EXCERPT_CHARACTERS)
+      : responseText.slice(RESPONSE_EXCERPT_CHARACTERS);
+
+  console.error(
+    `[bedrock] ${operation} returned an unusable response (${responseText.length} characters).\n` +
+      `--- start ---\n${head}\n--- end ---\n${tail}`,
+  );
+}
+
+function readTextOrEmpty(message: { content: ReadonlyArray<{ type: string; text?: string }> }): string {
+  return message.content.find((block) => block.type === "text")?.text ?? "";
+}
+
+function formatSeconds(milliseconds: number): string {
+  return `${(milliseconds / 1000).toFixed(1)}s`;
 }
 
 function selectRegulationText(
