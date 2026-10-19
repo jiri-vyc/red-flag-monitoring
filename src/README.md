@@ -93,7 +93,7 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 }
 ```
 
-- Everything except `createdBy` is optional. An empty `scope` evaluates all ~400k transactions. `from` is inclusive, `to` exclusive, both local time like `transactions.ts`. `limit` keeps the first transactions in chronological order.
+- The body is optional: `createdBy` defaults to the demo admin, `hitThreshold` to 50. An empty `scope` evaluates all ~400k transactions. `from` is inclusive, `to` exclusive, both local time like `transactions.ts`. `limit` keeps the first transactions in chronological order.
 - The response is `202` with the run in status `running`. Poll `GET /:runId`: `run.txProcessed` grows in steps of 1,000 until `status` is `completed` or `failed` (`errorMessage`). The whole dataset takes ~45 s against local Docker.
 - The summary has `verdictCounts`, `flaggedClientCount` and, per rule version, `hitCount` and `hitClientCount`. `GET /:runId/transactions?verdict=flagged` lists flagged transactions with `hitRules`. The detail has the trace, features (including the ČNB rate) and `contextRefs` of each hit.
 - Only rule results other than `pass` are stored ([V16](../spec/datovy-model.md#rozhodnutí-vyhodnocení)). A passed transaction has its verdict and score, but no per-rule rows.
