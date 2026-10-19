@@ -1,5 +1,6 @@
 import type { InternalPolicy, InternalPolicyVersion } from "../../domain/internalPolicy";
 import type { Clock } from "../clock";
+import type { DraftingUseCases } from "../drafting/draftingUseCases";
 import { NotFoundError } from "../errors";
 import { createReviewSubmission, createVersionReview, type ReviewInput } from "../versionReview";
 import type {
@@ -8,10 +9,13 @@ import type {
   NewInternalPolicyVersion,
 } from "./internalPolicyRepository";
 
+export type RuleDrafting = Pick<DraftingUseCases, "draftRules">;
+
 export class InternalPolicyUseCases {
   constructor(
     private readonly internalPolicyRepository: InternalPolicyRepository,
     private readonly clock: Clock,
+    private readonly ruleDrafting: RuleDrafting,
   ) {}
 
   createPolicy(policy: NewInternalPolicy): Promise<InternalPolicy> {
@@ -63,6 +67,7 @@ export class InternalPolicyUseCases {
   }
 
   // A policy has no active-version pointer, so approving a version supersedes the previously approved ones.
+  // Approval also drafts the rules that implement the policy, the reviewer becomes their author.
   async reviewVersion(
     policyId: string,
     versionId: string,
@@ -74,8 +79,13 @@ export class InternalPolicyUseCases {
       review.decision === "approved" ? await this.findApprovedVersionIds(policyId, versionId) : [];
 
     await this.internalPolicyRepository.recordReview({ versionId, review, supersededVersionIds });
+    const reviewedVersion = await this.getVersion(policyId, versionId);
 
-    return this.getVersion(policyId, versionId);
+    if (review.decision === "approved") {
+      await this.ruleDrafting.draftRules(reviewedVersion, review.reviewedBy);
+    }
+
+    return reviewedVersion;
   }
 
   private async findApprovedVersionIds(policyId: string, exceptVersionId: string): Promise<string[]> {

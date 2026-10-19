@@ -1,6 +1,7 @@
 import request from "supertest";
 
 import { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
+import { EvaluationRunUseCases } from "../../application/evaluationRuns/evaluationRunUseCases";
 import type { DatabaseStatus } from "../../application/databaseStatus/databaseStatusProbe";
 import { RuleUseCases } from "../../application/rules/ruleUseCases";
 import { InMemoryRuleRepository } from "../../application/testing/InMemoryRuleRepository";
@@ -121,5 +122,13 @@ describe("HTTP app", () => {
     const response = await request(createTestApp()).post(`/api/rules/${RULE_ID}/enable`);
 
     expect(response.status).toBe(422);
+  });
+
+  it("answers 501 when starting an evaluation run, the engine is not implemented yet", async () => {
+    const useCases = { evaluationRunUseCases: new EvaluationRunUseCases() } as AppUseCases;
+
+    const response = await request(createApp(useCases, databaseReady)).post("/api/evaluation-runs");
+
+    expect(response.status).toBe(501);
   });
 });

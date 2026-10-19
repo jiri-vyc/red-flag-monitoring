@@ -5,6 +5,7 @@ import {
   ConflictError,
   MissingReferenceError,
   NotFoundError,
+  NotImplementedError,
 } from "../../application/errors";
 import { RequestValidationError } from "./validation";
 
@@ -46,6 +47,10 @@ function findExpectedErrorStatus(error: unknown): number | null {
 
   if (error instanceof BusinessRuleViolationError || error instanceof MissingReferenceError) {
     return 422;
+  }
+
+  if (error instanceof NotImplementedError) {
+    return 501;
   }
 
   return null;

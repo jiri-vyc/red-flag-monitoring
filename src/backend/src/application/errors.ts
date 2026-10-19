@@ -11,5 +11,8 @@ export class ConflictError extends Error {}
 
 export class BusinessRuleViolationError extends Error {}
 
+// A step of the flow that exists in the API but has no implementation yet.
+export class NotImplementedError extends Error {}
+
 // The request points at a row that does not exist, e.g. an unknown user or regulation version.
 export class MissingReferenceError extends Error {}

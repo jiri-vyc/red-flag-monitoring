@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { VERDICTS } from "../../domain/evaluation";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
+import type { EvaluationRunUseCases } from "../../application/evaluationRuns/evaluationRunUseCases";
 import { pageQuerySchema } from "./schemas";
 import { parseRequest } from "./validation";
 
@@ -20,9 +21,16 @@ const transactionListQuerySchema = pageQuerySchema.extend({
     .transform((value) => value ?? null),
 });
 
-// Read-only (V14): runs are created by the evaluation engine, not through this API.
-export function createEvaluationRunsRouter(evaluationRunQueries: EvaluationRunQueries): Router {
+// Runs are immutable (V14): the API starts a run and reads its results, it never edits them.
+export function createEvaluationRunsRouter(
+  evaluationRunQueries: EvaluationRunQueries,
+  evaluationRunUseCases: EvaluationRunUseCases,
+): Router {
   const router = Router();
+
+  router.post("/", async (_request, response) => {
+    response.status(201).json(await evaluationRunUseCases.startRun());
+  });
 
   router.get("/", async (request, response) => {
     const page = parseRequest(pageQuerySchema, request.query);

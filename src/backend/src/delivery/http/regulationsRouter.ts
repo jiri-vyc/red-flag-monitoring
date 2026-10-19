@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { REGULATION_KINDS } from "../../domain/regulation";
+import type { DraftingUseCases } from "../../application/drafting/draftingUseCases";
 import type { RegulationUseCases } from "../../application/regulations/regulationUseCases";
 import { requiredText } from "./schemas";
 import { parseRequest } from "./validation";
@@ -25,7 +26,12 @@ const createRegulationSchema = z.object({
 
 const createVersionSchema = z.object({ label: requiredText, fullText: requiredText });
 
-export function createRegulationsRouter(regulationUseCases: RegulationUseCases): Router {
+const draftPoliciesSchema = z.object({ createdBy: z.uuid() });
+
+export function createRegulationsRouter(
+  regulationUseCases: RegulationUseCases,
+  draftingUseCases: DraftingUseCases,
+): Router {
   const router = Router();
 
   router.post("/", async (request, response) => {
@@ -61,6 +67,17 @@ export function createRegulationsRouter(regulationUseCases: RegulationUseCases):
     const { regulationId, versionId } = parseRequest(versionParamsSchema, request.params);
 
     response.json(await regulationUseCases.getVersion(regulationId, versionId));
+  });
+
+  router.post("/:regulationId/versions/:versionId/draft-policies", async (request, response) => {
+    const { regulationId, versionId } = parseRequest(versionParamsSchema, request.params);
+    const { createdBy } = parseRequest(draftPoliciesSchema, request.body);
+
+    response
+      .status(201)
+      .json(
+        await draftingUseCases.draftPolicies({ regulationId, regulationVersionId: versionId, createdBy }),
+      );
   });
 
   return router;

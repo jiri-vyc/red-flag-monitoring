@@ -4,7 +4,9 @@ import type { DataSource } from "typeorm";
 
 import { systemClock } from "./application/clock";
 import { DatabaseStatusQueries } from "./application/databaseStatus/databaseStatusQueries";
+import { DraftingUseCases } from "./application/drafting/draftingUseCases";
 import { EvaluationRunQueries } from "./application/evaluationRuns/evaluationRunQueries";
+import { EvaluationRunUseCases } from "./application/evaluationRuns/evaluationRunUseCases";
 import { InternalPolicyUseCases } from "./application/internalPolicies/internalPolicyUseCases";
 import { ReferenceListUseCases } from "./application/referenceLists/referenceListUseCases";
 import { RegulationUseCases } from "./application/regulations/regulationUseCases";
@@ -13,6 +15,7 @@ import { WhitelistUseCases } from "./application/whitelist/whitelistUseCases";
 import { parseAppConfig } from "./config";
 import { type AppUseCases, createApp } from "./delivery/http/createApp";
 import { createDataSource } from "./infrastructure/database/createDataSource";
+import { DummyDraftGenerator } from "./infrastructure/drafting/DummyDraftGenerator";
 import { memoizeInitialization } from "./infrastructure/database/memoizeInitialization";
 import { TypeOrmDatabaseStatusProbe } from "./infrastructure/database/TypeOrmDatabaseStatusProbe";
 import { TypeOrmEvaluationRunReadRepository } from "./infrastructure/database/repositories/TypeOrmEvaluationRunReadRepository";
@@ -44,17 +47,26 @@ function startServer(): void {
 
 function createUseCases(dataSource: DataSource): AppUseCases {
   const ruleRepository = new TypeOrmRuleRepository(dataSource);
+  const internalPolicyRepository = new TypeOrmInternalPolicyRepository(dataSource);
+  const regulations = new RegulationUseCases(new TypeOrmRegulationRepository(dataSource));
+  const rules = new RuleUseCases(ruleRepository, systemClock);
+  // TODO(#1, #2): swap the dummy for a Bedrock-backed DraftGenerator.
+  const drafting = new DraftingUseCases(
+    new DummyDraftGenerator(),
+    regulations,
+    internalPolicyRepository,
+    rules,
+  );
 
   return {
-    regulations: new RegulationUseCases(new TypeOrmRegulationRepository(dataSource)),
-    internalPolicies: new InternalPolicyUseCases(
-      new TypeOrmInternalPolicyRepository(dataSource),
-      systemClock,
-    ),
-    rules: new RuleUseCases(ruleRepository, systemClock),
+    regulations,
+    drafting,
+    internalPolicies: new InternalPolicyUseCases(internalPolicyRepository, systemClock, drafting),
+    rules,
     whitelist: new WhitelistUseCases(new TypeOrmWhitelistRepository(dataSource), ruleRepository),
     referenceLists: new ReferenceListUseCases(new TypeOrmReferenceListRepository(dataSource)),
     evaluationRuns: new EvaluationRunQueries(new TypeOrmEvaluationRunReadRepository(dataSource)),
+    evaluationRunUseCases: new EvaluationRunUseCases(),
     databaseStatus: new DatabaseStatusQueries(new TypeOrmDatabaseStatusProbe(dataSource)),
   };
 }

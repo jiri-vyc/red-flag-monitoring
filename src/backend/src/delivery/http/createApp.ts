@@ -1,7 +1,9 @@
 import express, { type Express } from "express";
 
 import type { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
+import type { DraftingUseCases } from "../../application/drafting/draftingUseCases";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
+import type { EvaluationRunUseCases } from "../../application/evaluationRuns/evaluationRunUseCases";
 import type { InternalPolicyUseCases } from "../../application/internalPolicies/internalPolicyUseCases";
 import type { ReferenceListUseCases } from "../../application/referenceLists/referenceListUseCases";
 import type { RegulationUseCases } from "../../application/regulations/regulationUseCases";
@@ -22,11 +24,13 @@ const JSON_BODY_LIMIT = "5mb";
 
 export type AppUseCases = {
   regulations: RegulationUseCases;
+  drafting: DraftingUseCases;
   internalPolicies: InternalPolicyUseCases;
   rules: RuleUseCases;
   whitelist: WhitelistUseCases;
   referenceLists: ReferenceListUseCases;
   evaluationRuns: EvaluationRunQueries;
+  evaluationRunUseCases: EvaluationRunUseCases;
   databaseStatus: DatabaseStatusQueries;
 };
 
@@ -39,11 +43,14 @@ export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureData
     await ensureDatabaseReady();
     next();
   });
-  app.use("/api/regulations", createRegulationsRouter(useCases.regulations));
+  app.use("/api/regulations", createRegulationsRouter(useCases.regulations, useCases.drafting));
   app.use("/api/internal-policies", createInternalPoliciesRouter(useCases.internalPolicies));
   app.use("/api/rules", createRulesRouter(useCases.rules, useCases.whitelist));
   app.use("/api/reference-lists", createReferenceListsRouter(useCases.referenceLists));
-  app.use("/api/evaluation-runs", createEvaluationRunsRouter(useCases.evaluationRuns));
+  app.use(
+    "/api/evaluation-runs",
+    createEvaluationRunsRouter(useCases.evaluationRuns, useCases.evaluationRunUseCases),
+  );
   app.use("/api/database-status", createDatabaseStatusRouter(useCases.databaseStatus));
   app.use(notFoundHandler);
   app.use(errorHandler);
