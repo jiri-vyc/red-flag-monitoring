@@ -191,3 +191,8 @@ Mirrors Filip's evaluation worker (`evaluationWorker.ts`, `LambdaEvaluationRunLa
 2. One policy per regulation, or several? #1 and Filip's `DraftGenerator.draftPolicies` expect 1..N; Jiri's drafter returns one.
 3. Where do `examplePolicy` and `firstRuleNumber` for the drafter come from in the API flow?
 4. Is `GET` polling enough for the web, or does `AiProgress` want step-level progress (`output.progress`)?
+   - **Answer (web, 2026-10-19):** `GET` polling of the job status is enough. The web polls `GET /api/drafting-jobs/:id` every ~2 s, the same way it polls evaluation runs, and stops on `succeeded` or `failed`. While a job is `pending`/`running` it shows an indeterminate progress ring. On `failed` it shows `error` and a Retry button (`POST /:id/retry`).
+   - Step-level progress is optional and can come later. If the worker adds it, a shape the web can map 1:1 to `AiProgress` steps would be `output.progress: [{ step: "extract_obligations" | "draft_policy" | "draft_rules" | "validate_citations", status: "pending" | "running" | "done" }]`. Without it, the web falls back to the indeterminate ring.
+   - Two requests to the backend:
+     - Return the created entity IDs in a `succeeded` job (`output.policyVersionIds` / `output.ruleIds`), so the web does not have to diff lists (see BE-20).
+     - Keep `rulesJob` in the policy review response, so the web can start polling right away.
