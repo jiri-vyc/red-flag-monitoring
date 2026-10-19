@@ -29,6 +29,20 @@ The web works without the backend (default mock mode): `npm run dev -w web` is e
 
 The web proxies `/api/*` to the backend, so browser code calls relative `/api/...` URLs.
 
+## API
+
+There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or review data pass the actor in the body as `createdBy` / `reviewedBy`; the `SeedAdminUser` migration creates the single admin `00000000-0000-4000-8000-000000000001`.
+
+| Resource             | Endpoints                                                                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/regulations`       | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions`, `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                      |
+| `/internal-policies` | as regulations, plus `POST /:id/versions/:versionId/submit` and `POST /:id/versions/:versionId/review`                                                                        |
+| `/rules`             | as internal policies, plus `POST /:id/enable`, `POST /:id/disable`, `PUT /:id/active-version`, `GET` / `POST /:id/whitelist`, `DELETE /:id/whitelist/:clientId`               |
+| `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                       |
+| `/evaluation-runs`   | read only: `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&limit=&offset=`, `GET /:runId/transactions/:transactionId` (detail with trace) |
+
+Versions are immutable. A version goes `draft` → `pending_review` → `approved` / `rejected`; an approved version becomes `superseded` when a newer one replaces it (rules: on `active-version`, policies: on approval of a newer version). Errors: 400 invalid input, 404 not found, 409 state conflict or duplicate, 422 business rule or unknown reference.
+
 ## Scripts (from `src/`)
 
 | Command          | What it does                                        |
