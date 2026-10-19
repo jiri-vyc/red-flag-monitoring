@@ -35,7 +35,6 @@ Struktura předpisu. Kde se vzorový předpis od tohoto zadání liší, platí 
    - **Parametry:** tabulka Parametr | Hodnota | Zdroj. Zdroj je „regulace“, jen když hodnotu regulace výslovně uvádí. Jinak je zdroj „kalibrace“ a navrhni rozumnou výchozí hodnotu.
    - **Alert:** granularita, např. 1 alert na transakci nebo 1 alert na klienta a měsíc.
    - **Priorita (základ):** číslo 0–100.
-   - **Validace:** „Neprovedena, doplní se po vyhodnocení na datech.“
 6. Část třetí – Priorita a zpracování: modifikátory priority a odkaz na zpracování alertů podle SVZ-03. Modifikátor, který regulace nezmiňuje (např. PEP), odůvodni odkazem na tabulku P v Příloze 1 SVZ-03.
 7. Příloha: nezařazené požadavky regulace s důvodem a otevřené otázky.
 
