@@ -1,4 +1,4 @@
-# PR-03 Mnoho klientů platí stejnému příjemci
+# R-09 Mnoho klientů platí stejnému příjemci
 
 ## Definice
 
@@ -8,11 +8,7 @@ Při šetření se posoudí, zda jde o známý obchodní účet (kandidát na wh
 
 **Alert:** 1 alert na účet příjemce a den
 
-**Společné konvence:** Částky v CZK (L = 1 000 EUR = 25 000 CZK). `outgoing` a `remittance` = odchozí. Sledované období = kalendářní měsíc.
-
 ## Zdroj
 
 - **Regulace:** [EBA/GL/2021/02](../regulace/plne-zneni/eba-gl-2021-02-rizikove-faktory.md) Obecný pokyn č. 11, body 11.13 b) a 11.7 b) vii.
 - **Vnitřní předpis:** [SVZ-06, Čl. 7](../vnitrni-predpisy/svz-06-monitoring-plateb-a-remitenci.md)
-
-**Výsledek na datech PoC:** 31 účtů příjemce

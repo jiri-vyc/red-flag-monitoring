@@ -26,7 +26,7 @@
 
 (2) Směrnice se vztahuje na všechny transakce klientů: příchozí platby (`incoming`), odchozí platby (`outgoing`) a remitence (`remittance`).
 
-(3) Pravidla doplňují scénáře TM-01 až TM-06 ze SVZ-03. Alerty z obou směrnic se zpracovávají jedním postupem podle čl. 8 SVZ-03.
+(3) Pravidla doplňují scénáře R-01 až R-06 ze SVZ-03. Alerty z obou směrnic se zpracovávají jedním postupem podle čl. 8 SVZ-03.
 
 Citace regulace (bod 11.12): „měly by podniky zvážit, které systémy sledování a kontroly zavedou, aby zajistily, že odhalí pokusy o praní peněz a financování terorismu“
 
@@ -67,21 +67,21 @@ Citace regulace (bod 11.14): „měly by podniky uplatňovat zesílenou hloubkov
 
 | Článek | ID | Pravidlo | Bod EBA GL | Vyhodnocení | Alertů v PoC datech |
 | --- | --- | --- | --- | --- | --- |
-| Čl. 5 | PR-01 | Řada malých plateb stejnému příjemci | 11.13 a) | deterministické | 4 klienti |
-| Čl. 6 | PR-02 | Opakované platby těsně pod limitem | 11.7 b) iv. | deterministické | 111 klientů |
-| Čl. 7 | PR-03 | Mnoho klientů platí stejnému příjemci | 11.13 b), 11.7 b) vii. | deterministické + úsudek | 31 účtů příjemce |
-| Čl. 8 | PR-04 | Plátci z mnoha zemí jednomu příjemci | 11.5 d) | deterministické | 35 klientů |
-| Čl. 9 | PR-05 | Okamžité přeposlání přijaté částky | 11.7 b) v. | deterministické | 34 klientů |
-| Čl. 10 | PR-06 | Kruhové platby se stejnou protistranou | 11.7 b) v. | deterministické | 33 klientů |
-| Čl. 11 | PR-07 | Neobvyklý nárůst počtu transakcí | 11.7 b) x. | deterministické | 280 klientů |
-| Čl. 12 | PR-08 | Vysoký souhrn remitencí mimo účet | 11.5 c), 11.6 a) | deterministické | 41 klientů |
-| Čl. 13 | PR-09 | Remitence mimo EHP od nového klienta | 11.5 b), 11.8 a) | deterministické | 17 klientů |
-| Čl. 14 | PR-10 | Převod z/do vysoce rizikové třetí země | 11.11 d), 11.13 e) | deterministické | 0 |
-| Čl. 15 | PR-11 | Příchozí platba bez údajů o plátci | 11.7 b) viii. | deterministické | 0 |
+| Čl. 5 | R-07 | Řada malých plateb stejnému příjemci | 11.13 a) | deterministické | 4 klienti |
+| Čl. 6 | R-08 | Opakované platby těsně pod limitem | 11.7 b) iv. | deterministické | 111 klientů |
+| Čl. 7 | R-09 | Mnoho klientů platí stejnému příjemci | 11.13 b), 11.7 b) vii. | deterministické + úsudek | 31 účtů příjemce |
+| Čl. 8 | R-10 | Plátci z mnoha zemí jednomu příjemci | 11.5 d) | deterministické | 35 klientů |
+| Čl. 9 | R-11 | Okamžité přeposlání přijaté částky | 11.7 b) v. | deterministické | 34 klientů |
+| Čl. 10 | R-12 | Kruhové platby se stejnou protistranou | 11.7 b) v. | deterministické | 33 klientů |
+| Čl. 11 | R-13 | Neobvyklý nárůst počtu transakcí | 11.7 b) x. | deterministické | 280 klientů |
+| Čl. 12 | R-14 | Vysoký souhrn remitencí mimo účet | 11.5 c), 11.6 a) | deterministické | 41 klientů |
+| Čl. 13 | R-15 | Remitence mimo EHP od nového klienta | 11.5 b), 11.8 a) | deterministické | 17 klientů |
+| Čl. 14 | R-16 | Převod z/do vysoce rizikové třetí země | 11.11 d), 11.13 e) | deterministické | 0 |
+| Čl. 15 | R-17 | Příchozí platba bez údajů o plátci | 11.7 b) viii. | deterministické | 0 |
 
 ## Část druhá – Pravidla monitoringu
 
-### Čl. 5 PR-01 Řada malých plateb stejnému příjemci
+### Čl. 5 R-07 Řada malých plateb stejnému příjemci
 
 **Účel:** Odhalit rozdělení větší částky na řadu menších plateb pod limitem 1 000 EUR, které mají stejného plátce i příjemce (propojené transakce).
 
@@ -105,7 +105,7 @@ Citace regulace (bod 11.14): „měly by podniky uplatňovat zesílenou hloubkov
 
 **Validace:** 4 klienti. Na stejného příjemce jde v měsíci nejvýš 4 transakce.
 
-### Čl. 6 PR-02 Opakované platby těsně pod limitem
+### Čl. 6 R-08 Opakované platby těsně pod limitem
 
 **Účel:** Odhalit klienta, který opakovaně volí částku těsně pod limitem 1 000 EUR, aby se vyhnul požadavkům vázaným na limit (strukturování).
 
@@ -130,7 +130,7 @@ Citace regulace (bod 11.14): „měly by podniky uplatňovat zesílenou hloubkov
 
 **Validace:** 111 klientů (při `P02_MIN_COUNT` = 4 jen 20). V pásmu pod limitem je 3 501 transakcí, v pásmu 25 000–27 500 CZK nad limitem 2 857.
 
-### Čl. 7 PR-03 Mnoho klientů platí stejnému příjemci
+### Čl. 7 R-09 Mnoho klientů platí stejnému příjemci
 
 **Účel:** Odhalit účet příjemce, na který během jednoho dne posílá peníze neobvykle mnoho různých klientů Instituce (sběrný účet, síť „money mules“).
 
@@ -154,7 +154,7 @@ Citace regulace (bod 11.14): „měly by podniky uplatňovat zesílenou hloubkov
 
 **Validace:** 31 účtů příjemce, všechny tuzemské (`ACZ…`). **[ROZHODNUTÍ]** Alert není vázán na jednoho klienta; pro výstupní CSV se uvede klient s nejvyšší částkou na daný účet.
 
-### Čl. 8 PR-04 Plátci z mnoha zemí jednomu příjemci
+### Čl. 8 R-10 Plátci z mnoha zemí jednomu příjemci
 
 **Účel:** Odhalit klienta, kterému posílají peníze plátci z mnoha různých zemí.
 
@@ -177,7 +177,7 @@ Citace regulace (bod 11.14): „měly by podniky uplatňovat zesílenou hloubkov
 
 **Validace:** 35 klientů (denní podmínka 4, týdenní 32).
 
-### Čl. 9 PR-05 Okamžité přeposlání přijaté částky
+### Čl. 9 R-11 Okamžité přeposlání přijaté částky
 
 **Účel:** Odhalit klienta, který přijatou částku obratem pošle dál jinému příjemci (průtokový účet).
 
@@ -199,9 +199,9 @@ Citace regulace (bod 11.14): „měly by podniky uplatňovat zesílenou hloubkov
 
 **Priorita (základ):** 50
 
-**Validace:** 34 klientů (37 dvojic). Při okně 1 hodina 18 klientů. Rozdíl oproti TM-04 v SVZ-03: PR-05 páruje jednotlivou platbu s jednotlivou platbou podobné výše, TM-04 sčítá toky v oknech 24 h / 6 h.
+**Validace:** 34 klientů (37 dvojic). Při okně 1 hodina 18 klientů. Rozdíl oproti R-04 v SVZ-03: R-11 páruje jednotlivou platbu s jednotlivou platbou podobné výše, R-04 sčítá toky v oknech 24 h / 6 h.
 
-### Čl. 10 PR-06 Kruhové platby se stejnou protistranou
+### Čl. 10 R-12 Kruhové platby se stejnou protistranou
 
 **Účel:** Odhalit klienta, který posílá peníze na účet a z téhož účtu je v krátké době dostává zpět (kruhový tok, posílání peněz „sobě samému“).
 
@@ -224,7 +224,7 @@ Citace regulace (bod 11.14): „měly by podniky uplatňovat zesílenou hloubkov
 
 **Validace:** 33 klientů. Bez podmínky `P06_MIN_AMOUNT` by alert mělo 2 475 klientů, proto je limit nutný.
 
-### Čl. 11 PR-07 Neobvyklý nárůst počtu transakcí
+### Čl. 11 R-13 Neobvyklý nárůst počtu transakcí
 
 **Účel:** Odhalit klienta, jehož počet transakcí výrazně vzrostl proti historii i proti tomu, co deklaroval.
 
@@ -235,7 +235,7 @@ Citace regulace (bod 11.14): „měly by podniky uplatňovat zesílenou hloubkov
 1. `P07_FACTOR` × průměrný měsíční počet transakcí za Q2 (`q2_tx_count` / 3) **a**
 2. `P07_FACTOR` × očekávaný měsíční počet transakcí (`projected_monthly_tx_count`).
 
-Klient bez transakcí v Q2 se tímto pravidlem nevyhodnocuje (pokrývá ho TM-01 v SVZ-03).
+Klient bez transakcí v Q2 se tímto pravidlem nevyhodnocuje (pokrývá ho R-01 v SVZ-03).
 
 **Datová pole:** `client_id`, `transaction_id`, `ts`, `q2_tx_count`, `projected_monthly_tx_count`, `aml_risk_score`, `is_pep`
 
@@ -249,9 +249,9 @@ Klient bez transakcí v Q2 se tímto pravidlem nevyhodnocuje (pokrývá ho TM-01
 
 **Priorita (základ):** 25
 
-**Validace:** 280 klientů (234 při jednotném faktoru 5). Volumový nárůst sleduje TM-01 v SVZ-03; PR-07 sleduje počet transakcí.
+**Validace:** 280 klientů (234 při jednotném faktoru 5). Volumový nárůst sleduje R-01 v SVZ-03; R-13 sleduje počet transakcí.
 
-### Čl. 12 PR-08 Vysoký souhrn remitencí mimo účet
+### Čl. 12 R-14 Vysoký souhrn remitencí mimo účet
 
 **Účel:** Odhalit klienta, který za měsíc pošle remitencemi (bez platebního účtu, tedy bez snižujícího faktoru 11.6 a) vysokou celkovou částku.
 
@@ -275,7 +275,7 @@ Klient bez transakcí v Q2 se tímto pravidlem nevyhodnocuje (pokrývá ho TM-01
 
 **Validace:** 41 klientů (17 z nich s vyšším rizikem). Všechny remitence v datech (39 715) nemají účet plátce. **[ROZHODNUTÍ]** Ověřit, zda remitence v datech skutečně nejsou hrazeny z účtu.
 
-### Čl. 13 PR-09 Remitence mimo EHP od nového klienta
+### Čl. 13 R-15 Remitence mimo EHP od nového klienta
 
 **Účel:** Odhalit nového klienta, který brzy po uzavření smlouvy posílá vyšší remitence do zemí mimo EHP.
 
@@ -305,7 +305,7 @@ Klient bez transakcí v Q2 se tímto pravidlem nevyhodnocuje (pokrývá ho TM-01
 
 **Validace:** 18 transakcí u 17 klientů. Remitencí mimo EHP je celkem 4 493, z toho 180 nad limitem.
 
-### Čl. 14 PR-10 Převod z/do vysoce rizikové třetí země
+### Čl. 14 R-16 Převod z/do vysoce rizikové třetí země
 
 **Účel:** Odhalit převod, jehož plátce nebo příjemce se nachází ve vysoce rizikové třetí zemi.
 
@@ -328,9 +328,9 @@ Klient bez transakcí v Q2 se tímto pravidlem nevyhodnocuje (pokrývá ho TM-01
 
 **Priorita (základ):** 70
 
-**Validace:** 0. Žádná z 33 zemí v datech není na seznamu. Na rozdíl od TM-02 (SVZ-03, limit 10 000 CZK) nemá pravidlo žádný limit částky.
+**Validace:** 0. Žádná z 33 zemí v datech není na seznamu. Na rozdíl od R-02 (SVZ-03, limit 10 000 CZK) nemá pravidlo žádný limit částky.
 
-### Čl. 15 PR-11 Příchozí platba bez údajů o plátci
+### Čl. 15 R-17 Příchozí platba bez údajů o plátci
 
 **Účel:** Odhalit příchozí převod, u kterého chybí údaje o plátci, které musí převod doprovázet.
 
@@ -361,7 +361,7 @@ Klient bez transakcí v Q2 se tímto pravidlem nevyhodnocuje (pokrývá ho TM-01
 | `contract_channel` = `distant` | +5 | bod 11.9 c) |
 | vztah kratší než 12 měsíců | +5 | bod 11.8 a) (opačně) |
 | vztah delší než 5 let bez předchozího alertu | −10 | bod 11.8 a) |
-| každé další pravidlo PR nebo scénář TM u téhož klienta v měsíci | +10 | čl. 6.3 SVZ-03 |
+| každé další pravidlo u téhož klienta v měsíci | +10 | čl. 6.3 SVZ-03 |
 
 Citace regulace (bod 11.9 c): „Služba je poskytována zcela on-line bez adekvátních bezpečnostních opatření.“
 
@@ -369,7 +369,7 @@ Citace regulace (bod 11.9 c): „Služba je poskytována zcela on-line bez adekv
 
 ### Čl. 17 Zpracování alertů
 
-Triáž, eskalace, čtyři oči, střet zájmů, lhůty, záznam, whitelist a oznámení podezřelého obchodu se řídí čl. 3, 8 a 10 SVZ-03. Pravidla PR-03 a PR-10 vyžadují individuální posouzení člověkem; alert z nich nelze uzavřít hromadně.
+Triáž, eskalace, čtyři oči, střet zájmů, lhůty, záznam, whitelist a oznámení podezřelého obchodu se řídí čl. 3, 8 a 10 SVZ-03. Pravidla R-09 a R-16 vyžadují individuální posouzení člověkem; alert z nich nelze uzavřít hromadně.
 
 ### Čl. 18 Kalibrace
 
@@ -386,10 +386,10 @@ Stav k 2026-10-19. Data: `datasets/transactions.csv` (397 853 transakcí, 1.–3
 | ID | Zjištění | Dopad |
 | --- | --- | --- |
 | D1 | Medián částky je téměř stejný ve všech 23 měnách. Pole `volume` se chová jako částka již v CZK. | Validace bere `volume` jako CZK, limit L = 25 000 CZK. **[ROZHODNUTÍ]** potvrdit s FINREG. |
-| D2 | Účty protistran tvoří sdílený pool (5 138 účtů příjemců odchozích plateb, 4 699 účtů plátců příchozích plateb). Na jeden účet příjemce posílá za měsíc mediánově 7 klientů, na 1 % účtů přes 750. | PR-03 musí pracovat s denním oknem a vysokým prahem. |
-| D3 | Remitence nemají účet plátce, země plátce = země klienta. | Remitence = odchozí převod mimo platební účet (čl. 3 odst. 1, PR-08). |
-| D4 | Žádná země v datech není vysoce riziková třetí země. | PR-10 dává 0 alertů. |
-| D5 | Všechny příchozí platby mají účet a zemi plátce. | PR-11 dává 0 alertů; slouží jako kontrola úplnosti dat podle nařízení (EU) 2023/1113. |
+| D2 | Účty protistran tvoří sdílený pool (5 138 účtů příjemců odchozích plateb, 4 699 účtů plátců příchozích plateb). Na jeden účet příjemce posílá za měsíc mediánově 7 klientů, na 1 % účtů přes 750. | R-09 musí pracovat s denním oknem a vysokým prahem. |
+| D3 | Remitence nemají účet plátce, země plátce = země klienta. | Remitence = odchozí převod mimo platební účet (čl. 3 odst. 1, R-14). |
+| D4 | Žádná země v datech není vysoce riziková třetí země. | R-16 dává 0 alertů. |
+| D5 | Všechny příchozí platby mají účet a zemi plátce. | R-17 dává 0 alertů; slouží jako kontrola úplnosti dat podle nařízení (EU) 2023/1113. |
 
 ### Zvažovaná a nezařazená pravidla
 
@@ -402,9 +402,9 @@ Stav k 2026-10-19. Data: `datasets/transactions.csv` (397 853 transakcí, 1.–3
 
 | Bod | Systém | Pravidlo |
 | --- | --- | --- |
-| 11.13 a) | propojené transakce pod 1 000 EUR | PR-01, PR-02 |
-| 11.13 b) | transakce různých klientů stejnému příjemci | PR-03 |
-| 11.13 c) | zdroj a místo určení prostředků | PR-04, PR-08, PR-09 (země a forma financování) |
+| 11.13 a) | propojené transakce pod 1 000 EUR | R-07, R-08 |
+| 11.13 b) | transakce různých klientů stejnému příjemci | R-09 |
+| 11.13 c) | zdroj a místo určení prostředků | R-10, R-14, R-15 (země a forma financování) |
 | 11.13 d) | vysledování platebního řetězce | mimo rozsah dat (dataset neobsahuje zprostředkovatele) |
-| 11.13 e) | převody z/do vysoce rizikové třetí země | PR-10 |
+| 11.13 e) | převody z/do vysoce rizikové třetí země | R-16 |
 | 11.13 f) | jen oprávněné subjekty v řetězci | mimo rozsah dat |

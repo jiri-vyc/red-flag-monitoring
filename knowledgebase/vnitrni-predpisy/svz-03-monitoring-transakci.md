@@ -109,7 +109,7 @@ Výsledek kontrol se zaznamená ke každému běhu (čl. 12).
 
 ### 4.3 Frekvence běhu
 
-Scénáře běží denně (D+1) nad transakcemi předchozího dne. TM-05 pracuje s objemem za celý měsíc, proto se vyhodnocuje průběžně a naposledy k poslednímu dni měsíce. Dávkové generování alertů po týdnech nebo měsících je zakázáno (benchmark 2/2023, kap. III.i).
+Scénáře běží denně (D+1) nad transakcemi předchozího dne. R-05 pracuje s objemem za celý měsíc, proto se vyhodnocuje průběžně a naposledy k poslednímu dni měsíce. Dávkové generování alertů po týdnech nebo měsících je zakázáno (benchmark 2/2023, kap. III.i).
 
 ### 4.4 Seznam vysoce rizikových jurisdikcí
 
@@ -137,12 +137,12 @@ Verze použitá v PoC: FATF k 19. 6. 2026, EU ke dni 29. 1. 2026. AML compliance
 
 | ID | Scénář | Typologie | Právní základ | Granularita alertu |
 | --- | --- | --- | --- | --- |
-| **TM-01** | Nesoulad s profilem klienta | Obrat neodpovídá deklarovanému nebo historickému profilu | § 6 odst. 1 písm. b), e) AMLZ; § 9 odst. 4 písm. c) vyhl. | 1 alert / klient / měsíc |
-| **TM-02** | Vysoce riziková jurisdikce | Tok z/do HRJ nebo klient z HRJ | § 6 odst. 1 písm. h) AMLZ; § 9 odst. 3 písm. a), odst. 4 písm. a) vyhl. | 1 alert / transakce |
-| **TM-03** | Odchozí platba PEP | Vyšší odchozí tok politicky exponované osoby | § 9 odst. 3 písm. c) vyhl.; § 9a AMLZ | 1 alert / transakce |
-| **TM-04** | Průtokový účet | Rychlý průtok prostředků, typicky „money mule“ | § 6 odst. 1 písm. a), d), f) AMLZ | 1 alert / klient / měsíc |
-| **TM-05** | Nový klient identifikovaný na dálku s nadměrným obratem | Účet založený na dálku a brzy využitý nad deklarovaný rámec | § 9 odst. 4 písm. e) vyhl.; § 6 odst. 1 písm. e) AMLZ | 1 alert / klient / měsíc |
-| **TM-06** | Neobvyklý počet plátců | Sběrný účet, mnoho plátců za den | § 6 odst. 1 písm. b), f) AMLZ | 1 alert / klient / měsíc |
+| **R-01** | Nesoulad s profilem klienta | Obrat neodpovídá deklarovanému nebo historickému profilu | § 6 odst. 1 písm. b), e) AMLZ; § 9 odst. 4 písm. c) vyhl. | 1 alert / klient / měsíc |
+| **R-02** | Vysoce riziková jurisdikce | Tok z/do HRJ nebo klient z HRJ | § 6 odst. 1 písm. h) AMLZ; § 9 odst. 3 písm. a), odst. 4 písm. a) vyhl. | 1 alert / transakce |
+| **R-03** | Odchozí platba PEP | Vyšší odchozí tok politicky exponované osoby | § 9 odst. 3 písm. c) vyhl.; § 9a AMLZ | 1 alert / transakce |
+| **R-04** | Průtokový účet | Rychlý průtok prostředků, typicky „money mule“ | § 6 odst. 1 písm. a), d), f) AMLZ | 1 alert / klient / měsíc |
+| **R-05** | Nový klient identifikovaný na dálku s nadměrným obratem | Účet založený na dálku a brzy využitý nad deklarovaný rámec | § 9 odst. 4 písm. e) vyhl.; § 6 odst. 1 písm. e) AMLZ | 1 alert / klient / měsíc |
+| **R-06** | Neobvyklý počet plátců | Sběrný účet, mnoho plátců za den | § 6 odst. 1 písm. b), f) AMLZ | 1 alert / klient / měsíc |
 
 6.2 Každý alert obsahuje: ID alertu, ID scénáře, ID klienta, ID spouštějících transakcí, které podmínky se splnily a jaké hodnoty k tomu vedly, verzi parametrů a verzi seznamu HRJ.
 
@@ -156,14 +156,14 @@ Výčet podle § 21 odst. 5 písm. a) AML zákona, přizpůsobený činnosti pla
 
 | # | Znak | Zdroj | Detekce |
 | --- | --- | --- | --- |
-| Z1 | Klient během dne nebo několika dnů provede nápadně více operací nebo objemu, než je pro něj obvyklé. | § 6 odst. 1 písm. b) AMLZ | TM-01 (b) |
-| Z2 | Prostředky zjevně neodpovídají deklarovanému rozsahu činnosti nebo majetkovým poměrům klienta. | § 6 odst. 1 písm. e) AMLZ | TM-01 (a), TM-05 |
-| Z3 | Neobvykle objemná jednotlivá transakce oproti dosavadní historii. | § 6 odst. 1 písm. d) AMLZ; § 9 odst. 4 písm. c) vyhl. | TM-01 (c) |
-| Z4 | Přijaté prostředky klient bezprostředně posílá dál na jiné účty. | § 6 odst. 1 písm. a) AMLZ (obdobně) | TM-04 |
-| Z5 | Účet je využíván v rozporu s deklarovaným účelem (např. sběrný účet mnoha plátců). | § 6 odst. 1 písm. f) AMLZ | TM-06 |
-| Z6 | Transakce souvisí se zemí, která nedostatečně uplatňuje opatření proti praní peněz. | § 6 odst. 1 písm. h) AMLZ | TM-02 |
-| Z7 | Významný odchozí tok PEP bez zřejmého vztahu k známému zdroji majetku. | § 9 odst. 2 písm. f) AMLZ | TM-03 |
-| Z8 | Krátce po založení na dálku je účet využit výrazně nad deklarovaný rámec. | § 9 odst. 4 písm. e) vyhl. | TM-05 |
+| Z1 | Klient během dne nebo několika dnů provede nápadně více operací nebo objemu, než je pro něj obvyklé. | § 6 odst. 1 písm. b) AMLZ | R-01 (b) |
+| Z2 | Prostředky zjevně neodpovídají deklarovanému rozsahu činnosti nebo majetkovým poměrům klienta. | § 6 odst. 1 písm. e) AMLZ | R-01 (a), R-05 |
+| Z3 | Neobvykle objemná jednotlivá transakce oproti dosavadní historii. | § 6 odst. 1 písm. d) AMLZ; § 9 odst. 4 písm. c) vyhl. | R-01 (c) |
+| Z4 | Přijaté prostředky klient bezprostředně posílá dál na jiné účty. | § 6 odst. 1 písm. a) AMLZ (obdobně) | R-04 |
+| Z5 | Účet je využíván v rozporu s deklarovaným účelem (např. sběrný účet mnoha plátců). | § 6 odst. 1 písm. f) AMLZ | R-06 |
+| Z6 | Transakce souvisí se zemí, která nedostatečně uplatňuje opatření proti praní peněz. | § 6 odst. 1 písm. h) AMLZ | R-02 |
+| Z7 | Významný odchozí tok PEP bez zřejmého vztahu k známému zdroji majetku. | § 9 odst. 2 písm. f) AMLZ | R-03 |
+| Z8 | Krátce po založení na dálku je účet využit výrazně nad deklarovaný rámec. | § 9 odst. 4 písm. e) vyhl. | R-05 |
 | Z9 | Převody bez zřejmého ekonomického důvodu, složité řetězce plateb. | § 6 odst. 1 písm. d) AMLZ | šetření |
 | Z10 | Klient odmítá doložit účel nebo zdroj prostředků, nebo uvádí nepravdivé údaje. | § 6 odst. 1 písm. i), j) AMLZ | šetření |
 | Z11 | Činnosti, které mohou zastřít totožnost klienta nebo skutečného majitele (platby za třetí osoby). | § 6 odst. 1 písm. g) AMLZ | šetření |
@@ -220,7 +220,7 @@ Prodloužení je možné jen z objektivního důvodu (např. čekání na doklad
 4. ostatní alerty klienta ve stejném období;
 5. vysvětlení a doklady od klienta, pokud je třeba si je vyžádat (§ 9 odst. 7 AML zákona). Při tom nesmí klienta upozornit na šetření (čl. 8.9).
 
-U alertů TM-02 až TM-05 řešitel vždy zkoumá pozadí a účel obchodu (§ 9 odst. 6 vyhlášky).
+U alertů R-02 až R-05 řešitel vždy zkoumá pozadí a účel obchodu (§ 9 odst. 6 vyhlášky).
 
 ### 8.7 Uzavření a záznam (rekonstruovatelnost)
 
@@ -256,7 +256,7 @@ Výsledky šetření slouží jako vstup pro aktualizaci rizikového profilu kli
 
 1. Vyřadit klienta nebo jeho účet z jednoho konkrétního scénáře lze jen individuálně. Plošné vyřazení skupin klientů je zakázáno.
 2. Whitelist navrhuje analytik s odůvodněním (proč scénář u klienta opakovaně generuje FP a proč riziko neroste). Schvaluje AML compliance officer.
-3. Klient s vyšším rizikovým profilem, PEP nebo klient z HRJ nelze zařadit na whitelist pro scénáře TM-02 až TM-04.
+3. Klient s vyšším rizikovým profilem, PEP nebo klient z HRJ nelze zařadit na whitelist pro scénáře R-02 až R-04.
 4. Každé zařazení platí nejdéle 12 měsíců. AML compliance officer ho čtvrtletně přezkoumá.
 5. Zařazení, přezkum a vyřazení se zaznamenávají (benchmark 2/2023, kap. III.ii).
 
@@ -290,7 +290,7 @@ Společná pravidla:
 - Sledované období = kalendářní měsíc (PoC: červenec 2026).
 - Referenční profil: očekávaný měsíční objem ze smlouvy a skutečné údaje za Q2 2026 z klientského registru.
 
-### TM-01 Nesoulad s profilem klienta
+### R-01 Nesoulad s profilem klienta
 
 Alert, pokud v období nastane **alespoň jedna** podmínka:
 
@@ -302,7 +302,7 @@ Alert, pokud v období nastane **alespoň jedna** podmínka:
 
 U klienta neaktivního v Q2 se vyhodnocuje jen podmínka (a). Alert uvádí všechny splněné podmínky, dny a transakce.
 
-### TM-02 Vysoce riziková jurisdikce
+### R-02 Vysoce riziková jurisdikce
 
 Alert pro každou transakci s částkou > `P_B1`, kde země plátce, země příjemce **nebo** země klienta je na seznamu HRJ (čl. 4.4).
 
@@ -310,7 +310,7 @@ Alert pro každou transakci s částkou > `P_B1`, kde země plátce, země pří
 | --- | --- |
 | `P_B1` | 10 000 CZK |
 
-### TM-03 Odchozí platba PEP
+### R-03 Odchozí platba PEP
 
 Alert pro každou transakci klienta s PEP = `Y`, která je odchozí nebo má nejasný směr a částka > `P_B2`.
 
@@ -318,7 +318,7 @@ Alert pro každou transakci klienta s PEP = `Y`, která je odchozí nebo má nej
 | --- | --- |
 | `P_B2` | 100 000 CZK |
 
-### TM-04 Průtokový účet
+### R-04 Průtokový účet
 
 Pro každou příchozí transakci klienta v čase *t* (kotva):
 
@@ -335,7 +335,7 @@ Jeden alert na klienta a měsíc. Uvádí všechna okna, která podmínku splnil
 | `P_C3` | 6 h |
 | `P_C4` | 0,8 |
 
-### TM-05 Nový klient identifikovaný na dálku s nadměrným obratem
+### R-05 Nový klient identifikovaný na dálku s nadměrným obratem
 
 Alert, pokud současně platí:
 
@@ -348,7 +348,7 @@ Alert, pokud současně platí:
 | `P_D1` | 6 měsíců |
 | `P_D2` | 3 |
 
-### TM-06 Neobvyklý počet plátců
+### R-06 Neobvyklý počet plátců
 
 Alert, pokud klient v jednom kalendářním dni přijme platby od alespoň `P_F1` různých účtů plátců.
 
@@ -362,17 +362,17 @@ Priorita = základ scénáře + součet modifikátorů, nejvýš 100. Při více
 
 | Položka | Body |
 | --- | --- |
-| Základ TM-02, TM-03 | 60 |
-| Základ TM-04 | 55 |
-| Základ TM-05, TM-06 | 35 |
-| Základ TM-01 | 15 |
+| Základ R-02, R-03 | 60 |
+| Základ R-04 | 55 |
+| Základ R-05, R-06 | 35 |
+| Základ R-01 | 15 |
 | AML risk score `high` / `medium` | +20 / +10 |
 | PEP | +15 |
 | Klient nebo protistrana z HRJ | +15 |
 | Identifikace na dálku | +5 |
 | Vztah kratší než 12 měsíců | +5 |
 | Každý další scénář u stejného klienta v období | +10 |
-| TM-01: splněny všechny tři podmínky (a), (b), (c) | +10 |
+| R-01: splněny všechny tři podmínky (a), (b), (c) | +10 |
 | Objem klienta za období > 5 × očekávaný měsíční objem | +10 |
 
 **[ROZHODNUTÍ]** Váhy jsou výchozí návrh. Je nutné je sladit s hodnocením rizik SVZ-02.
@@ -390,21 +390,21 @@ Stav k 2026-10-19. Data: `datasets/transactions.csv` (397 853 transakcí, 1.–3
 | Skutečný objem Q2 je mediánově 3,36× očekávaný objem ze smlouvy (≈ 3 měsíce). | Očekávaný objem je **měsíční** (čl. 2). |
 | Medián částky je téměř stejný ve všech 23 měnách (2 616–3 868), i u HUF, JPY a KRW. Po přepočtu kurzem by měl každý klient (5 493/5 493) transakci nad 2× maxima Q2. | Pole *volume* se chová jako částka **již v CZK**. Validace proto počítá s *volume* jako s CZK. Zachytí to kontrola DQ-4. **[ROZHODNUTÍ]** potvrdit s FINREG. |
 | `remittance` (39 715 transakcí) nemá účet plátce, země plátce = země klienta, příjemce je vždy jiný účet. | Remitence = nejasný směr, pro odchozí scénáře jako odchozí (čl. 2). |
-| Žádná země v datech (33 zemí) není na seznamu FATF k 19. 6. 2026 ani na seznamu EU. | TM-02 v PoC datech nedává žádný alert. Scénář zůstává, protože ho vyžaduje § 9 odst. 3 a 4 vyhlášky. |
-| 23 klientů PEP, 1 500 klientů s identifikací na dálku, 392 klientů s rizikem `high`. | Vstupy pro TM-03, TM-05 a prioritizaci jsou k dispozici. |
+| Žádná země v datech (33 zemí) není na seznamu FATF k 19. 6. 2026 ani na seznamu EU. | R-02 v PoC datech nedává žádný alert. Scénář zůstává, protože ho vyžaduje § 9 odst. 3 a 4 vyhlášky. |
+| 23 klientů PEP, 1 500 klientů s identifikací na dálku, 392 klientů s rizikem `high`. | Vstupy pro R-03, R-05 a prioritizaci jsou k dispozici. |
 
 ### Počty alertů (parametry verze 0.1)
 
 | Scénář | Alertů | Poznámka |
 | --- | --- | --- |
-| TM-01 | 4 669 klientů (85 %) | (a) 3 040, (b) 4 620, (c) 1 008 (jediný klient neaktivní v Q2, K005492, je zachycen podmínkou (a)). Odpovídá pravidlu A od FINREG („nejvíc alertů, nejvyšší podíl FP“). Hlavní úlohou je triáž. |
-| TM-02 | 0 | Žádná země z HRJ v datech. |
-| TM-03 | 4 transakce / 3 klienti | |
-| TM-04 | 16 klientů | Interpretace oken podle Přílohy 1. |
-| TM-05 | 36 klientů | Ze 103 klientů na dálku se vztahem < 6 měsíců. |
-| TM-06 | 16 klientů | 99. percentil = 4 plátci/den, 99,9. percentil = 5, maximum = 8. |
+| R-01 | 4 669 klientů (85 %) | (a) 3 040, (b) 4 620, (c) 1 008 (jediný klient neaktivní v Q2, K005492, je zachycen podmínkou (a)). Odpovídá pravidlu A od FINREG („nejvíc alertů, nejvyšší podíl FP“). Hlavní úlohou je triáž. |
+| R-02 | 0 | Žádná země z HRJ v datech. |
+| R-03 | 4 transakce / 3 klienti | |
+| R-04 | 16 klientů | Interpretace oken podle Přílohy 1. |
+| R-05 | 36 klientů | Ze 103 klientů na dálku se vztahem < 6 měsíců. |
+| R-06 | 16 klientů | 99. percentil = 4 plátci/den, 99,9. percentil = 5, maximum = 8. |
 
-### Citlivost TM-01 (pro kalibraci podle čl. 11)
+### Citlivost R-01 (pro kalibraci podle čl. 11)
 
 | Varianta | Klientů |
 | --- | --- |
@@ -419,4 +419,4 @@ Stav k 2026-10-19. Data: `datasets/transactions.csv` (397 853 transakcí, 1.–3
 | Strukturování těsně pod limitem (≥ 2 transakce 90–100 tis. CZK do 24 h) | 0 zásahů v datech |
 | Kulaté částky (násobky 1 000 CZK) | 1 transakce, bez vypovídací hodnoty |
 
-Scénáře TM-01 až TM-04 parametricky odpovídají pravidlům A–C ze zadání FINREG. TM-05 a TM-06 jsou další red flags.
+Scénáře R-01 až R-04 parametricky odpovídají pravidlům A–C ze zadání FINREG. R-05 a R-06 jsou další red flags.

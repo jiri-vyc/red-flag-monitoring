@@ -1,4 +1,4 @@
-# TM-04 Průtokový účet
+# R-04 Průtokový účet
 
 ## Definice
 
@@ -10,11 +10,7 @@ Pro každou příchozí transakci klienta v čase t:
 
 **Alert:** 1 alert na klienta a měsíc
 
-**Společné konvence:** Částky v CZK (L = 1 000 EUR = 25 000 CZK). `outgoing` a `remittance` = odchozí. Sledované období = kalendářní měsíc.
-
 ## Zdroj
 
 - **Regulace:** [AML zákon 253/2008](../regulace/plne-zneni/zakon-253-2008-aml.md) § 6 odst. 1 písm. a), d), f)
-- **Vnitřní předpis:** [SVZ-03, Příloha 1, TM-04](../vnitrni-predpisy/svz-03-monitoring-transakci.md)
-
-**Výsledek na datech PoC:** 16 klientů
+- **Vnitřní předpis:** [SVZ-03, Příloha 1, R-04](../vnitrni-predpisy/svz-03-monitoring-transakci.md)
