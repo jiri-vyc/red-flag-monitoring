@@ -17,6 +17,8 @@ import { useTransactionEvaluation } from "../api/hooks";
 import type { RuleEvaluation, TransactionEvaluation } from "../types";
 import { BucketBadge } from "./BucketBadge";
 import styles from "./TransactionEvaluationScreen.module.css";
+import { useCurrentUser } from "@/features/users/api/hooks";
+import { formatMessage } from "@/i18n/dictionaries";
 
 function TraceTimeline({ evaluation }: { evaluation: RuleEvaluation }) {
   return (
@@ -101,6 +103,9 @@ function FailedRuleCard({ evaluation }: { evaluation: RuleEvaluation }) {
           <span className={styles.ruleMeta}>
             <RuleTypeBadge type={evaluation.ruleType} />
             <span>v{evaluation.ruleVersionNumber}</span>
+            <span>
+              {t.rules.escalationRole}: {t.roles[evaluation.escalationRole]}
+            </span>
           </span>
         </div>
         <Link href={`/rules/${evaluation.ruleId}`} className={styles.ruleLink}>
@@ -163,6 +168,7 @@ function PassedRuleList({ evaluations }: { evaluations: RuleEvaluation[] }) {
 
 function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEvaluation }) {
   const { t, locale } = useI18n();
+  const { activeRole } = useCurrentUser();
   const { transaction, client } = evaluation;
   return (
     <>
@@ -223,7 +229,14 @@ function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEv
       >
         <Notice tone="ai">{t.batches.decisionAid}</Notice>
         {evaluation.failedRules.length === 0 ? (
-          <EmptyState message={t.transactionDetail.noFailedRules} />
+          <EmptyState
+            message={
+              // A flagged transaction without failed rules here has only hits escalated to other roles (issue #6).
+              evaluation.bucket === "ok"
+                ? t.transactionDetail.noFailedRules
+                : formatMessage(t.transactionDetail.noHitsForRole, { role: t.roles[activeRole] })
+            }
+          />
         ) : (
           <div className={styles.ruleList}>
             {evaluation.failedRules.map((ruleEvaluation) => (

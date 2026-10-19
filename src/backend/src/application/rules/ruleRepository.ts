@@ -1,4 +1,4 @@
-import type { Rule, RuleVersion } from "../../domain/rule";
+import type { EscalationRole, Rule, RuleVersion } from "../../domain/rule";
 import type { VersionReview } from "../../domain/versionStatus";
 import type { VersionStatusChange } from "../versionReview";
 
@@ -7,6 +7,9 @@ export type NewRuleVersion = Omit<
   RuleVersion,
   "id" | "versionNo" | "createdAt" | "reviewedBy" | "reviewedAt" | "reviewComment"
 >;
+
+// E2: a review may also change the escalation role; null keeps the version's current one.
+export type RuleVersionReview = VersionReview & { escalationRole: EscalationRole | null };
 
 // Applied in one transaction. The update is skipped with a ConflictError when the rule's active version is
 // no longer `previousActiveVersionId`.
@@ -27,5 +30,5 @@ export interface RuleRepository {
   listVersions(ruleId: string): Promise<RuleVersion[]>;
   findVersion(versionId: string): Promise<RuleVersion | null>;
   updateVersionStatus(change: VersionStatusChange): Promise<void>;
-  recordReview(versionId: string, review: VersionReview): Promise<void>;
+  recordReview(versionId: string, review: RuleVersionReview): Promise<void>;
 }

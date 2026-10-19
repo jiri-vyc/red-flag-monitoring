@@ -6,6 +6,7 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field, fieldStyles } from "@/components/ui/Field";
 import { ErrorState } from "@/components/ui/StateViews";
+import type { UserRole } from "@/features/users/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
 import { useRejectRule } from "../api/hooks";
@@ -14,12 +15,19 @@ import styles from "./RejectRulePanel.module.css";
 
 type RejectRulePanelProps = {
   ruleId: string;
+  /** The escalation role picked at review (issue #6); null keeps the version's role. */
+  escalationRole?: UserRole | null;
   onRejected: (rule: Rule) => void;
   onCancel: () => void;
 };
 
 /** Confirms a rejection. The reason is required: a rejection is an AML decision and is stored as the review comment. */
-export function RejectRulePanel({ ruleId, onRejected, onCancel }: RejectRulePanelProps) {
+export function RejectRulePanel({
+  ruleId,
+  escalationRole = null,
+  onRejected,
+  onCancel,
+}: RejectRulePanelProps) {
   const { t } = useI18n();
   const rejectMutation = useRejectRule();
   const commentId = useId();
@@ -32,7 +40,7 @@ export function RejectRulePanel({ ruleId, onRejected, onCancel }: RejectRulePane
       return;
     }
     setIsCommentMissing(false);
-    rejectMutation.mutate({ ruleId, comment: comment.trim() }, { onSuccess: onRejected });
+    rejectMutation.mutate({ ruleId, comment: comment.trim(), escalationRole }, { onSuccess: onRejected });
   };
 
   return (

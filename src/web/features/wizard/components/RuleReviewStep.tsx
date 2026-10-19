@@ -19,6 +19,8 @@ import { RuleContentView } from "@/features/rules/components/RuleContentView";
 import { findRuleLegalBases, getLatestVersion } from "@/features/rules/domain/ruleLifecycle";
 import type { Rule } from "@/features/rules/types";
 import { useI18n } from "@/i18n/I18nProvider";
+import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import styles from "./Wizard.module.css";
 
@@ -42,6 +44,7 @@ function GeneratedRuleCard({ rule, onRuleChange }: { rule: Rule; onRuleChange: (
   const [isEditing, setIsEditing] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const { canEditDraftContent } = useRulesCapabilities();
+  const { canManageRules } = useRolePermissions();
   const transitionMutation = useRuleTransition();
   const updateDraftMutation = useUpdateDraftContent();
   const decision = findReviewDecision(rule);
@@ -60,7 +63,7 @@ function GeneratedRuleCard({ rule, onRuleChange }: { rule: Rule; onRuleChange: (
             <Badge tone={DECISION_TONES[decision]}>{t.wizard.decision[decision]}</Badge>
           </div>
         </div>
-        {isPending && !isEditing && !isRejecting && (
+        {canManageRules && isPending && !isEditing && !isRejecting && (
           <div className={styles.generatedRuleActions}>
             <Button
               variant="success"
@@ -150,6 +153,7 @@ export function RuleReviewStep({
   onFinish,
 }: RuleReviewStepProps) {
   const { t } = useI18n();
+  const { canManageRules } = useRolePermissions();
   const { jobs: rulesJobs } = useDraftingJobGroup(rulesJobIds);
   return (
     <Card tone="ai" title={t.wizard.reviewTitle}>
@@ -167,11 +171,20 @@ export function RuleReviewStep({
           ))}
         </div>
       )}
-      <div>
-        <Button size="lg" disabled={isFinishing} icon={<CircleCheck aria-hidden="true" />} onClick={onFinish}>
-          {isFinishing ? t.wizard.finishing : t.wizard.finishReview}
-        </Button>
-      </div>
+      {canManageRules ? (
+        <div>
+          <Button
+            size="lg"
+            disabled={isFinishing}
+            icon={<CircleCheck aria-hidden="true" />}
+            onClick={onFinish}
+          >
+            {isFinishing ? t.wizard.finishing : t.wizard.finishReview}
+          </Button>
+        </div>
+      ) : (
+        <RoleGateNotice requiredRole="compliance_officer" />
+      )}
     </Card>
   );
 }

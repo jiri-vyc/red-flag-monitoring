@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getServiceMode, selectServiceImplementation, type ApiMode } from "@/config/apiMode";
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
@@ -11,6 +11,8 @@ import { MIN_ETA_ELAPSED_MS } from "../domain/runDuration";
 import type { Batch, Bucket, RunScope } from "../types";
 import type { BatchesCapabilities } from "./contract";
 import { batchesImplementations, batchesService } from "./service";
+import { useCurrentUser } from "@/features/users/api/hooks";
+import type { UserRole } from "@/features/users/types";
 
 // The mock's simulated run lasts a few seconds, so it is polled often for a smooth progress; a live run over
 // the database takes minutes and is polled every 2 s.
@@ -22,9 +24,10 @@ const FIRST_PAGE_CURSOR: string | null = null;
 export const batchQueryKeys = {
   all: ["batches"] as const,
   detail: (batchId: string) => ["batches", batchId] as const,
-  transactions: (batchId: string, bucket: Bucket) => ["batches", batchId, "transactions", bucket] as const,
-  evaluation: (batchId: string, transactionId: string) =>
-    ["batches", batchId, "evaluation", transactionId] as const,
+  transactions: (batchId: string, bucket: Bucket, role: UserRole) =>
+    ["batches", batchId, "transactions", bucket, role] as const,
+  evaluation: (batchId: string, transactionId: string, role: UserRole) =>
+    ["batches", batchId, "evaluation", transactionId, role] as const,
 };
 
 /** The data source batches use: the sidebar choice, unless the env pins batches to a mode. */
@@ -69,7 +72,7 @@ export function useBatch(batchId: string) {
 export function useUploadBatch() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => batchesService.uploadBatch({ file, uploadedBy: CURRENT_USER.name }),
+    mutationFn: (file: File) => batchesService.uploadBatch({ file, uploadedBy: getCurrentUser().name }),
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: batchQueryKeys.all }),
@@ -81,7 +84,7 @@ export function useUploadBatch() {
 export function useStartEvaluationRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (scope: RunScope) => batchesService.startRun({ startedBy: CURRENT_USER.name, scope }),
+    mutationFn: (scope: RunScope) => batchesService.startRun({ startedBy: getCurrentUser().name, scope }),
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: batchQueryKeys.all }),
@@ -92,9 +95,12 @@ export function useStartEvaluationRun() {
 
 export function useBatchTransactions({ batchId, bucket }: { batchId: string; bucket: Bucket }) {
   useServiceUsage("batches");
+  // Issue #6: results follow the role picked in the sidebar; the role is part of the key, so a switch refetches.
+  const { activeRole: role } = useCurrentUser();
   return useInfiniteQuery({
-    queryKey: batchQueryKeys.transactions(batchId, bucket),
-    queryFn: ({ pageParam }) => batchesService.loadBatchTransactions({ batchId, bucket, cursor: pageParam }),
+    queryKey: batchQueryKeys.transactions(batchId, bucket, role),
+    queryFn: ({ pageParam }) =>
+      batchesService.loadBatchTransactions({ batchId, bucket, cursor: pageParam, role }),
     initialPageParam: FIRST_PAGE_CURSOR,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   });
@@ -108,8 +114,9 @@ export function useTransactionEvaluation({
   transactionId: string;
 }) {
   useServiceUsage("batches");
+  const { activeRole: role } = useCurrentUser();
   return useQuery({
-    queryKey: batchQueryKeys.evaluation(batchId, transactionId),
-    queryFn: () => batchesService.loadTransactionEvaluation({ batchId, transactionId }),
+    queryKey: batchQueryKeys.evaluation(batchId, transactionId, role),
+    queryFn: () => batchesService.loadTransactionEvaluation({ batchId, transactionId, role }),
   });
 }

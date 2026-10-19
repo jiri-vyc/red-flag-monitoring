@@ -10,7 +10,13 @@ import {
   Unique,
 } from "typeorm";
 
-import { RISK_PROFILES, type RiskProfile } from "../../../domain/rule";
+import {
+  DEFAULT_ESCALATION_ROLE,
+  ESCALATION_ROLES,
+  type EscalationRole,
+  RISK_PROFILES,
+  type RiskProfile,
+} from "../../../domain/rule";
 import type { RuleDefinition } from "../../../domain/ruleDefinition";
 import { MAX_SCORE, MIN_SCORE } from "../../../domain/score";
 import {
@@ -36,6 +42,7 @@ import { UserEntity } from "./UserEntity";
   "rule_versions_logic_check",
   `"definition" IS NOT NULL OR ("agent_prompt" IS NOT NULL AND "agent_model_id" IS NOT NULL)`,
 )
+@Check("rule_versions_escalation_role_check", isOneOf("escalation_role", ESCALATION_ROLES))
 @Check("rule_versions_status_check", isOneOf("status", VERSION_STATUSES))
 @Check("rule_versions_created_via_check", isOneOf("created_via", VERSION_ORIGINS))
 @Check(
@@ -90,6 +97,9 @@ export class RuleVersionEntity {
 
   @Column({ name: "risk_profiles", type: "text", array: true })
   riskProfiles!: RiskProfile[];
+
+  @Column({ name: "escalation_role", type: "text", default: DEFAULT_ESCALATION_ROLE })
+  escalationRole!: EscalationRole;
 
   @Column({ name: "status", type: "text" })
   status!: VersionStatus;

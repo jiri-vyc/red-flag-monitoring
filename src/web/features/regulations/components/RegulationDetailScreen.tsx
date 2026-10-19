@@ -17,6 +17,7 @@ import { findRuleLegalBases } from "@/features/rules/domain/ruleLifecycle";
 import { useWizardCapabilities } from "@/features/wizard/api/hooks";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
+import { useRolePermissions } from "@/features/users/api/hooks";
 
 import { useRegulation } from "../api/hooks";
 import { formatLegalBasisRefs, type LegalBasis, type Regulation } from "../types";
@@ -103,6 +104,7 @@ function RelatedRules({ regulation }: { regulation: Regulation }) {
 function RegulationDetail({ regulation }: { regulation: Regulation }) {
   const { t, locale } = useI18n();
   const { isAvailable: isWizardAvailable } = useWizardCapabilities();
+  const { canDraftPolicies } = useRolePermissions();
   return (
     <>
       <PageHeader
@@ -111,7 +113,8 @@ function RegulationDetail({ regulation }: { regulation: Regulation }) {
         meta={<Badge tone="primary">{t.jurisdiction[regulation.jurisdiction]}</Badge>}
         description={regulation.name}
         actions={
-          isWizardAvailable && (
+          isWizardAvailable &&
+          canDraftPolicies && (
             <ButtonLink href={`/wizard?regulationId=${regulation.id}`} icon={<Sparkles aria-hidden="true" />}>
               {t.regulations.createRules}
             </ButtonLink>

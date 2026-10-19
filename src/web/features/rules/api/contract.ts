@@ -7,8 +7,10 @@ import type {
   UpdateDraftContentInput,
   WhitelistEntry,
 } from "../types";
+import type { UserRole } from "@/features/users/types";
 
-export type ReviewInput = { ruleId: string; reviewer: string };
+/** The reviewer may also change who the version's hits are escalated to (issue #6); null keeps it. */
+export type ReviewInput = { ruleId: string; reviewer: string; escalationRole: UserRole | null };
 /** A rejection is an AML decision and must carry its reason; it is stored as the review comment. */
 export type RejectInput = ReviewInput & { comment: string };
 

@@ -1,3 +1,4 @@
+import type { EscalationRole } from "../../domain/rule";
 import { NotFoundError } from "../errors";
 import type { Page, PageRequest } from "../pagination";
 import type {
@@ -41,10 +42,12 @@ export class EvaluationRunQueries {
   async getTransactionEvaluationDetail(
     runId: string,
     transactionId: string,
+    escalationRole: EscalationRole | null,
   ): Promise<TransactionEvaluationDetail> {
     const detail = await this.evaluationRunReadRepository.findTransactionEvaluationDetail(
       runId,
       transactionId,
+      escalationRole,
     );
 
     if (!detail) {

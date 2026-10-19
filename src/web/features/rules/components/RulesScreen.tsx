@@ -12,6 +12,7 @@ import { EmptyState, QueryView } from "@/components/ui/StateViews";
 import { PolicyLink } from "@/features/policies/components/PolicyLink";
 import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useI18n } from "@/i18n/I18nProvider";
+import { useRolePermissions } from "@/features/users/api/hooks";
 
 import { useRules, useRulesCapabilities } from "../api/hooks";
 import { findDescribingVersion } from "../domain/ruleLifecycle";
@@ -120,12 +121,14 @@ export function RulesScreen() {
   const { t } = useI18n();
   const rulesQuery = useRules();
   const { canCreateDeterministicRule, canCreateAgenticRule } = useRulesCapabilities();
+  const { canManageRules } = useRolePermissions();
   return (
     <>
       <PageHeader
         title={t.rules.title}
         description={t.rules.subtitle}
         actions={
+          canManageRules &&
           (canCreateDeterministicRule || canCreateAgenticRule) && (
             <ButtonLink href="/rules/new" icon={<Plus aria-hidden="true" />}>
               {t.rules.newRule}

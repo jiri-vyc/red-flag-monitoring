@@ -35,6 +35,8 @@ function ConfigFieldValue({ field, config }: { field: RuleConfigField; config: R
           ))}
         </div>
       );
+    case "escalationRole":
+      return <strong>{t.roles[config.escalationRole]}</strong>;
   }
 }
 
@@ -63,6 +65,7 @@ export function RuleConfigView({ config, baseScore = null, pendingConfig = null 
   const labels: Record<RuleConfigField, ReactNode> = {
     sensitivity: t.rules.sensitivity,
     riskProfiles: t.rules.riskProfiles,
+    escalationRole: t.rules.escalationRole,
   };
 
   return (

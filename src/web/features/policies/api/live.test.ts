@@ -1,4 +1,4 @@
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import { createDraftingJobDto } from "@/features/draftingJobs/api/draftingJobDtoFixture";
 import { requestJson } from "@/lib/httpClient";
 
@@ -21,7 +21,7 @@ function createPolicyVersionDto(
     versionNo: 1,
     status: "draft",
     createdVia: "manual",
-    createdBy: CURRENT_USER.id,
+    createdBy: getCurrentUser().id,
     createdAt: CREATED_AT,
     reviewedBy: null,
     reviewedAt: null,
@@ -134,7 +134,7 @@ describe("livePoliciesService.approvePolicy", () => {
 
     const approval = await livePoliciesService.approvePolicy({
       policyId: "policy-multi",
-      approvedBy: CURRENT_USER.name,
+      approvedBy: getCurrentUser().name,
     });
 
     const writes = requests.filter(({ method }) => method !== "GET");
@@ -144,7 +144,7 @@ describe("livePoliciesService.approvePolicy", () => {
     ]);
     expect(writes[1]?.jsonBody).toEqual({
       decision: "approved",
-      reviewedBy: CURRENT_USER.id,
+      reviewedBy: getCurrentUser().id,
       reviewComment: null,
     });
     expect(approval.policy.id).toBe("policy-multi");

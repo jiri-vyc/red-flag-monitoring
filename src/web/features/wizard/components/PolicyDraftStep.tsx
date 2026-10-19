@@ -12,6 +12,8 @@ import type { Policy } from "@/features/policies/types";
 import { formatLegalBasisRefs } from "@/features/regulations/types";
 import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
+import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import type { PolicyDraftResult } from "../types";
 import styles from "./Wizard.module.css";
@@ -78,6 +80,7 @@ export function PolicyDraftStep({
   onApprove,
 }: PolicyDraftStepProps) {
   const { t } = useI18n();
+  const { canApprovePolicy } = useRolePermissions();
   const [policyTexts, setPolicyTexts] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       draft.policies.map((policy) => [policy.id, initialPolicyTexts[policy.id] ?? policy.text]),
@@ -103,11 +106,15 @@ export function PolicyDraftStep({
           />
         ))}
       </div>
-      <div>
-        <Button size="lg" icon={<Sparkles aria-hidden="true" />} onClick={() => onApprove(policyTexts)}>
-          {t.wizard.generateRules}
-        </Button>
-      </div>
+      {canApprovePolicy ? (
+        <div>
+          <Button size="lg" icon={<Sparkles aria-hidden="true" />} onClick={() => onApprove(policyTexts)}>
+            {t.wizard.generateRules}
+          </Button>
+        </div>
+      ) : (
+        <RoleGateNotice requiredRole="compliance_officer" />
+      )}
     </Card>
   );
 }

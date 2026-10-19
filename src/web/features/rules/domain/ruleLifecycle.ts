@@ -9,6 +9,7 @@ import {
   type RuleStatus,
   type RuleVersion,
 } from "../types";
+import type { UserRole } from "@/features/users/types";
 
 export type RuleAction =
   "submit_for_review" | "approve" | "reject" | "activate" | "deactivate" | "create_version";
@@ -20,7 +21,12 @@ export class RuleTransitionError extends Error {
   }
 }
 
-type ReviewContext = { reviewer: string; now: string };
+type ReviewContext = { reviewer: string; now: string; escalationRole: UserRole | null };
+
+/** A review may change the escalation role of the reviewed version (issue #6); null keeps it. */
+function withEscalationRole(version: RuleVersion, escalationRole: UserRole | null): RuleVersion {
+  return escalationRole === null ? version : { ...version, config: { ...version.config, escalationRole } };
+}
 
 const REVIEWABLE_STATUSES: readonly RuleStatus[] = ["draft", "pending_for_review", "update_for_review"];
 
@@ -47,8 +53,8 @@ export function findPendingVersion(rule: Rule): RuleVersion | null {
 }
 
 function areConfigValuesEqual(field: RuleConfigField, left: RuleConfig, right: RuleConfig): boolean {
-  if (field === "sensitivity") {
-    return left.sensitivity === right.sensitivity;
+  if (field === "sensitivity" || field === "escalationRole") {
+    return left[field] === right[field];
   }
   // Order does not matter for lists: comparing sorted copies.
   const sortedLeft = [...left[field]].sort();
@@ -107,12 +113,15 @@ export function submitRuleForReview(rule: Rule, now: string): Rule {
   };
 }
 
-export function approveRule(rule: Rule, { reviewer, now }: ReviewContext): Rule {
+export function approveRule(rule: Rule, { reviewer, now, escalationRole }: ReviewContext): Rule {
   assertActionAllowed(rule, "approve");
   const approvedVersion = getLatestVersion(rule);
   const versions = rule.versions.map((version): RuleVersion => {
     if (version.versionNumber === approvedVersion.versionNumber) {
-      return { ...version, state: "approved", reviewedBy: reviewer, reviewedAt: now };
+      return withEscalationRole(
+        { ...version, state: "approved", reviewedBy: reviewer, reviewedAt: now },
+        escalationRole,
+      );
     }
     return version.state === "approved" ? { ...version, state: "superseded" } : version;
   });
@@ -125,14 +134,12 @@ export function approveRule(rule: Rule, { reviewer, now }: ReviewContext): Rule 
   };
 }
 
-export function rejectRule(rule: Rule, { reviewer, now }: ReviewContext): Rule {
+export function rejectRule(rule: Rule, { reviewer, now, escalationRole }: ReviewContext): Rule {
   assertActionAllowed(rule, "reject");
-  const rejectedVersion: RuleVersion = {
-    ...getLatestVersion(rule),
-    state: "rejected",
-    reviewedBy: reviewer,
-    reviewedAt: now,
-  };
+  const rejectedVersion = withEscalationRole(
+    { ...getLatestVersion(rule), state: "rejected", reviewedBy: reviewer, reviewedAt: now },
+    escalationRole,
+  );
   // A rejected update leaves the previously approved version running; a rejected new rule is switched off.
   const nextStatus: RuleStatus = rule.status === "update_for_review" ? "active" : "inactive";
   return {

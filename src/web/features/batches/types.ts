@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { riskProfileSchema, ruleTypeSchema } from "@/features/rules/types";
+import { userRoleSchema, type UserRole } from "@/features/users/types";
 
 export const BUCKETS = ["ok", "to_check", "alert"] as const;
 export const bucketSchema = z.enum(BUCKETS);
@@ -85,6 +86,8 @@ export const ruleEvaluationSchema = z.object({
   adjustedScore: z.number(),
   isFailed: z.boolean(),
   trace: z.array(traceStepSchema),
+  /** Who handles a hit of this rule version (issue #6). */
+  escalationRole: userRoleSchema,
 });
 export type RuleEvaluation = z.infer<typeof ruleEvaluationSchema>;
 
@@ -114,4 +117,10 @@ export type TransactionEvaluation = z.infer<typeof transactionEvaluationSchema>;
  */
 export type RunScope = { limit?: number; from?: string; to?: string };
 
-export type LoadBatchTransactionsInput = { batchId: string; bucket: Bucket; cursor: string | null };
+/** `role`: the active role; only transactions with a hit escalated to it are listed (issue #6, strict filter). */
+export type LoadBatchTransactionsInput = {
+  batchId: string;
+  bucket: Bucket;
+  cursor: string | null;
+  role: UserRole;
+};

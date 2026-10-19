@@ -1,4 +1,4 @@
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import {
   draftingJobDtoSchema,
   draftingJobPageDtoSchema,
@@ -116,7 +116,7 @@ export const liveWizardService: WizardService = {
         source: sourceBody,
         regulation: buildRegulationBody(regulation, sourceBody),
         versionLabel,
-        createdBy: CURRENT_USER.id,
+        createdBy: getCurrentUser().id,
       },
       schema: draftingJobDtoSchema,
     });
@@ -135,7 +135,7 @@ export const liveWizardService: WizardService = {
   },
 
   approvePolicyDraft(policyId) {
-    return livePoliciesService.approvePolicy({ policyId, approvedBy: CURRENT_USER.name });
+    return livePoliciesService.approvePolicy({ policyId, approvedBy: getCurrentUser().name });
   },
 
   async findRulesJobs(policyIds) {

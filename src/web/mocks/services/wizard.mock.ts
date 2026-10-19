@@ -1,4 +1,4 @@
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import type { DraftingSourceKind } from "@/features/draftingJobs/types";
 import { submitRuleForReview } from "@/features/rules/domain/ruleLifecycle";
 import type { Rule } from "@/features/rules/types";
@@ -120,7 +120,7 @@ export const mockWizardService: WizardService = {
   },
 
   approvePolicyDraft(policyId) {
-    return mockPoliciesService.approvePolicy({ policyId, approvedBy: CURRENT_USER.name });
+    return mockPoliciesService.approvePolicy({ policyId, approvedBy: getCurrentUser().name });
   },
 
   async findRulesJobs(policyIds) {

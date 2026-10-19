@@ -1,3 +1,4 @@
+import { DEFAULT_ESCALATION_ROLE } from "../../domain/rule";
 import type { NewRuleVersion } from "../rules/ruleRepository";
 
 export const ADMIN_ID = "00000000-0000-4000-8000-000000000001";
@@ -31,6 +32,7 @@ export function buildDeterministicVersion(
     baseScore: 80,
     sensitivity: 100,
     riskProfiles: ["low", "medium", "high"],
+    escalationRole: DEFAULT_ESCALATION_ROLE,
     status: "draft",
     createdVia: "manual",
     createdBy: ADMIN_ID,

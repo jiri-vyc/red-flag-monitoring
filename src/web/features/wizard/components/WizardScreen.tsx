@@ -24,6 +24,8 @@ import { useRegulation } from "@/features/regulations/api/hooks";
 import type { Regulation } from "@/features/regulations/types";
 import type { Rule } from "@/features/rules/types";
 import { useI18n } from "@/i18n/I18nProvider";
+import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import {
   useApprovePolicyDraft,
@@ -243,6 +245,7 @@ function WizardFlow({
   const { t } = useI18n();
   const router = useRouter();
   const capabilities = useWizardCapabilities();
+  const { canDraftPolicies } = useRolePermissions();
   const [state, setState] = useState<WizardState>(() =>
     jobId ? { step: "resuming", jobId } : { step: "source" },
   );
@@ -356,11 +359,15 @@ function WizardFlow({
           <LoadingRing label={t.wizard.policyProgressTitle} />
         ) : (
           <>
-            <SourceStep
-              existingRegulation={existingRegulation}
-              capabilities={capabilities}
-              onSubmit={startDrafting}
-            />
+            {canDraftPolicies ? (
+              <SourceStep
+                existingRegulation={existingRegulation}
+                capabilities={capabilities}
+                onSubmit={startDrafting}
+              />
+            ) : (
+              <RoleGateNotice requiredRole="compliance_analyst" />
+            )}
             <DraftingJobsPanel />
           </>
         ))}

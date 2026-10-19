@@ -10,16 +10,15 @@ import {
   ListChecks,
   RotateCcw,
   Scale,
-  UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { getServiceMode, isAnyServiceMocked, type ApiMode } from "@/config/apiMode";
-import { CURRENT_USER } from "@/config/currentUser";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { DatabaseStatusPanel } from "@/features/databaseStatus/components/DatabaseStatusPanel";
+import { CurrentUserPicker } from "@/features/users/components/CurrentUserPicker";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/dictionaries";
 import { resetMockDatabase } from "@/mocks/store/mockDatabase";
@@ -152,16 +151,7 @@ export function Sidebar() {
             onChange={changeLocale}
           />
         </div>
-        <div className={styles.user}>
-          <span className={styles.avatar} aria-hidden="true">
-            <UserRound />
-          </span>
-          <span>
-            <small>{t.sidebar.currentUser}</small>
-            <strong>{CURRENT_USER.name}</strong>
-            <small>{CURRENT_USER.role}</small>
-          </span>
-        </div>
+        <CurrentUserPicker />
       </div>
     </aside>
   );

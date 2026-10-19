@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CURRENT_USER, formatUserName } from "@/config/currentUser";
+import { getCurrentUser, formatUserName } from "@/config/currentUser";
 import { fetchPolicyWithVersions } from "@/features/policies/api/dto";
 import {
   fetchRegulationsWithVersions,
@@ -36,6 +36,7 @@ import {
   type RuleWithVersionsDto,
   type WhitelistEntryDto,
 } from "./dto";
+import type { UserRole } from "@/features/users/types";
 
 // The backend only stores the model id of an agentic rule; no engine runs it yet. Verify before real use.
 const MANUAL_AGENT_MODEL_ID = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
@@ -88,7 +89,11 @@ function toRuleVersion(
     versionNumber: version.versionNo,
     state: version.status,
     content: toRuleContent(rule, version),
-    config: { sensitivity: version.sensitivity, riskProfiles: version.riskProfiles },
+    config: {
+      sensitivity: version.sensitivity,
+      riskProfiles: version.riskProfiles,
+      escalationRole: version.escalationRole,
+    },
     baseScore: version.baseScore,
     // The backend has no change note; the threshold rationale is the closest free-text field.
     changeNote: version.thresholdRationale ?? "",
@@ -238,7 +243,11 @@ async function submitIfDraft(ruleId: string, version: RuleVersionDto): Promise<v
   }
 }
 
-type ReviewDecision = { decision: "approved"; comment: null } | { decision: "rejected"; comment: string };
+type ReviewDecision = (
+  { decision: "approved"; comment: null } | { decision: "rejected"; comment: string }
+) & {
+  escalationRole: UserRole | null;
+};
 
 function reviewVersion({
   ruleId,
@@ -252,7 +261,12 @@ function reviewVersion({
   return requestJson({
     path: `${versionPath(ruleId, versionId)}/review`,
     method: "POST",
-    jsonBody: { decision: review.decision, reviewedBy: CURRENT_USER.id, reviewComment: review.comment },
+    jsonBody: {
+      decision: review.decision,
+      reviewedBy: getCurrentUser().id,
+      reviewComment: review.comment,
+      escalationRole: review.escalationRole,
+    },
     schema: ruleVersionDtoSchema,
   });
 }
@@ -348,7 +362,15 @@ export const liveRulesService: RulesService = {
 
   // The backend does not generate rule logic (BE-04): the description becomes the prompt of an agentic rule.
   // The deterministic option is hidden in the UI; this check is the safety net.
-  async createManualRule({ description, policyId, type, sensitivity, riskProfiles, legalBases }) {
+  async createManualRule({
+    description,
+    policyId,
+    type,
+    sensitivity,
+    riskProfiles,
+    escalationRole,
+    legalBases,
+  }) {
     if (type === "deterministic") {
       return throwUnsupported(
         "Generating a deterministic rule definition from a description is not supported by the API yet.",
@@ -382,7 +404,7 @@ export const liveRulesService: RulesService = {
     await createVersion(rule.id, {
       status: "pending_review",
       createdVia: "manual",
-      createdBy: CURRENT_USER.id,
+      createdBy: getCurrentUser().id,
       derivedFromPolicyVersionId,
       definition: null,
       agentPrompt: description.trim(),
@@ -392,6 +414,7 @@ export const liveRulesService: RulesService = {
       baseScore: null,
       sensitivity,
       riskProfiles: backendRiskProfiles,
+      escalationRole,
       legalBases: legalBasisDtos,
     });
     return loadRule(rule.id);
@@ -408,11 +431,15 @@ export const liveRulesService: RulesService = {
 
   // Backend approval does not activate the version (M6); the web approve also makes it the running version.
   // Only a brand-new rule gets enabled here: a rule an analyst switched off stays off after an update is approved.
-  async approveRule({ ruleId }) {
+  async approveRule({ ruleId, escalationRole }) {
     const ruleBeforeApproval = await requestJson({ path: rulePath(ruleId), schema: ruleDtoSchema });
     const version = await findUnreviewedVersion(ruleId);
     await submitIfDraft(ruleId, version);
-    await reviewVersion({ ruleId, versionId: version.id, review: { decision: "approved", comment: null } });
+    await reviewVersion({
+      ruleId,
+      versionId: version.id,
+      review: { decision: "approved", comment: null, escalationRole },
+    });
     await requestJson({
       path: `${rulePath(ruleId)}/active-version`,
       method: "PUT",
@@ -426,7 +453,7 @@ export const liveRulesService: RulesService = {
   },
 
   // The backend requires the reason of every rejection and stores it as the version's review comment.
-  async rejectRule({ ruleId, comment }) {
+  async rejectRule({ ruleId, comment, escalationRole }) {
     const trimmedComment = comment.trim();
     if (trimmedComment === "") {
       return throwValidation("A rejection needs a reason.");
@@ -436,7 +463,7 @@ export const liveRulesService: RulesService = {
     await reviewVersion({
       ruleId,
       versionId: version.id,
-      review: { decision: "rejected", comment: trimmedComment },
+      review: { decision: "rejected", comment: trimmedComment, escalationRole },
     });
     return loadRule(ruleId);
   },
@@ -460,12 +487,13 @@ export const liveRulesService: RulesService = {
     await createVersion(ruleId, {
       status: "pending_review",
       createdVia: "manual",
-      createdBy: CURRENT_USER.id,
+      createdBy: getCurrentUser().id,
       derivedFromPolicyVersionId: baseVersion.derivedFromPolicyVersionId,
       ...toRuleLogic(content, baseVersion),
       thresholdRationale: changeNote.trim() || null,
       sensitivity: config.sensitivity,
       riskProfiles: toBackendRiskProfiles(config.riskProfiles),
+      escalationRole: config.escalationRole,
       legalBases: baseVersion.legalBases,
     });
     return loadRule(ruleId);
@@ -489,7 +517,7 @@ export const liveRulesService: RulesService = {
     const entry = await requestJson({
       path: whitelistPath(ruleId),
       method: "POST",
-      jsonBody: { clientId, reason, createdBy: CURRENT_USER.id },
+      jsonBody: { clientId, reason, createdBy: getCurrentUser().id },
       schema: whitelistEntryDtoSchema,
     });
     return toWhitelistEntry(entry);

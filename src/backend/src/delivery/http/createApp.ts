@@ -8,6 +8,7 @@ import type { InternalPolicyUseCases } from "../../application/internalPolicies/
 import type { ReferenceListUseCases } from "../../application/referenceLists/referenceListUseCases";
 import type { RegulationUseCases } from "../../application/regulations/regulationUseCases";
 import type { RuleUseCases } from "../../application/rules/ruleUseCases";
+import type { UserUseCases } from "../../application/users/userUseCases";
 import type { WhitelistUseCases } from "../../application/whitelist/whitelistUseCases";
 import type { EnsureDatabaseReady } from "../../infrastructure/database/memoizeInitialization";
 import { createDatabaseStatusRouter } from "./databaseStatusRouter";
@@ -19,6 +20,7 @@ import { createInternalPoliciesRouter } from "./internalPoliciesRouter";
 import { createReferenceListsRouter } from "./referenceListsRouter";
 import { createRegulationsRouter } from "./regulationsRouter";
 import { createRulesRouter } from "./rulesRouter";
+import { createUsersRouter } from "./usersRouter";
 
 // Regulation versions carry the full pasted text of a law (the largest in knowledgebase/ is ~400 kB).
 const JSON_BODY_LIMIT = "5mb";
@@ -33,6 +35,7 @@ export type AppUseCases = {
   evaluationRuns: EvaluationRunQueries;
   evaluationRunUseCases: EvaluationRunUseCases;
   databaseStatus: DatabaseStatusQueries;
+  users: UserUseCases;
 };
 
 export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureDatabaseReady): Express {
@@ -54,6 +57,7 @@ export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureData
     createEvaluationRunsRouter(useCases.evaluationRuns, useCases.evaluationRunUseCases),
   );
   app.use("/api/database-status", createDatabaseStatusRouter(useCases.databaseStatus));
+  app.use("/api/users", createUsersRouter(useCases.users));
   app.use(notFoundHandler);
   app.use(errorHandler);
 

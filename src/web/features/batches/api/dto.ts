@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { BACKEND_RISK_PROFILES } from "@/features/rules/api/dto";
+import { userRoleSchema } from "@/features/users/types";
 
 // Response DTOs of /api/evaluation-runs (src/backend/src/delivery/http/evaluationRunsRouter.ts and
 // application/evaluationRuns/evaluationRunReadModels.ts).
@@ -76,8 +77,21 @@ export const transactionEvaluationDtoSchema = z.object({
   hitCount: z.number().int(),
 });
 
+// Hits of the listed transaction; with `role` the backend keeps only hits escalated to that role (issue #6).
+const hitRuleDtoSchema = z.object({
+  ruleVersionId: z.string(),
+  ruleCode: z.string(),
+  adjustedScore: z.number(),
+  escalationRole: userRoleSchema,
+});
+
 export const transactionEvaluationPageDtoSchema = z.object({
-  items: z.array(transactionEvaluationDtoSchema.extend({ transaction: transactionDtoSchema })),
+  items: z.array(
+    transactionEvaluationDtoSchema.extend({
+      transaction: transactionDtoSchema,
+      hitRules: z.array(hitRuleDtoSchema),
+    }),
+  ),
   limit: z.number().int(),
   offset: z.number().int(),
   total: z.number().int(),
@@ -157,6 +171,7 @@ export const ruleEvaluationDetailDtoSchema = z.object({
     versionNo: z.number().int(),
     baseScore: z.number().nullable(),
     sensitivity: z.number(),
+    escalationRole: userRoleSchema,
   }),
 });
 export type RuleEvaluationDetailDto = z.infer<typeof ruleEvaluationDetailDtoSchema>;

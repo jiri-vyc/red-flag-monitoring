@@ -1,7 +1,12 @@
 import type { Rule, RuleVersion } from "../../domain/rule";
-import type { VersionReview } from "../../domain/versionStatus";
 import { ConflictError } from "../errors";
-import type { NewRule, NewRuleVersion, RuleActivation, RuleRepository } from "../rules/ruleRepository";
+import type {
+  NewRule,
+  NewRuleVersion,
+  RuleActivation,
+  RuleRepository,
+  RuleVersionReview,
+} from "../rules/ruleRepository";
 import type { VersionStatusChange } from "../versionReview";
 
 // Mirrors the conditional updates of TypeOrmRuleRepository so state races show up as ConflictError.
@@ -83,7 +88,7 @@ export class InMemoryRuleRepository implements RuleRepository {
     this.versions.set(version.id, { ...version, status: change.toStatus });
   }
 
-  async recordReview(versionId: string, review: VersionReview): Promise<void> {
+  async recordReview(versionId: string, review: RuleVersionReview): Promise<void> {
     const version = this.getVersionInStatus(versionId, "pending_review");
 
     this.versions.set(versionId, {
@@ -92,6 +97,7 @@ export class InMemoryRuleRepository implements RuleRepository {
       reviewedBy: review.reviewedBy,
       reviewedAt: review.reviewedAt,
       reviewComment: review.reviewComment,
+      escalationRole: review.escalationRole ?? version.escalationRole,
     });
   }
 

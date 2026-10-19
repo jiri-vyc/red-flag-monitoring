@@ -1,3 +1,4 @@
+import { DEFAULT_ESCALATION_ROLE } from "@/features/users/types";
 import type { DraftingJobsService } from "@/features/draftingJobs/api/contract";
 import type { DraftingJob, DraftingJobStatus } from "@/features/draftingJobs/types";
 import type { RuleLegalBasis } from "@/features/regulations/types";
@@ -61,6 +62,7 @@ function generateRules(policy: MockPolicyRecord, now: string) {
           config: {
             sensitivity: blueprint.sensitivity,
             riskProfiles: ["high", "medium", "low", "unknown"],
+            escalationRole: DEFAULT_ESCALATION_ROLE,
           },
           baseScore: null,
           changeNote: "Vygenerováno wizardem z interního předpisu.",

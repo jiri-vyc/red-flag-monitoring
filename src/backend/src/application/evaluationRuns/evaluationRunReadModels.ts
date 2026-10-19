@@ -1,6 +1,6 @@
 import type { Client } from "../../domain/client";
 import type { EvaluationRun, RuleEvaluation, TransactionEvaluation, Verdict } from "../../domain/evaluation";
-import type { RuleKind } from "../../domain/rule";
+import type { EscalationRole, RuleKind } from "../../domain/rule";
 import type { Transaction } from "../../domain/transaction";
 
 // import_errors can hold up to 1000 rows, so the run list leaves it out.
@@ -37,6 +37,8 @@ export type TransactionEvaluationFilter = {
   verdict: Verdict | null;
   // Keeps transactions where this rule version hit.
   hitRuleVersionId: string | null;
+  // Issue #6 (E3): only hits of rule versions escalated to this role; null shows every hit.
+  escalationRole: EscalationRole | null;
 };
 
 export type HitRuleSummary = {
@@ -44,6 +46,7 @@ export type HitRuleSummary = {
   ruleCode: string;
   alertType: string;
   adjustedScore: number;
+  escalationRole: EscalationRole;
 };
 
 // `hitRules` answers "which rules did this transaction fail" without opening the detail.
@@ -72,7 +75,13 @@ export type PolicyVersionReference = {
 // version, and on to the internal policy version the rule was derived from.
 export type RuleEvaluationDetail = RuleEvaluation & {
   rule: { id: string; code: string; alertType: string; kind: RuleKind };
-  ruleVersion: { versionNo: number; humanText: string; baseScore: number | null; sensitivity: number };
+  ruleVersion: {
+    versionNo: number;
+    humanText: string;
+    baseScore: number | null;
+    sensitivity: number;
+    escalationRole: EscalationRole;
+  };
   legalBases: LegalBasisDetail[];
   derivedFromPolicyVersion: PolicyVersionReference | null;
 };

@@ -1,12 +1,13 @@
 import type { BatchesService } from "@/features/batches/api/contract";
-import type { Batch, RunScope, Transaction } from "@/features/batches/types";
-import type { MockBatchRecord } from "../store/mockDatabase";
+import type { Batch, RuleEvaluation, RunScope, Transaction } from "@/features/batches/types";
+import type { UserRole } from "@/features/users/types";
+import type { MockBatchRecord, MockBatchRow } from "../store/mockDatabase";
 import { ApiError } from "@/lib/apiError";
 
 import { createMockId } from "../createMockId";
 import { createRuleSnapshots, evaluateBatchRows } from "../evaluation/batchEvaluation";
 import { CsvFormatError, mapCsvRowToTransaction, parseTransactionsCsv } from "../evaluation/csvTransactions";
-import { evaluateTransaction } from "../evaluation/evaluateTransaction";
+import { evaluateTransaction, type MockRuleSnapshot } from "../evaluation/evaluateTransaction";
 import { simulateLatency } from "../latency";
 import { throwMockNotFound } from "../notFound";
 import { SEED_TRANSACTIONS } from "../seed/transactions";
@@ -87,6 +88,33 @@ function persistEvaluatedBatch({
   return mapBatchRecord(record);
 }
 
+// Issue #6 (strict filter): a role sees only hits of rules escalated to it, like the live API with `role`.
+function filterFailedRulesByRole(failedRules: RuleEvaluation[], role: UserRole): RuleEvaluation[] {
+  return failedRules.filter((ruleEvaluation) => ruleEvaluation.escalationRole === role);
+}
+
+// The mock engine is deterministic, so re-evaluating the stored row gives the role's hits of that batch.
+function restrictRowToRole(
+  row: MockBatchRow,
+  ruleSnapshots: MockRuleSnapshot[],
+  role: UserRole,
+): MockBatchRow[] {
+  const roleFailedRules = filterFailedRulesByRole(
+    evaluateTransaction(row.transaction, ruleSnapshots).failedRules,
+    role,
+  );
+  if (roleFailedRules.length === 0) {
+    return [];
+  }
+  return [
+    {
+      ...row,
+      failedRuleCount: roleFailedRules.length,
+      maxAdjustedScore: Math.max(...roleFailedRules.map((ruleEvaluation) => ruleEvaluation.adjustedScore)),
+    },
+  ];
+}
+
 export const mockBatchesService: BatchesService = {
   capabilities: { canUploadBatch: true, canStartRun: true },
 
@@ -132,11 +160,13 @@ export const mockBatchesService: BatchesService = {
     });
   },
 
-  async loadBatchTransactions({ batchId, bucket, cursor }) {
+  async loadBatchTransactions({ batchId, bucket, cursor, role }) {
     await simulateLatency();
     const record = findBatchRecord(batchId);
     const processedRows = readBatchRows(batchId).slice(0, countProcessedRows(record, Date.now()));
-    const bucketRows = processedRows.filter((row) => row.bucket === bucket);
+    const bucketRows = processedRows
+      .filter((row) => row.bucket === bucket)
+      .flatMap((row) => restrictRowToRole(row, record.ruleSnapshots, role));
     const offset = parseCursor(cursor);
     const nextOffset = offset + TRANSACTION_PAGE_SIZE;
     return {
@@ -146,7 +176,7 @@ export const mockBatchesService: BatchesService = {
     };
   },
 
-  async loadTransactionEvaluation({ batchId, transactionId }) {
+  async loadTransactionEvaluation({ batchId, transactionId, role }) {
     await simulateLatency();
     const record = findBatchRecord(batchId);
     const row = readBatchRows(batchId).find(
@@ -156,6 +186,7 @@ export const mockBatchesService: BatchesService = {
       return throwMockNotFound("Transaction", transactionId);
     }
     // Results are recomputed from the batch's rule snapshot; the mock engine is deterministic, so they match.
-    return { batchId, ...evaluateTransaction(row.transaction, record.ruleSnapshots) };
+    const evaluation = evaluateTransaction(row.transaction, record.ruleSnapshots);
+    return { batchId, ...evaluation, failedRules: filterFailedRulesByRole(evaluation.failedRules, role) };
   },
 };

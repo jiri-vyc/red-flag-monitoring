@@ -7,6 +7,7 @@ import {
   type Verdict,
   VERDICTS,
 } from "../../../domain/evaluation";
+import type { EscalationRole } from "../../../domain/rule";
 import type { Transaction } from "../../../domain/transaction";
 import type {
   EvaluationRunListItem,
@@ -68,11 +69,13 @@ const COUNT_FLAGGED_CLIENTS = `
 const LIST_HIT_RULES = `
   -- Rules that hit the listed transaction evaluations, highest score first
   SELECT re."transaction_evaluation_id" AS "transactionEvaluationId", re."rule_version_id" AS "ruleVersionId",
-         r."code" AS "ruleCode", r."alert_type" AS "alertType", re."adjusted_score" AS "adjustedScore"
+         r."code" AS "ruleCode", r."alert_type" AS "alertType", re."adjusted_score" AS "adjustedScore",
+         rv."escalation_role" AS "escalationRole"
   FROM "rule_evaluations" re
   JOIN "rule_versions" rv ON rv."id" = re."rule_version_id"
   JOIN "rules" r ON r."id" = rv."rule_id"
   WHERE re."transaction_evaluation_id" = ANY($1::uuid[]) AND re."outcome" = 'hit'
+    AND ($2::text IS NULL OR rv."escalation_role" = $2)
   ORDER BY re."adjusted_score" DESC, r."code"
 `;
 
@@ -130,6 +133,7 @@ const RULE_EVALUATION_DETAIL_COLUMNS: FindOptionsSelect<RuleEvaluationEntity> = 
     humanText: true,
     baseScore: true,
     sensitivity: true,
+    escalationRole: true,
     rule: { id: true, code: true, alertType: true, kind: true },
     derivedFromPolicyVersion: { id: true, versionNo: true, policy: { id: true, code: true } },
   },
@@ -205,13 +209,27 @@ export class TypeOrmEvaluationRunReadRepository implements EvaluationRunReadRepo
       );
     }
 
+    // E3: a transaction stays only while it has a hit of a rule version escalated to the role.
+    if (filter.escalationRole) {
+      query.andWhere(
+        `EXISTS (SELECT 1 FROM "rule_evaluations" re
+          JOIN "rule_versions" rv ON rv."id" = re."rule_version_id"
+          WHERE re."transaction_evaluation_id" = te."id" AND re."outcome" = 'hit'
+          AND rv."escalation_role" = :escalationRole)`,
+        { escalationRole: filter.escalationRole },
+      );
+    }
+
     const [entities, total] = await query
       .orderBy("te.maxScore", "DESC")
       .addOrderBy("te.sourceRowNo", "ASC")
       .offset(page.offset)
       .limit(page.limit)
       .getManyAndCount();
-    const hitRulesByEvaluationId = await this.loadHitRules(entities.map((entity) => entity.id));
+    const hitRulesByEvaluationId = await this.loadHitRules(
+      entities.map((entity) => entity.id),
+      filter.escalationRole,
+    );
     const items = entities.map((entity) => ({
       ...toTransactionEvaluation(entity),
       transaction: toTransaction(entity.transaction),
@@ -224,6 +242,7 @@ export class TypeOrmEvaluationRunReadRepository implements EvaluationRunReadRepo
   async findTransactionEvaluationDetail(
     runId: string,
     transactionId: string,
+    escalationRole: EscalationRole | null,
   ): Promise<TransactionEvaluationDetail | null> {
     const evaluation = await this.dataSource.getRepository(TransactionEvaluationEntity).findOne({
       where: { runId, transactionId },
@@ -238,14 +257,19 @@ export class TypeOrmEvaluationRunReadRepository implements EvaluationRunReadRepo
       evaluation: toTransactionEvaluation(evaluation),
       transaction: toTransaction(evaluation.transaction),
       client: toClient(evaluation.client),
-      ruleEvaluations: await this.loadRuleEvaluationDetails(evaluation.id),
+      ruleEvaluations: (await this.loadRuleEvaluationDetails(evaluation.id)).filter((ruleEvaluation) =>
+        isVisibleToRole(ruleEvaluation, escalationRole),
+      ),
     };
   }
 
-  private async loadHitRules(transactionEvaluationIds: string[]): Promise<Map<string, HitRuleSummary[]>> {
+  private async loadHitRules(
+    transactionEvaluationIds: string[],
+    escalationRole: EscalationRole | null,
+  ): Promise<Map<string, HitRuleSummary[]>> {
     const rows = await this.dataSource.query<(HitRuleSummary & { transactionEvaluationId: string })[]>(
       LIST_HIT_RULES,
-      [transactionEvaluationIds],
+      [transactionEvaluationIds, escalationRole],
     );
     const hitRulesByEvaluationId = new Map<string, HitRuleSummary[]>();
 
@@ -281,6 +305,18 @@ export class TypeOrmEvaluationRunReadRepository implements EvaluationRunReadRepo
       )
       .sort(compareByRelevance);
   }
+}
+
+// E3: with a role, a hit shows only if its rule version escalates to that role; other outcomes always show.
+function isVisibleToRole(
+  ruleEvaluation: RuleEvaluationDetail,
+  escalationRole: EscalationRole | null,
+): boolean {
+  return (
+    escalationRole === null ||
+    ruleEvaluation.outcome !== "hit" ||
+    ruleEvaluation.ruleVersion.escalationRole === escalationRole
+  );
 }
 
 // Hits first, then by score, so the reason a transaction was flagged is at the top.
@@ -384,6 +420,7 @@ function toRuleEvaluationDetail(
       humanText: ruleVersion.humanText,
       baseScore: ruleVersion.baseScore,
       sensitivity: ruleVersion.sensitivity,
+      escalationRole: ruleVersion.escalationRole,
     },
     legalBases: legalBases.map(toLegalBasisDetail),
     derivedFromPolicyVersion: derivedFromPolicyVersion

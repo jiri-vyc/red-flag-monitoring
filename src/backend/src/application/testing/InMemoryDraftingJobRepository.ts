@@ -11,6 +11,7 @@ import { ConflictError } from "../errors";
 import type { Page, PageRequest } from "../pagination";
 import type { InMemoryInternalPolicyRepository } from "./InMemoryInternalPolicyRepository";
 import type { InMemoryRuleRepository } from "./InMemoryRuleRepository";
+import { DEFAULT_ESCALATION_ROLE } from "../../domain/rule";
 
 // Mirrors the conditional updates of TypeOrmDraftingJobRepository; drafts are written to the given fakes.
 export class InMemoryDraftingJobRepository implements DraftingJobRepository {
@@ -137,6 +138,8 @@ export class InMemoryDraftingJobRepository implements DraftingJobRepository {
         ...logic,
         ruleId: rule.id,
         derivedFromPolicyVersionId: completion.policyVersionId,
+        // Drafts start with the default escalation; the compliance officer may change it at review (E2).
+        escalationRole: DEFAULT_ESCALATION_ROLE,
         status: "draft",
         createdVia: "wizard",
         createdBy: completion.createdBy,

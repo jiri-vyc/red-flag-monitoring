@@ -1,4 +1,4 @@
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
 
@@ -55,7 +55,7 @@ describe("liveBatchesService", () => {
       expect.objectContaining({
         path: "/evaluation-runs",
         method: "POST",
-        jsonBody: { createdBy: CURRENT_USER.id },
+        jsonBody: { createdBy: getCurrentUser().id },
       }),
     );
     expect(batch).toMatchObject({
@@ -82,7 +82,7 @@ describe("liveBatchesService", () => {
     expect(requestJsonMock).toHaveBeenCalledWith(
       expect.objectContaining({
         method: "POST",
-        jsonBody: { createdBy: CURRENT_USER.id, scope: { limit: 1000, from: "2026-07-01" } },
+        jsonBody: { createdBy: getCurrentUser().id, scope: { limit: 1000, from: "2026-07-01" } },
       }),
     );
   });
@@ -134,6 +134,56 @@ describe("liveBatchesService", () => {
     expect(uploadedBatch.isFullDatasetRun).toBe(false);
   });
 
+  it("lists a run's transactions for the active role and counts only that role's hits (issue #6)", async () => {
+    requestJsonMock.mockResolvedValue({
+      items: [
+        {
+          transactionId: "TX000000001",
+          verdict: "flagged",
+          maxScore: 90,
+          hitCount: 3,
+          hitRules: [
+            {
+              ruleVersionId: "rv-1",
+              ruleCode: "R-04",
+              adjustedScore: 70,
+              escalationRole: "designated_person",
+            },
+          ],
+          transaction: {
+            transactionId: "TX000000001",
+            clientId: "K000001",
+            occurredAt: "2026-07-01T10:00:00.000Z",
+            amount: "1000.00",
+            currency: "CZK",
+            payerCountry: "CZ",
+            payeeCountry: "SK",
+            payerAccount: null,
+            payeeAccount: "K000001",
+            transactionType: "incoming payment",
+          },
+        },
+      ],
+      limit: 25,
+      offset: 0,
+      total: 1,
+    });
+
+    const page = await liveBatchesService.loadBatchTransactions({
+      batchId: "run-1",
+      bucket: "alert",
+      cursor: null,
+      role: "designated_person",
+    });
+
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/evaluation-runs/run-1/transactions?verdict=flagged&role=designated_person&limit=25&offset=0",
+      }),
+    );
+    expect(page.items[0]).toMatchObject({ failedRuleCount: 1, maxAdjustedScore: 70 });
+  });
+
   it("flattens nested condition groups and keeps the base score only for scored evaluations", async () => {
     const operand = (feature: string, value: number) => ({ feature, value });
     requestJsonMock.mockResolvedValue({
@@ -166,7 +216,13 @@ describe("liveBatchesService", () => {
           features: null,
           errorMessage: null,
           rule: { id: "rule-1", code: "R1", alertType: "Velká částka", kind: "deterministic" },
-          ruleVersion: { versionNo: 1, humanText: "Velká částka", baseScore: 80, sensitivity: 100 },
+          ruleVersion: {
+            versionNo: 1,
+            humanText: "Velká částka",
+            baseScore: 80,
+            sensitivity: 100,
+            escalationRole: "contact_person",
+          },
           trace: {
             summary: "Hit",
             conditions: [
@@ -195,7 +251,13 @@ describe("liveBatchesService", () => {
           features: null,
           errorMessage: "Timeout",
           rule: { id: "rule-2", code: "R2", alertType: "Agent", kind: "deterministic" },
-          ruleVersion: { versionNo: 2, humanText: "Agent", baseScore: 60, sensitivity: 50 },
+          ruleVersion: {
+            versionNo: 2,
+            humanText: "Agent",
+            baseScore: 60,
+            sensitivity: 50,
+            escalationRole: "designated_person",
+          },
           trace: null,
         },
       ],
@@ -204,7 +266,18 @@ describe("liveBatchesService", () => {
     const evaluation = await liveBatchesService.loadTransactionEvaluation({
       batchId: "run-1",
       transactionId: "TX000000001",
+      role: "contact_person",
     });
+
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/evaluation-runs/run-1/transactions/TX000000001?role=contact_person",
+      }),
+    );
+    expect(evaluation.failedRules.map(({ escalationRole }) => escalationRole)).toEqual([
+      "contact_person",
+      "designated_person",
+    ]);
 
     expect(evaluation.failedRules[0]?.trace).toEqual([
       { condition: "Rizikový klient", isMet: true, detail: "all (1)" },

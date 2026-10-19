@@ -14,9 +14,17 @@ import {
 } from "./ruleLifecycle";
 
 const NOW = "2026-10-19T10:00:00.000Z";
-const REVIEW = { reviewer: "Reviewer", now: NOW };
-const INITIAL_CONFIG: RuleConfig = { sensitivity: 80, riskProfiles: ["high"] };
-const UPDATED_CONFIG: RuleConfig = { sensitivity: 50, riskProfiles: ["high", "medium"] };
+const REVIEW = { reviewer: "Reviewer", now: NOW, escalationRole: null };
+const INITIAL_CONFIG: RuleConfig = {
+  sensitivity: 80,
+  riskProfiles: ["high"],
+  escalationRole: "contact_person",
+};
+const UPDATED_CONFIG: RuleConfig = {
+  sensitivity: 50,
+  riskProfiles: ["high", "medium"],
+  escalationRole: "contact_person",
+};
 const INITIAL_LEGAL_BASES = [{ regulationId: "reg-1", ref: "§ 6 odst. 1 písm. b)" }];
 
 function createDraftRule(): Rule {
@@ -56,6 +64,18 @@ describe("rule lifecycle", () => {
 
     expect(pendingRule.status).toBe("pending_for_review");
     expect(isRuleExecutable(pendingRule)).toBe(false);
+  });
+
+  it("lets the review escalate the version to another role (issue #6)", () => {
+    const activeRule = approveRule(createDraftRule(), { ...REVIEW, escalationRole: "designated_person" });
+
+    expect(activeRule.versions[0]?.config.escalationRole).toBe("designated_person");
+  });
+
+  it("keeps the version's escalation role when the review does not change it", () => {
+    const rejectedRule = rejectRule(createDraftRule(), REVIEW);
+
+    expect(rejectedRule.versions[0]?.config.escalationRole).toBe("contact_person");
   });
 
   it("activates the approved version and records the reviewer", () => {

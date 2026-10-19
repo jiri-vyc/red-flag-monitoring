@@ -127,7 +127,16 @@ export const mockRulesService: RulesService = {
     return findRule(ruleId);
   },
 
-  async createManualRule({ description, policyId, type, sensitivity, riskProfiles, legalBases, author }) {
+  async createManualRule({
+    description,
+    policyId,
+    type,
+    sensitivity,
+    riskProfiles,
+    escalationRole,
+    legalBases,
+    author,
+  }) {
     await simulateLatency(AI_GENERATION_LATENCY);
     const validLegalBases = validateManualRuleSource({ policyId, legalBases });
     const generatedDraft = generateRuleDraft({ description, type });
@@ -146,7 +155,7 @@ export const mockRulesService: RulesService = {
           versionNumber: 1,
           state: "pending_review",
           content: generatedDraft.content,
-          config: { sensitivity, riskProfiles },
+          config: { sensitivity, riskProfiles, escalationRole },
           baseScore: null,
           changeNote: "Vytvořeno ručně, obsah vygenerován z popisu.",
           createdAt: now,
@@ -165,14 +174,14 @@ export const mockRulesService: RulesService = {
   },
 
   submitRuleForReview: (ruleId) => transitionRule(ruleId, submitRuleForReview),
-  approveRule: ({ ruleId, reviewer }) =>
-    transitionRule(ruleId, (rule, now) => approveRule(rule, { reviewer, now })),
+  approveRule: ({ ruleId, reviewer, escalationRole }) =>
+    transitionRule(ruleId, (rule, now) => approveRule(rule, { reviewer, now, escalationRole })),
   // The web rule version has no review comment, so the mock only checks that a reason was given.
-  rejectRule: ({ ruleId, reviewer, comment }) => {
+  rejectRule: ({ ruleId, reviewer, comment, escalationRole }) => {
     if (comment.trim() === "") {
       return throwValidation("A rejection needs a reason.");
     }
-    return transitionRule(ruleId, (rule, now) => rejectRule(rule, { reviewer, now }));
+    return transitionRule(ruleId, (rule, now) => rejectRule(rule, { reviewer, now, escalationRole }));
   },
   activateRule: (ruleId) => transitionRule(ruleId, activateRule),
   deactivateRule: (ruleId) => transitionRule(ruleId, deactivateRule),

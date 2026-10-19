@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { userRoleSchema } from "@/features/users/types";
+
 import { riskProfileSchema, ruleTypeSchema, type CreateManualRuleInput, type RuleConfig } from "./types";
 
 /** Error messages are dictionary keys under `ruleForm`, so the form can show them in the current language. */
@@ -10,6 +12,7 @@ export type ManualRuleFormErrorKey =
 export type RuleConfigFormValues = {
   sensitivity: number;
   riskProfiles: RuleConfig["riskProfiles"];
+  escalationRole: RuleConfig["escalationRole"];
 };
 
 /** One legal basis row of the form; an empty regulation id means none is selected yet. */
@@ -27,12 +30,14 @@ export function toRuleConfigFormValues(config: RuleConfig): RuleConfigFormValues
   return {
     sensitivity: config.sensitivity,
     riskProfiles: config.riskProfiles,
+    escalationRole: config.escalationRole,
   };
 }
 
 const ruleConfigFormSchema = z.object({
   sensitivity: z.number().int().min(0).max(100),
   riskProfiles: z.array(riskProfileSchema).min(1, "validationRiskProfiles"),
+  escalationRole: userRoleSchema,
 });
 
 // M5: like the backend, a rule version needs 1..N legal bases, each with a regulation and a provision ref.
@@ -90,6 +95,7 @@ export function validateRuleConfigForm(values: RuleConfigFormValues): RuleConfig
   const parseResult = ruleConfigFormSchema.safeParse({
     sensitivity: values.sensitivity,
     riskProfiles: values.riskProfiles,
+    escalationRole: values.escalationRole,
   });
   if (parseResult.success) {
     return { isValid: true, input: parseResult.data };

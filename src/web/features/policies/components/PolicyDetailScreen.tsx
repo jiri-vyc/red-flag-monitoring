@@ -26,6 +26,8 @@ import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
 import { assertUnreachable } from "@/lib/assertUnreachable";
 import { formatDateTime } from "@/lib/format";
+import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import { usePolicy } from "../api/hooks";
 import type { Policy } from "../types";
@@ -95,6 +97,7 @@ function RulesJobStatus({ job }: { job: DraftingJob }) {
 }
 
 function RulesJobNotice({ jobId, onRetried }: { jobId: string; onRetried: (jobId: string) => void }) {
+  const { canDraftRules } = useRolePermissions();
   const { t } = useI18n();
   const jobQuery = useDraftingJob(jobId);
   const retryMutation = useRetryDraftingJob();
@@ -107,7 +110,7 @@ function RulesJobNotice({ jobId, onRetried }: { jobId: string; onRetried: (jobId
       </Notice>
       <div className={styles.rulesJobActions}>
         {job && <DraftingJobStatusBadge status={job.status} />}
-        {job?.status === "failed" && (
+        {job?.status === "failed" && canDraftRules && (
           <Button
             variant="secondary"
             icon={<RotateCcw aria-hidden="true" />}
@@ -134,6 +137,7 @@ function RulesJobNotice({ jobId, onRetried }: { jobId: string; onRetried: (jobId
 }
 
 function PolicyDetail({ policy }: { policy: Policy }) {
+  const { canApprovePolicy } = useRolePermissions();
   const { t, locale } = useI18n();
   const [rulesJobId, setRulesJobId] = useState<string | null>(null);
   const isDraft = policy.status === "draft";
@@ -187,8 +191,10 @@ function PolicyDetail({ policy }: { policy: Policy }) {
             <PolicyTextEditor
               key={policy.updatedAt}
               policy={policy}
+              showApprove={canApprovePolicy}
               onApproved={({ rulesJob }) => setRulesJobId(rulesJob?.id ?? null)}
             />
+            {!canApprovePolicy && <RoleGateNotice requiredRole="compliance_officer" />}
           </>
         ) : (
           <div className={styles.text}>{policy.text}</div>

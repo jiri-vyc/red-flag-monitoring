@@ -1,4 +1,4 @@
-import { CURRENT_USER, formatUserName } from "@/config/currentUser";
+import { getCurrentUser, formatUserName } from "@/config/currentUser";
 import { draftingJobDtoSchema, toDraftingJob } from "@/features/draftingJobs/api/dto";
 import {
   fetchRegulationsWithVersions,
@@ -99,7 +99,7 @@ export const livePoliciesService: PoliciesService = {
       jsonBody: {
         status: "draft",
         createdVia: "manual",
-        createdBy: CURRENT_USER.id,
+        createdBy: getCurrentUser().id,
         body: text,
         legalBases: versions.at(-1)?.legalBases ?? [],
       },
@@ -121,7 +121,7 @@ export const livePoliciesService: PoliciesService = {
     const { rulesJob } = await requestJson({
       path: `${versionPath(policyId, latestVersion.id)}/review`,
       method: "POST",
-      jsonBody: { decision: "approved", reviewedBy: CURRENT_USER.id, reviewComment: null },
+      jsonBody: { decision: "approved", reviewedBy: getCurrentUser().id, reviewComment: null },
       schema: approvedPolicyVersionDtoSchema,
     });
     return { policy: await loadPolicy(policyId), rulesJob: rulesJob ? toDraftingJob(rulesJob) : null };

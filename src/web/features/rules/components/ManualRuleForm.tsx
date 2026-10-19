@@ -25,6 +25,9 @@ import {
   type ManualRuleFormValues,
 } from "../manualRuleForm";
 import type { RuleType } from "../types";
+import { DEFAULT_ESCALATION_ROLE } from "@/features/users/types";
+import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 import { EMPTY_LEGAL_BASIS, LegalBasisFields } from "./LegalBasisFields";
 import styles from "./ManualRuleForm.module.css";
 import { RuleConfigFields } from "./RuleConfigFields";
@@ -35,6 +38,7 @@ const INITIAL_VALUES: Omit<ManualRuleFormValues, "type"> = {
   legalBases: [EMPTY_LEGAL_BASIS],
   sensitivity: 80,
   riskProfiles: ["high", "medium", "low", "unknown"],
+  escalationRole: DEFAULT_ESCALATION_ROLE,
 };
 
 type FormErrors = Extract<ManualRuleFormResult, { isValid: false }>["errors"];
@@ -194,6 +198,7 @@ export function ManualRuleForm() {
   const policiesQuery = usePolicies();
   const regulationsQuery = useRegulations();
   const creatableTypes = findCreatableRuleTypes(useRulesCapabilities());
+  const { canManageRules } = useRolePermissions();
   return (
     <>
       <PageHeader
@@ -201,7 +206,9 @@ export function ManualRuleForm() {
         title={t.ruleForm.title}
         description={t.ruleForm.subtitle}
       />
-      {creatableTypes.length === 0 ? (
+      {!canManageRules ? (
+        <RoleGateNotice requiredRole="compliance_officer" />
+      ) : creatableTypes.length === 0 ? (
         <Notice tone="info">{t.ruleForm.unavailable}</Notice>
       ) : (
         <QueryView query={policiesQuery}>

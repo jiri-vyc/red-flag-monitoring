@@ -32,6 +32,9 @@ function VersionConfigSummary({ version }: { version: RuleVersion }) {
         </span>
       )}
       <span className={tableStyles.secondaryText}>{riskProfileLabels}</span>
+      <span className={tableStyles.secondaryText}>
+        {t.rules.escalationRole}: {t.roles[config.escalationRole]}
+      </span>
     </span>
   );
 }

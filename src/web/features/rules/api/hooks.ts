@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import { assertUnreachable } from "@/lib/assertUnreachable";
 import { selectServiceImplementation } from "@/config/apiMode";
 import { useApiMode } from "@/providers/ApiModeProvider";
@@ -19,6 +19,7 @@ import type {
 } from "../types";
 import type { RulesCapabilities } from "./contract";
 import { rulesImplementations, rulesService } from "./service";
+import type { UserRole } from "@/features/users/types";
 
 export const ruleQueryKeys = {
   all: ["rules"] as const,
@@ -42,15 +43,18 @@ function invalidateRuleRelatedQueries(queryClient: QueryClient) {
 function runRuleTransition({
   ruleId,
   action,
+  escalationRole = null,
 }: {
   ruleId: string;
   action: RuleTransitionAction;
+  /** Only for approve: the escalation role picked at review (issue #6); null keeps the version's role. */
+  escalationRole?: UserRole | null;
 }): Promise<Rule> {
   switch (action) {
     case "submit_for_review":
       return rulesService.submitRuleForReview(ruleId);
     case "approve":
-      return rulesService.approveRule({ ruleId, reviewer: CURRENT_USER.name });
+      return rulesService.approveRule({ ruleId, reviewer: getCurrentUser().name, escalationRole });
     case "activate":
       return rulesService.activateRule(ruleId);
     case "deactivate":
@@ -87,8 +91,15 @@ export function useRuleTransition() {
 export function useRejectRule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ ruleId, comment }: { ruleId: string; comment: string }) =>
-      rulesService.rejectRule({ ruleId, comment, reviewer: CURRENT_USER.name }),
+    mutationFn: ({
+      ruleId,
+      comment,
+      escalationRole = null,
+    }: {
+      ruleId: string;
+      comment: string;
+      escalationRole?: UserRole | null;
+    }) => rulesService.rejectRule({ ruleId, comment, reviewer: getCurrentUser().name, escalationRole }),
     onSuccess: () => invalidateRuleRelatedQueries(queryClient),
   });
 }
@@ -97,7 +108,7 @@ export function useCreateManualRule() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateManualRuleInput) =>
-      rulesService.createManualRule({ ...input, author: CURRENT_USER.name }),
+      rulesService.createManualRule({ ...input, author: getCurrentUser().name }),
     onSuccess: () => invalidateRuleRelatedQueries(queryClient),
   });
 }
@@ -106,7 +117,7 @@ export function useCreateRuleVersion() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateRuleVersionInput) =>
-      rulesService.createRuleVersion({ ...input, author: CURRENT_USER.name }),
+      rulesService.createRuleVersion({ ...input, author: getCurrentUser().name }),
     onSuccess: () => invalidateRuleRelatedQueries(queryClient),
   });
 }
@@ -131,7 +142,7 @@ export function useAddWhitelistEntry() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: AddWhitelistEntryInput) =>
-      rulesService.addWhitelistEntry({ ...input, author: CURRENT_USER.name }),
+      rulesService.addWhitelistEntry({ ...input, author: getCurrentUser().name }),
     onSuccess: (_entry, input) =>
       queryClient.invalidateQueries({ queryKey: ruleQueryKeys.whitelist(input.ruleId) }),
   });

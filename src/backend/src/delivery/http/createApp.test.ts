@@ -10,6 +10,8 @@ import { InMemoryInternalPolicyRepository } from "../../application/testing/InMe
 import { InMemoryRegulationRepository } from "../../application/testing/InMemoryRegulationRepository";
 import { InMemoryRuleRepository } from "../../application/testing/InMemoryRuleRepository";
 import { ADMIN_ID, fixedClock, REVIEWED_AT } from "../../application/testing/fixtures";
+import { UserUseCases } from "../../application/users/userUseCases";
+import type { User } from "../../domain/user";
 import { type AppUseCases, createApp } from "./createApp";
 
 const RULE_ID = "6f1c2f9e-4a8b-4c1d-9e2f-0a1b2c3d4e5f";
@@ -159,6 +161,26 @@ describe("HTTP app", () => {
       .send(body);
 
     expect(response.status).toBe(400);
+  });
+
+  it("lists users with their roles", async () => {
+    const users: User[] = [
+      {
+        id: ADMIN_ID,
+        name: "Demo Admin",
+        email: "admin@example.com",
+        roles: ["compliance_officer", "lawyer"],
+      },
+    ];
+    const app = createApp(
+      { users: new UserUseCases({ listUsers: async () => users }) } as AppUseCases,
+      databaseReady,
+    );
+
+    const response = await request(app).get("/api/users");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(users);
   });
 
   describe("drafting jobs", () => {

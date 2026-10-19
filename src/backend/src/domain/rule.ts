@@ -2,6 +2,7 @@ import { AML_RISK_SCORES, type AmlRiskScore } from "./client";
 import type { RuleLegalBasis } from "./regulation";
 import type { RuleDefinition } from "./ruleDefinition";
 import { findRuleDefinitionViolation } from "./ruleDefinitionValidation";
+import { USER_ROLES, type UserRole } from "./user";
 import type { ReviewableVersion } from "./versionStatus";
 
 export const RULE_KINDS = ["deterministic", "agentic"] as const;
@@ -12,6 +13,11 @@ export const RISK_PROFILES = AML_RISK_SCORES;
 export type RiskProfile = AmlRiskScore;
 
 export const DEFAULT_SENSITIVITY = 100;
+
+// Issue #6 (E1, E2): a hit of the rule goes to the users holding this role; the contact person by default.
+export const ESCALATION_ROLES = USER_ROLES;
+export type EscalationRole = UserRole;
+export const DEFAULT_ESCALATION_ROLE: EscalationRole = "contact_person";
 
 export type Rule = {
   id: string;
@@ -33,9 +39,11 @@ export type RuleLogic = {
 };
 
 // M7: sensitivity, risk profiles and base score live on the version, changing them needs a new version.
+// The escalation role is on the version too (E1); unlike the rest, a review may still change it.
 export type RuleVersion = ReviewableVersion &
   RuleLogic & {
     ruleId: string;
+    escalationRole: EscalationRole;
     derivedFromPolicyVersionId: string | null;
     humanText: string;
     thresholdRationale: string | null;

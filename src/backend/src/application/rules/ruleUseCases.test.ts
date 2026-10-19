@@ -3,7 +3,12 @@ import { InMemoryRuleRepository } from "../testing/InMemoryRuleRepository";
 import { ADMIN_ID, buildDeterministicVersion, fixedClock, REVIEWED_AT } from "../testing/fixtures";
 import { RuleUseCases } from "./ruleUseCases";
 
-const APPROVAL = { decision: "approved", reviewedBy: ADMIN_ID, reviewComment: null } as const;
+const APPROVAL = {
+  decision: "approved",
+  reviewedBy: ADMIN_ID,
+  reviewComment: null,
+  escalationRole: null,
+} as const;
 
 async function setUp() {
   const ruleRepository = new InMemoryRuleRepository();
@@ -26,6 +31,46 @@ async function createApprovedVersion(ruleUseCases: RuleUseCases, ruleId: string)
 
   return ruleUseCases.reviewVersion(ruleId, version.id, APPROVAL);
 }
+
+describe("RuleUseCases escalation role (issue #6)", () => {
+  it("keeps the version's escalation role when the review does not change it", async () => {
+    const { ruleUseCases, rule } = await setUp();
+
+    const approved = await createApprovedVersion(ruleUseCases, rule.id);
+
+    expect(approved.escalationRole).toBe("contact_person");
+  });
+
+  it("lets the reviewer escalate the version to another role", async () => {
+    const { ruleUseCases, rule } = await setUp();
+    const pending = await ruleUseCases.createVersion(
+      buildDeterministicVersion(rule.id, { status: "pending_review" }),
+    );
+
+    const approved = await ruleUseCases.reviewVersion(rule.id, pending.id, {
+      ...APPROVAL,
+      escalationRole: "designated_person",
+    });
+
+    expect(approved).toMatchObject({ status: "approved", escalationRole: "designated_person" });
+  });
+
+  it("changes the escalation role on rejection too", async () => {
+    const { ruleUseCases, rule } = await setUp();
+    const pending = await ruleUseCases.createVersion(
+      buildDeterministicVersion(rule.id, { status: "pending_review" }),
+    );
+
+    const rejected = await ruleUseCases.reviewVersion(rule.id, pending.id, {
+      ...APPROVAL,
+      decision: "rejected",
+      reviewComment: "Patří pověřené osobě",
+      escalationRole: "designated_person",
+    });
+
+    expect(rejected).toMatchObject({ status: "rejected", escalationRole: "designated_person" });
+  });
+});
 
 describe("RuleUseCases.createVersion", () => {
   it("numbers versions of a rule consecutively", async () => {

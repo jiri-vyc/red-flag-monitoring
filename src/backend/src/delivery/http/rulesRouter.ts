@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { RISK_PROFILES, RULE_KINDS } from "../../domain/rule";
-import { DEFAULT_SENSITIVITY } from "../../domain/rule";
+import { DEFAULT_ESCALATION_ROLE, DEFAULT_SENSITIVITY, ESCALATION_ROLES } from "../../domain/rule";
 import { MAX_SCORE, MIN_SCORE } from "../../domain/score";
 import type { RuleUseCases } from "../../application/rules/ruleUseCases";
 import type { WhitelistUseCases } from "../../application/whitelist/whitelistUseCases";
@@ -40,6 +40,7 @@ const createVersionSchema = versionAuthorSchema.extend({
   thresholdRationale: optionalText,
   baseScore: scoreSchema.nullish().transform((value) => value ?? null),
   sensitivity: scoreSchema.default(DEFAULT_SENSITIVITY),
+  escalationRole: z.enum(ESCALATION_ROLES).default(DEFAULT_ESCALATION_ROLE),
   riskProfiles: z
     .array(z.enum(RISK_PROFILES))
     .min(1)
@@ -54,6 +55,13 @@ const createVersionSchema = versionAuthorSchema.extend({
         message: "Legal bases must be unique",
       },
     ),
+});
+
+const reviewRuleVersionSchema = reviewBodySchema.extend({
+  escalationRole: z
+    .enum(ESCALATION_ROLES)
+    .nullish()
+    .transform((value) => value ?? null),
 });
 
 const activeVersionSchema = z.object({ versionId: z.uuid() });
@@ -129,7 +137,7 @@ export function createRulesRouter(ruleUseCases: RuleUseCases, whitelistUseCases:
 
   router.post("/:ruleId/versions/:versionId/review", async (request, response) => {
     const { ruleId, versionId } = parseRequest(versionParamsSchema, request.params);
-    const review = parseRequest(reviewBodySchema, request.body);
+    const review = parseRequest(reviewRuleVersionSchema, request.body);
 
     response.json(await ruleUseCases.reviewVersion(ruleId, versionId, review));
   });

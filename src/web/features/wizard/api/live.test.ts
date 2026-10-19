@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 // Node's File has text(), which the live adapter uses to read a Markdown file; jsdom's File does not.
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import { createDraftingJobDto } from "@/features/draftingJobs/api/draftingJobDtoFixture";
 import type { DraftingJobDto } from "@/features/draftingJobs/api/dto";
 import { liveDraftingJobsService } from "@/features/draftingJobs/api/live";
@@ -26,7 +26,7 @@ function createReviewFields(status: string) {
     versionNo: 1,
     status,
     createdVia: "wizard",
-    createdBy: CURRENT_USER.id,
+    createdBy: getCurrentUser().id,
     createdAt: CREATED_AT,
     reviewedBy: null,
     reviewedAt: null,
@@ -279,7 +279,7 @@ describe("liveWizardService", () => {
             sourceUrl: "https://example.org/aml",
           },
           versionLabel: "Znění k 2026-10-19",
-          createdBy: CURRENT_USER.id,
+          createdBy: getCurrentUser().id,
         },
       },
     ]);
@@ -307,7 +307,7 @@ describe("liveWizardService", () => {
         source: { kind: "markdown", content: "# Vyhláška\n\nObsah" },
         regulation: { id: "reg-existing" },
         versionLabel: "Novela 2026",
-        createdBy: CURRENT_USER.id,
+        createdBy: getCurrentUser().id,
       },
     ]);
   });
@@ -326,7 +326,7 @@ describe("liveWizardService", () => {
     expect(write?.jsonBody).toEqual({
       source: { kind: "url", url },
       versionLabel: "Znění k 2026-10-19",
-      createdBy: CURRENT_USER.id,
+      createdBy: getCurrentUser().id,
     });
     expect(job).toMatchObject({ sourceKind: "url", sourceUrl: url, regulationId: null });
   });

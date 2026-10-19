@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ruleLegalBasisSchema, type RuleLegalBasis } from "@/features/regulations/types";
+import { DEFAULT_ESCALATION_ROLE, userRoleSchema } from "@/features/users/types";
 
 export const RULE_STATUSES = [
   "draft",
@@ -25,13 +26,17 @@ export const ruleContentSchema = z.discriminatedUnion("type", [
 ]);
 export type RuleContent = z.infer<typeof ruleContentSchema>;
 
-/** Detection config travels with each version, so any change to it goes through review like a content change (M7). */
+/**
+ * Detection config travels with each version, so any change to it goes through review like a content change (M7).
+ * The escalation role (issue #6) names who handles the version's hits; a review may still change it.
+ */
 export const ruleConfigSchema = z.object({
   sensitivity: z.number().int().min(0).max(100),
   riskProfiles: z.array(riskProfileSchema),
+  escalationRole: userRoleSchema.default(DEFAULT_ESCALATION_ROLE),
 });
 export type RuleConfig = z.infer<typeof ruleConfigSchema>;
-export const RULE_CONFIG_FIELDS = ["sensitivity", "riskProfiles"] as const;
+export const RULE_CONFIG_FIELDS = ["sensitivity", "riskProfiles", "escalationRole"] as const;
 export type RuleConfigField = (typeof RULE_CONFIG_FIELDS)[number];
 
 export const ruleVersionStateSchema = z.enum([

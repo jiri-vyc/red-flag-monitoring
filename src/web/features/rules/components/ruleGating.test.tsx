@@ -184,7 +184,7 @@ describe("RejectRulePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: en.rules.confirmReject }));
 
     expect(mutate).toHaveBeenCalledWith(
-      { ruleId: "rule-1", comment: "Práh neodpovídá předpisu" },
+      { ruleId: "rule-1", comment: "Práh neodpovídá předpisu", escalationRole: null },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
   });

@@ -1,4 +1,4 @@
-import { CURRENT_USER, formatUserName } from "@/config/currentUser";
+import { getCurrentUser, formatUserName } from "@/config/currentUser";
 import { formatRuleName } from "@/features/rules/api/dto";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
@@ -79,9 +79,9 @@ async function loadBatch(batchId: string): Promise<Batch> {
 /** Sends only the scope fields that are set; an empty scope runs over every transaction in the database. */
 function toStartRunBody(scope: RunScope): StartRunBodyDto {
   const setScopeEntries = Object.entries(scope).filter(([, value]) => value !== undefined);
-  // CURRENT_USER.id is the backend's default creator (DEMO_ADMIN_USER_ID), sent so the run names its starter.
+  // getCurrentUser().id is the backend's default creator (DEMO_ADMIN_USER_ID), sent so the run names its starter.
   return {
-    createdBy: CURRENT_USER.id,
+    createdBy: getCurrentUser().id,
     ...(setScopeEntries.length > 0 && { scope: Object.fromEntries(setScopeEntries) }),
   };
 }
@@ -171,6 +171,7 @@ function toRuleEvaluation(ruleEvaluation: RuleEvaluationDetailDto): RuleEvaluati
     adjustedScore: ruleEvaluation.adjustedScore ?? 0,
     isFailed: ruleEvaluation.outcome !== "pass",
     trace: toTraceSteps(ruleEvaluation),
+    escalationRole: ruleEvaluation.ruleVersion.escalationRole,
   };
 }
 
@@ -211,10 +212,11 @@ export const liveBatchesService: BatchesService = {
     });
   },
 
-  async loadBatchTransactions({ batchId, bucket, cursor }) {
+  async loadBatchTransactions({ batchId, bucket, cursor, role }) {
     const offset = Number(cursor ?? 0);
     const searchParams = new URLSearchParams({
       verdict: VERDICT_BY_BUCKET[bucket],
+      role,
       limit: String(TRANSACTION_PAGE_SIZE),
       offset: String(offset),
     });
@@ -228,17 +230,18 @@ export const liveBatchesService: BatchesService = {
         // The list has no rule results, so no CZK amount; only the transaction detail shows it.
         transaction: toTransaction(item.transaction, null),
         bucket: BUCKET_BY_VERDICT[item.verdict],
-        failedRuleCount: item.hitCount,
-        maxAdjustedScore: item.maxScore,
+        // hitRules holds only the role's hits, so the count and score match what the detail shows.
+        failedRuleCount: item.hitRules.length,
+        maxAdjustedScore: Math.max(0, ...item.hitRules.map((hitRule) => hitRule.adjustedScore)),
       })),
       nextCursor: nextOffset < page.total ? String(nextOffset) : null,
       totalCount: page.total,
     };
   },
 
-  async loadTransactionEvaluation({ batchId, transactionId }) {
+  async loadTransactionEvaluation({ batchId, transactionId, role }) {
     const detail = await requestJson({
-      path: `${runPath(batchId)}/transactions/${encodeURIComponent(transactionId)}`,
+      path: `${runPath(batchId)}/transactions/${encodeURIComponent(transactionId)}?role=${role}`,
       schema: transactionEvaluationDetailDtoSchema,
     });
     const { ruleEvaluations } = detail;

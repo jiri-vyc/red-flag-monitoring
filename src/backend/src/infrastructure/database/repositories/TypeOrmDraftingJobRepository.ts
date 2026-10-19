@@ -23,6 +23,7 @@ import { translateDatabaseErrors } from "../translateDatabaseErrors";
 import { insertDraftingJob } from "./draftingJobWrites";
 import { insertPolicy, insertPolicyVersion } from "./policyWrites";
 import { insertRule, insertRuleVersion } from "./ruleWrites";
+import { DEFAULT_ESCALATION_ROLE } from "../../../domain/rule";
 
 // Mirrors reportTimedOutJob, so a status filter matches the status the API reports.
 const REPORTED_STATUS_SQL = `CASE
@@ -159,6 +160,8 @@ export class TypeOrmDraftingJobRepository implements DraftingJobRepository {
             ...logic,
             ruleId: rule.id,
             derivedFromPolicyVersionId: completion.policyVersionId,
+            // Drafts start with the default escalation; the compliance officer may change it at review (E2).
+            escalationRole: DEFAULT_ESCALATION_ROLE,
             status: "draft",
             createdVia: "wizard",
             createdBy: completion.createdBy,

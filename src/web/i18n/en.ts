@@ -23,6 +23,8 @@ export const en = {
     dataSource: "Data source",
     dataSourceMock: "Mock",
     dataSourceLive: "Live",
+    user: "User",
+    activeRole: "Acting as",
   },
   databaseStatus: {
     title: "Database",
@@ -100,6 +102,16 @@ export const en = {
     medium: "Medium",
     low: "Low",
     unknown: "Unknown",
+  },
+  roles: {
+    compliance_analyst: "Compliance analyst",
+    compliance_officer: "Compliance officer",
+    lawyer: "Lawyer",
+    contact_person: "Contact person (§ 22)",
+    designated_person: "Designated person (§ 22a)",
+  },
+  roleGate: {
+    requires: "Only the {role} role can do this. Switch the role in the sidebar.",
   },
   versionState: {
     draft: "Draft",
@@ -208,6 +220,8 @@ export const en = {
     versionConfiguration: "Configuration of this version",
     configColumn: "Configuration",
     pendingChange: "Pending change",
+    escalationRole: "Escalate to",
+    escalationRoleHint: "Who handles the hits of this rule. The contact person by default.",
     pendingConfigNote:
       "A version awaiting review changes the highlighted fields. Evaluations keep using the running configuration until it is approved.",
     sourceChain: "Source",
@@ -376,6 +390,7 @@ export const en = {
       "Results are decision aids for AML analysts, not final AML determinations. Thresholds are demo values pending compliance review.",
   },
   transactionDetail: {
+    noHitsForRole: "No failed rule of this transaction is escalated to {role}.",
     title: "Transaction evaluation",
     backToBatch: "Back to batch",
     transaction: "Transaction",

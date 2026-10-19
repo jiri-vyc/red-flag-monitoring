@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import { draftingJobQueryKeys } from "@/features/draftingJobs/api/hooks";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
@@ -48,7 +48,7 @@ export function useApprovePolicy() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (policyId: string) =>
-      policiesService.approvePolicy({ policyId, approvedBy: CURRENT_USER.name }),
+      policiesService.approvePolicy({ policyId, approvedBy: getCurrentUser().name }),
     onSuccess: () => invalidatePolicyApprovalQueries(queryClient),
   });
 }

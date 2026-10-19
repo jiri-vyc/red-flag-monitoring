@@ -10,7 +10,7 @@ import {
   Send,
   Settings2,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button, type ButtonVariant } from "@/components/ui/Button";
@@ -45,8 +45,13 @@ import {
   type RuleConfigFormErrors,
   type RuleConfigFormValues,
 } from "../manualRuleForm";
+import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
+import { DEFAULT_ESCALATION_ROLE, type UserRole } from "@/features/users/types";
+
 import type { Rule, RuleContent } from "../types";
 import { RuleStatusBadge, RuleTypeBadge } from "./RuleBadges";
+import { EscalationRoleSelect } from "./EscalationRoleSelect";
 import configStyles from "./RuleConfig.module.css";
 import { RuleConfigFields } from "./RuleConfigFields";
 import { RuleConfigView } from "./RuleConfigView";
@@ -74,14 +79,28 @@ function RuleActions({ rule, onOpenEditor }: { rule: Rule; onOpenEditor: (mode: 
   const { t } = useI18n();
   const transitionMutation = useRuleTransition();
   const { canEditDraftContent } = useRulesCapabilities();
+  const { canManageRules } = useRolePermissions();
+  const escalationSelectId = useId();
   const [isRejecting, setIsRejecting] = useState(false);
   const [isRejectDone, setIsRejectDone] = useState(false);
+  // Issue #6: the review may change who handles the reviewed version's hits; it starts at the version's role.
+  const [escalationRole, setEscalationRole] = useState<UserRole>(
+    rule.versions.at(-1)?.config.escalationRole ?? DEFAULT_ESCALATION_ROLE,
+  );
   const availableActions = getAvailableRuleActions(rule);
   const canEditDraft = rule.status === "draft" && canEditDraftContent;
   const isBusy = transitionMutation.isPending || isRejecting;
+  const isReviewable = availableActions.includes("approve") || availableActions.includes("reject");
+
+  if (!canManageRules) {
+    return <RoleGateNotice requiredRole="compliance_officer" />;
+  }
 
   return (
     <div className={styles.actions}>
+      {isReviewable && (
+        <EscalationRoleSelect id={escalationSelectId} value={escalationRole} onChange={setEscalationRole} />
+      )}
       <div className={styles.actionButtons}>
         {availableActions.filter(isTransitionAction).map((action) => (
           <Button
@@ -91,7 +110,11 @@ function RuleActions({ rule, onOpenEditor }: { rule: Rule; onOpenEditor: (mode: 
             disabled={isBusy}
             onClick={() => {
               setIsRejectDone(false);
-              transitionMutation.mutate({ ruleId: rule.id, action });
+              transitionMutation.mutate({
+                ruleId: rule.id,
+                action,
+                escalationRole: action === "approve" ? escalationRole : null,
+              });
             }}
           >
             {t.rules.action[action]}
@@ -133,6 +156,7 @@ function RuleActions({ rule, onOpenEditor }: { rule: Rule; onOpenEditor: (mode: 
       {isRejecting && (
         <RejectRulePanel
           ruleId={rule.id}
+          escalationRole={escalationRole}
           onCancel={() => setIsRejecting(false)}
           onRejected={() => {
             setIsRejecting(false);

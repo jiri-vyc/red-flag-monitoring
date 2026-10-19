@@ -2,13 +2,13 @@ import { type DataSource, In, IsNull } from "typeorm";
 
 import type { RuleLegalBasis } from "../../../domain/regulation";
 import type { Rule, RuleVersion } from "../../../domain/rule";
-import type { VersionReview } from "../../../domain/versionStatus";
 import { ConflictError } from "../../../application/errors";
 import type {
   NewRule,
   NewRuleVersion,
   RuleActivation,
   RuleRepository,
+  RuleVersionReview,
 } from "../../../application/rules/ruleRepository";
 import type { VersionStatusChange } from "../../../application/versionReview";
 import { RuleEntity } from "../entities/RuleEntity";
@@ -93,9 +93,15 @@ export class TypeOrmRuleRepository implements RuleRepository {
     return updateVersionStatus(this.dataSource.manager, RuleVersionEntity, change);
   }
 
-  recordReview(versionId: string, review: VersionReview): Promise<void> {
+  recordReview(versionId: string, { escalationRole, ...review }: RuleVersionReview): Promise<void> {
     return translateDatabaseErrors(() =>
-      recordVersionReview(this.dataSource.manager, RuleVersionEntity, versionId, review),
+      this.dataSource.transaction(async (manager) => {
+        await recordVersionReview(manager, RuleVersionEntity, versionId, review);
+
+        if (escalationRole) {
+          await manager.update(RuleVersionEntity, { id: versionId }, { escalationRole });
+        }
+      }),
     );
   }
 
@@ -146,6 +152,7 @@ function toRuleVersion(entity: RuleVersionEntity, legalBases: RuleLegalBasis[]):
     baseScore: entity.baseScore,
     sensitivity: entity.sensitivity,
     riskProfiles: entity.riskProfiles,
+    escalationRole: entity.escalationRole,
     status: entity.status,
     createdVia: entity.createdVia,
     createdBy: entity.createdBy,

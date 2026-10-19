@@ -9,7 +9,7 @@
 
 - Tabulky v databázi jsou `snake_case` v množném čísle, stejně jako existující `clients` a `transactions`. Diagram používá jednotné číslo.
 - `CLIENT` a `TRANSACTION` už existují (baseline migrace v `golden`). Diagram uvádí jen sloupce, na které model odkazuje.
-- `USER` je zatím jen klíč. MVP má jednu roli `admin` ([M12](#rozhodnutí-pravidla)).
+- `USER` má jednu nebo více rolí ([M12](#rozhodnutí-pravidla)). Přihlášení ani kontrola oprávnění v MVP nejsou.
 - Výčtové hodnoty (`enum`) jsou v databázi `text` s `check` omezením, stejně jako u existujících tabulek.
 
 ## Diagram
@@ -101,6 +101,7 @@ erDiagram
         text agent_prompt "agentní"
         string agent_model_id "agentní"
         text human_text "český přepis"
+        string escalation_role "na koho se eskaluje, výchozí contact_person"
         text threshold_rationale
         int base_score "0-100"
         int sensitivity "0-100"
@@ -212,6 +213,7 @@ erDiagram
     }
     USER {
         uuid id PK
+        string_array roles "compliance_analyst … designated_person"
     }
 ```
 
@@ -236,12 +238,13 @@ Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVA
 | M9 | Referenční seznamy (HRTC EU, FATF black list, interní rizikové země) mají verze. Seznamy **nemají** schvalování. Vyhodnocení použije **poslední verzi**. | Pravidlo B na seznamech závisí. Jednoduchost MVP. |
 | M10 | Katalog featur je **jen v kódu**. Z něj se generuje JSON schema pro Bedrock a slovník pro český přepis. | Featury píše vývojář a reviewují se v PR. |
 | M11 | Schválení jsou **pole na verzi** předpisu a pravidla (`reviewed_by`, `reviewed_at`, `review_comment`). Jiné entity schválení nemají. | Jednoduchost MVP. |
-| M12 | MVP má **jednu roli `admin`**. Systém nekontroluje 4-eyes. | Demo obslouží jeden uživatel. |
+| M12 | Uživatel má **jednu nebo více rolí**: `compliance_analyst`, `compliance_officer`, `lawyer`, `contact_person` (AML zákon § 22), `designated_person` (§ 22a). Backend role nekontroluje, aktivní roli volí web. Systém nekontroluje 4-eyes. | Issue #6. Přihlášení je mimo rozsah hackathonu. |
 | M13 | Verze agentního pravidla drží `agent_prompt` a `agent_model_id`. Vstup, výstup a vyrenderovaný prompt LLM ukládá **vyhodnocení pravidla**. | Vyhodnocení musí jít zpětně rekonstruovat. |
 | M14 | `definition` obsahuje jen logiku pravidla: `match`, `features` a `conditions`. Skóre a citlivost jsou sloupce. | Sloupce jdou filtrovat a zobrazit v UI bez parsování JSON. |
 | M15 | Risk profily jsou `low`, `medium`, `high` podle sloupce `AML risk score` v datech klientů. | Data neobsahují neznámý profil. Mění D12. |
 | M16 | Whitelist je dvojice pravidlo × klient s povinným `reason`. Odebrání záznam smaže a zapíše do audit logu. `whitelist_allowed = false` whitelist u pravidla zakáže. | Jednoduchost MVP. Pravidla B jsou regulatorně povinná. |
 | M17 | Verze předpisu a pravidla jsou neměnné. Systém je nemaže. **Návrh změny (2026-10-19, čeká na potvrzení týmu):** verze pravidla ve stavu `draft` jde upravit na místě (`PATCH`, viz BE-05 v [backend-todo.md](../backend-todo.md)). Od `pending_review` je neměnná. Každá úprava draftu se zapíše do audit logu a původní návrh AI zůstane dohledatelný. | Rekonstruovatelnost rozhodnutí (vyhláška 67/2018 § 18). Draft ještě nikdo nereviewoval a nespouští se, takže jeho úprava rozhodnutí nemění. |
+| M18 | Role, na kterou se eskalují zásahy pravidla (`escalation_role`), je **na verzi pravidla**, výchozí `contact_person`. Mění se novou verzí nebo při review; je to jediné pole verze, které review smí změnit. Výsledky běhu se filtrují podle role verze pravidla, která je v běhu. | Issue #6. Eskalace mění, kdo zásah uvidí, proto prochází review jako citlivost (M7) a starý běh zůstává rekonstruovatelný. |
 
 ### Aktualizace regulace
 
@@ -379,7 +382,7 @@ Před reálným nasazením je musí zkontrolovat compliance officer nebo právn�
 
 - **Whitelist bez schválení.** Benchmark ČNB 2/2023 (kap. III.ii) vyžaduje u whitelistu odůvodnění, schválení a pravidelnou revizi.
 - **Referenční seznamy bez schválení.** Změna seznamu rizikových zemí mění detekci pravidla B.
-- **Jedna role bez 4-eyes.** Reálný provoz potřebuje oddělené role a zákaz schválit vlastní návrh.
+- **Role bez přihlášení a bez 4-eyes.** Role volí web a backend je nekontroluje. Reálný provoz potřebuje přihlášení, kontrolu oprávnění a zákaz schválit vlastní návrh. Mapování rolí na AML zákon a výchozí eskalace na kontaktní osobu musí posoudit compliance.
 - **Chybí periodická revize pravidel** (vyhláška 67/2018 § 4 odst. 4–6).
 - **Poslední verze seznamu** při ex post vyhodnocení nemusí odpovídat seznamu platnému k datu transakce.
 

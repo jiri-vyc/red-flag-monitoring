@@ -9,6 +9,7 @@ import type { RiskProfile, RuleType } from "@/features/rules/types";
 
 import { getMockClient } from "./mockClient";
 import { runMockCheck, type MockCheckKind } from "./ruleChecks";
+import { DEFAULT_ESCALATION_ROLE, type UserRole } from "@/features/users/types";
 
 /** Snapshot of an executable rule taken when a batch starts, so later rule changes do not alter stored results. */
 export type MockRuleSnapshot = {
@@ -21,6 +22,8 @@ export type MockRuleSnapshot = {
   /** Whitelist entries of the rule as they were at batch creation (not part of the version config). */
   whitelistClientIds: string[];
   checkKind: MockCheckKind;
+  /** Issue #6. Missing in snapshots stored before roles existed, which then escalate to the default. */
+  escalationRole?: UserRole;
 };
 
 // Demo thresholds. Real aggregation and thresholds are an open question (spec 10.7) and need compliance review.
@@ -86,6 +89,7 @@ export function evaluateTransaction(
       adjustedScore,
       isFailed,
       trace: checkResult.trace,
+      escalationRole: rule.escalationRole ?? DEFAULT_ESCALATION_ROLE,
     });
   }
 

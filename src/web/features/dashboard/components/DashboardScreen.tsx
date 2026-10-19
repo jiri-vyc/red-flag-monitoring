@@ -17,6 +17,7 @@ import { findRuleLegalBases } from "@/features/rules/domain/ruleLifecycle";
 import { useWizardCapabilities } from "@/features/wizard/api/hooks";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
+import { useRolePermissions } from "@/features/users/api/hooks";
 
 import { useDashboardSummary } from "../api/hooks";
 import type { DashboardSummary } from "../types";
@@ -176,6 +177,7 @@ export function DashboardScreen() {
   const summaryQuery = useDashboardSummary();
   const { canUploadBatch } = useBatchesCapabilities();
   const { isAvailable: isWizardAvailable } = useWizardCapabilities();
+  const { canCreateRegulation } = useRolePermissions();
   return (
     <>
       <PageHeader
@@ -189,7 +191,7 @@ export function DashboardScreen() {
           )
         }
       />
-      {isWizardAvailable && <WizardCallToAction />}
+      {isWizardAvailable && canCreateRegulation && <WizardCallToAction />}
       <QueryView query={summaryQuery}>{(summary) => <DashboardContent summary={summary} />}</QueryView>
     </>
   );

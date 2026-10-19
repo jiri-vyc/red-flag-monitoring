@@ -9,6 +9,7 @@ import { InternalPolicyUseCases } from "./application/internalPolicies/internalP
 import { ReferenceListUseCases } from "./application/referenceLists/referenceListUseCases";
 import { RegulationUseCases } from "./application/regulations/regulationUseCases";
 import { RuleUseCases } from "./application/rules/ruleUseCases";
+import { UserUseCases } from "./application/users/userUseCases";
 import { WhitelistUseCases } from "./application/whitelist/whitelistUseCases";
 import { type AppConfig, parseAppConfig } from "./config";
 import { type AppUseCases, createApp } from "./delivery/http/createApp";
@@ -22,6 +23,7 @@ import { TypeOrmInternalPolicyRepository } from "./infrastructure/database/repos
 import { TypeOrmReferenceListRepository } from "./infrastructure/database/repositories/TypeOrmReferenceListRepository";
 import { TypeOrmRegulationRepository } from "./infrastructure/database/repositories/TypeOrmRegulationRepository";
 import { TypeOrmRuleRepository } from "./infrastructure/database/repositories/TypeOrmRuleRepository";
+import { TypeOrmUserRepository } from "./infrastructure/database/repositories/TypeOrmUserRepository";
 import { TypeOrmWhitelistRepository } from "./infrastructure/database/repositories/TypeOrmWhitelistRepository";
 
 // Lambda Web Functions kill the environment unless it listens within 10 s; an Aurora resume takes ~15 s.
@@ -61,6 +63,7 @@ function createUseCases(dataSource: DataSource, appConfig: AppConfig): AppUseCas
     evaluationRuns: new EvaluationRunQueries(new TypeOrmEvaluationRunReadRepository(dataSource)),
     evaluationRunUseCases: createEvaluationRunUseCases(dataSource, appConfig),
     databaseStatus: new DatabaseStatusQueries(new TypeOrmDatabaseStatusProbe(dataSource)),
+    users: new UserUseCases(new TypeOrmUserRepository(dataSource)),
   };
 }
 

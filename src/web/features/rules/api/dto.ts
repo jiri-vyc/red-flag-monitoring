@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { reviewableVersionDtoSchema } from "@/features/policies/api/dto";
+import { userRoleSchema, type UserRole } from "@/features/users/types";
 import { requestJson } from "@/lib/httpClient";
 
 // DTOs of /api/rules (src/backend/src/delivery/http/rulesRouter.ts and ruleDefinitionSchema.ts).
@@ -106,6 +107,7 @@ export const ruleVersionDtoSchema = reviewableVersionDtoSchema.extend({
   baseScore: z.number().int().nullable(),
   sensitivity: z.number().int(),
   riskProfiles: z.array(z.enum(BACKEND_RISK_PROFILES)),
+  escalationRole: userRoleSchema,
   legalBases: z.array(ruleLegalBasisDtoSchema),
 });
 export type RuleVersionDto = z.infer<typeof ruleVersionDtoSchema>;
@@ -124,6 +126,7 @@ export type NewRuleVersionDto = {
   baseScore: number | null;
   sensitivity: number;
   riskProfiles: BackendRiskProfile[];
+  escalationRole: UserRole;
   legalBases: RuleLegalBasisDto[];
 };
 

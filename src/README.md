@@ -70,16 +70,17 @@ Things to know:
 
 ## API
 
-There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or review data pass the actor in the body as `createdBy` / `reviewedBy`; the `SeedAdminUser` migration creates the single admin `00000000-0000-4000-8000-000000000001`.
+There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or review data pass the actor in the body as `createdBy` / `reviewedBy`. Users hold one or more roles (`compliance_analyst`, `compliance_officer`, `lawyer`, `contact_person`, `designated_person`, issue #6): `SeedAdminUser` creates the demo admin `00000000-0000-4000-8000-000000000001` (all roles) and `SeedDemoUsers` four synthetic users `…0002` to `…0005`. The backend does not check roles; the web picks the active role and sends it where it filters data.
 
 | Resource             | Endpoints                                                                                                                                                                                             |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/regulations`       | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions`, `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                                              |
 | `/internal-policies` | as regulations, plus `POST /:id/versions/:versionId/submit` and `POST /:id/versions/:versionId/review`                                                                                                |
 | `/rules`             | as internal policies, plus `POST /:id/enable`, `POST /:id/disable`, `PUT /:id/active-version`, `GET` / `POST /:id/whitelist`, `DELETE /:id/whitelist/:clientId`                                       |
+| `/users`             | `GET /`: users with their `roles`, sorted by name                                                                                                                                                       |
 | `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                               |
 | `/drafting-jobs`     | `POST /` (start, see below), `GET /?status=&kind=&regulationId=&policyVersionId=&limit=&offset=`, `GET /:jobId`, `POST /:jobId/retry`                                                                 |
-| `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&limit=&offset=`, `GET /:runId/transactions/:transactionId` (detail with trace) |
+| `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&role=&limit=&offset=`, `GET /:runId/transactions/:transactionId?role=` (detail with trace) |
 | `/database-status`   | `GET /`: the connected database (`current_database()`, `version()`, `aurora_version()` or `null`, server address and time, latest migration, `clients` count)                                         |
 
 ### Evaluation runs
@@ -97,9 +98,14 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 - The body is optional: `createdBy` defaults to the demo admin, `hitThreshold` to 50. An empty `scope` evaluates all ~400k transactions. `from` is inclusive, `to` exclusive, both local time like `transactions.ts`. `limit` keeps the first transactions in chronological order.
 - The response is `202` with the run in status `running`. Poll `GET /:runId`: `run.txProcessed` grows in steps of 1,000 until `status` is `completed` or `failed` (`errorMessage`). The whole dataset takes ~45 s against local Docker.
 - The summary has `verdictCounts`, `flaggedClientCount` and, per rule version, `hitCount` and `hitClientCount`. `GET /:runId/transactions?verdict=flagged` lists flagged transactions with `hitRules`. The detail has the trace, features (including the ČNB rate) and `contextRefs` of each hit.
+- `role` (issue #6, optional) keeps only hits of rule versions escalated to that role: the list drops transactions without such a hit and `hitRules` lists only those hits; the detail leaves out other roles' hits (other outcomes stay). Without `role` everything is returned. The summary counts are not filtered.
 - Only rule results other than `pass` are stored ([V16](../spec/datovy-model.md#rozhodnutí-vyhodnocení)). A passed transaction has its verdict and score, but no per-rule rows.
 - Where the run executes: in the API process by default. With `EVALUATION_WORKER_FUNCTION` set, the API invokes that Lambda function asynchronously instead (`backend/src/evaluationWorker.ts`, export `handler`), because a Web Function may remove its environment after the response.
 - The `SeedSampleRules` migration adds the sample rules R-01 to R-17 from `knowledgebase/pravidla-priklady` as active versions.
+
+### Rule escalation
+
+Every rule version has `escalationRole` (default `contact_person`, issue #6): the role whose users handle its hits. `POST /rules/:id/versions` accepts it, and `POST /rules/:id/versions/:versionId/review` may change it together with the decision (`{ "decision": "approved", "reviewedBy": "…", "escalationRole": "designated_person" }`). It is the only version field a review can change.
 
 ### Drafting jobs
 

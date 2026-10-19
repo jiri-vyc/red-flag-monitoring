@@ -19,6 +19,7 @@ const RULE_EVALUATION: RuleEvaluation = {
   score: 80,
   adjustedScore: 80,
   isFailed: true,
+  escalationRole: "contact_person",
   trace: [{ condition: "Částka", isMet: true, detail: "amount_czk (1000) > 500" }],
 };
 

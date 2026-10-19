@@ -1,5 +1,6 @@
 import {
   canEnableRule,
+  type EscalationRole,
   findActivationViolation,
   findRuleLogicViolation,
   type Rule,
@@ -9,6 +10,9 @@ import type { Clock } from "../clock";
 import { BusinessRuleViolationError, NotFoundError } from "../errors";
 import { createReviewSubmission, createVersionReview, type ReviewInput } from "../versionReview";
 import type { NewRule, NewRuleVersion, RuleRepository } from "./ruleRepository";
+
+// E2: the reviewer (compliance officer) may change the escalation role; null keeps it.
+export type RuleReviewInput = ReviewInput & { escalationRole: EscalationRole | null };
 
 export class RuleUseCases {
   constructor(
@@ -122,11 +126,11 @@ export class RuleUseCases {
   }
 
   // Approval does not activate the version: the active one keeps running until setActiveVersion (M6).
-  async reviewVersion(ruleId: string, versionId: string, input: ReviewInput): Promise<RuleVersion> {
+  async reviewVersion(ruleId: string, versionId: string, input: RuleReviewInput): Promise<RuleVersion> {
     const version = await this.getVersion(ruleId, versionId);
     const review = createVersionReview(version, input, this.clock);
 
-    await this.ruleRepository.recordReview(versionId, review);
+    await this.ruleRepository.recordReview(versionId, { ...review, escalationRole: input.escalationRole });
 
     return this.getVersion(ruleId, versionId);
   }

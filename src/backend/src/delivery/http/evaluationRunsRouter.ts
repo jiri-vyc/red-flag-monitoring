@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { DEFAULT_HIT_THRESHOLD, VERDICTS } from "../../domain/evaluation";
+import { ESCALATION_ROLES } from "../../domain/rule";
 import { MAX_SCORE, MIN_SCORE } from "../../domain/score";
 import { DEMO_ADMIN_USER_ID } from "../../domain/user";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
@@ -53,7 +54,16 @@ const startRunBodySchema = z.object({
   scope: runScopeSchema.default({ from: null, to: null, clientIds: null, limit: null }),
 });
 
+// Issue #6: the role the web is acting as; the backend trusts it (E5) and only filters hits by it (E3).
+const escalationRoleQuerySchema = z
+  .enum(ESCALATION_ROLES)
+  .optional()
+  .transform((value) => value ?? null);
+
+const transactionDetailQuerySchema = z.object({ role: escalationRoleQuerySchema });
+
 const transactionListQuerySchema = pageQuerySchema.extend({
+  role: escalationRoleQuerySchema,
   verdict: z
     .enum(VERDICTS)
     .optional()
@@ -92,11 +102,14 @@ export function createEvaluationRunsRouter(
 
   router.get("/:runId/transactions", async (request, response) => {
     const { runId } = parseRequest(runParamsSchema, request.params);
-    const { verdict, ruleVersionId, limit, offset } = parseRequest(transactionListQuerySchema, request.query);
+    const { verdict, ruleVersionId, role, limit, offset } = parseRequest(
+      transactionListQuerySchema,
+      request.query,
+    );
 
     response.json(
       await evaluationRunQueries.listTransactionEvaluations(
-        { runId, verdict, hitRuleVersionId: ruleVersionId },
+        { runId, verdict, hitRuleVersionId: ruleVersionId, escalationRole: role },
         { limit, offset },
       ),
     );
@@ -104,8 +117,9 @@ export function createEvaluationRunsRouter(
 
   router.get("/:runId/transactions/:transactionId", async (request, response) => {
     const { runId, transactionId } = parseRequest(transactionParamsSchema, request.params);
+    const { role } = parseRequest(transactionDetailQuerySchema, request.query);
 
-    response.json(await evaluationRunQueries.getTransactionEvaluationDetail(runId, transactionId));
+    response.json(await evaluationRunQueries.getTransactionEvaluationDetail(runId, transactionId, role));
   });
 
   return router;

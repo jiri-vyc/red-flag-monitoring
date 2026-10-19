@@ -1,4 +1,4 @@
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
 
@@ -34,7 +34,7 @@ function createVersionDto(overrides: Partial<RuleVersionDto> = {}): RuleVersionD
     versionNo: 1,
     status: "draft",
     createdVia: "manual",
-    createdBy: CURRENT_USER.id,
+    createdBy: getCurrentUser().id,
     createdAt: CREATED_AT,
     reviewedBy: null,
     reviewedAt: null,
@@ -48,6 +48,7 @@ function createVersionDto(overrides: Partial<RuleVersionDto> = {}): RuleVersionD
     baseScore: 60,
     sensitivity: 100,
     riskProfiles: ["high"],
+    escalationRole: "contact_person",
     legalBases: [{ regulationVersionId: "reg-version-1", ref: "§ 6" }],
     ...overrides,
   };
@@ -59,7 +60,7 @@ function withVersions(rule: RuleDto, versions: RuleVersionDto[]): RuleWithVersio
 
 const approvedVersion = createVersionDto({
   status: "approved",
-  reviewedBy: CURRENT_USER.id,
+  reviewedBy: getCurrentUser().id,
   reviewedAt: REVIEWED_AT,
 });
 const pendingUpdate = createVersionDto({ id: "version-2", versionNo: 2, status: "pending_review" });
@@ -115,8 +116,8 @@ describe("toRule", () => {
     });
     expect(mappedRule.versions[0]).toMatchObject({
       state: "approved",
-      createdBy: CURRENT_USER.name,
-      reviewedBy: CURRENT_USER.name,
+      createdBy: getCurrentUser().name,
+      reviewedBy: getCurrentUser().name,
       content: { type: "deterministic", explanation: "Transakce nad limitem" },
       legalBases: [{ regulationId: "reg-1", ref: "§ 6" }],
     });
@@ -242,12 +243,34 @@ const MANUAL_RULE_INPUT = {
   type: "agentic" as const,
   sensitivity: 80,
   riskProfiles: ["high" as const],
+  escalationRole: "contact_person" as const,
   legalBases: [{ regulationId: "reg-1", ref: " § 6 " }],
-  author: CURRENT_USER.name,
+  author: getCurrentUser().name,
 };
 
 describe("liveRulesService mutations", () => {
   beforeEach(() => requestJsonMock.mockReset());
+
+  it("sends the escalation role picked at review with the approval (issue #6)", async () => {
+    const requests = serveRule(createRuleDto(), [createVersionDto({ status: "pending_review" })]);
+
+    await liveRulesService.approveRule({
+      ruleId: "rule-1",
+      reviewer: getCurrentUser().name,
+      escalationRole: "designated_person",
+    });
+
+    expect(writesOf(requests)).toContainEqual({
+      path: "/rules/rule-1/versions/version-1/review",
+      method: "POST",
+      jsonBody: {
+        decision: "approved",
+        reviewedBy: getCurrentUser().id,
+        reviewComment: null,
+        escalationRole: "designated_person",
+      },
+    });
+  });
 
   it("hides what the backend cannot do and keeps agentic creation", () => {
     expect(liveRulesService.capabilities).toEqual({
@@ -263,15 +286,21 @@ describe("liveRulesService mutations", () => {
 
     await liveRulesService.rejectRule({
       ruleId: "rule-1",
-      reviewer: CURRENT_USER.name,
+      reviewer: getCurrentUser().name,
       comment: "  Chybí práh  ",
+      escalationRole: null,
     });
 
     expect(writesOf(requests)).toEqual([
       {
         path: "/rules/rule-1/versions/version-1/review",
         method: "POST",
-        jsonBody: { decision: "rejected", reviewedBy: CURRENT_USER.id, reviewComment: "Chybí práh" },
+        jsonBody: {
+          decision: "rejected",
+          reviewedBy: getCurrentUser().id,
+          reviewComment: "Chybí práh",
+          escalationRole: null,
+        },
       },
     ]);
   });
@@ -281,8 +310,9 @@ describe("liveRulesService mutations", () => {
 
     await liveRulesService.rejectRule({
       ruleId: "rule-1",
-      reviewer: CURRENT_USER.name,
+      reviewer: getCurrentUser().name,
       comment: "Duplicitní",
+      escalationRole: null,
     });
 
     expect(writesOf(requests).map(({ path }) => path)).toEqual([
@@ -295,7 +325,12 @@ describe("liveRulesService mutations", () => {
     serveRule(createRuleDto(), [createVersionDto({ status: "pending_review" })]);
 
     await expect(
-      liveRulesService.rejectRule({ ruleId: "rule-1", reviewer: CURRENT_USER.name, comment: "   " }),
+      liveRulesService.rejectRule({
+        ruleId: "rule-1",
+        reviewer: getCurrentUser().name,
+        comment: "   ",
+        escalationRole: null,
+      }),
     ).rejects.toMatchObject({ kind: "validation" });
     expect(requestJsonMock).not.toHaveBeenCalled();
   });
@@ -364,9 +399,9 @@ describe("liveRulesService mutations", () => {
     await liveRulesService.createRuleVersion({
       ruleId: "rule-1",
       content: { type: "deterministic", code: JSON.stringify(VALID_DEFINITION), explanation: "Nový práh" },
-      config: { sensitivity: 70, riskProfiles: ["high"] },
+      config: { sensitivity: 70, riskProfiles: ["high"], escalationRole: "contact_person" },
       changeNote: "",
-      author: CURRENT_USER.name,
+      author: getCurrentUser().name,
     });
 
     expect(writesOf(requests)[0]?.jsonBody).toMatchObject({

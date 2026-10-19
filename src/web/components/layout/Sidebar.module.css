@@ -174,42 +174,6 @@
   height: 1rem;
 }
 
-.user {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-}
-
-.user small {
-  display: block;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.user strong {
-  display: block;
-  font-size: var(--font-size-sm);
-}
-
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 50%;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.avatar svg {
-  width: 1.2rem;
-  height: 1.2rem;
-}
-
 @keyframes fade-in {
   from {
     opacity: 0;

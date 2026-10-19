@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 
 import type { RuleConfigFormErrors, RuleConfigFormValues } from "../manualRuleForm";
 import { RISK_PROFILES, type RiskProfile } from "../types";
+import { EscalationRoleSelect } from "./EscalationRoleSelect";
 import styles from "./RuleConfig.module.css";
 
 type RuleConfigFieldsProps = {
@@ -21,7 +22,7 @@ function toggleRiskProfile(riskProfiles: RiskProfile[], riskProfile: RiskProfile
     : [...riskProfiles, riskProfile];
 }
 
-/** Sensitivity and risk profile inputs, shared by rule creation and new-version forms. */
+/** Sensitivity, risk profile and escalation inputs, shared by rule creation and new-version forms. */
 export function RuleConfigFields({ idPrefix, values, errors, onChange }: RuleConfigFieldsProps) {
   const { t } = useI18n();
   const riskProfilesError = errors.riskProfiles ? t.ruleForm[errors.riskProfiles] : null;
@@ -67,6 +68,11 @@ export function RuleConfigFields({ idPrefix, values, errors, onChange }: RuleCon
           </p>
         )}
       </fieldset>
+      <EscalationRoleSelect
+        id={`${idPrefix}-escalation-role`}
+        value={values.escalationRole}
+        onChange={(escalationRole) => onChange({ escalationRole })}
+      />
     </>
   );
 }

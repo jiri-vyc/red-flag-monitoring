@@ -13,6 +13,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 // Demo client IDs, offered only when the rules service can suggest clients (the mock).
 import { SEED_CLIENTS } from "@/mocks/seed/clients";
+import { useRolePermissions } from "@/features/users/api/hooks";
 
 import {
   useAddWhitelistEntry,
@@ -33,7 +34,16 @@ const CLIENT_SUGGESTIONS_ID = "rule-whitelist-clients";
 
 type FormErrors = Extract<WhitelistEntryFormResult, { isValid: false }>["errors"];
 
-function WhitelistTable({ ruleId, entries }: { ruleId: string; entries: WhitelistEntry[] }) {
+function WhitelistTable({
+  ruleId,
+  entries,
+  canEdit,
+}: {
+  ruleId: string;
+  entries: WhitelistEntry[];
+  /** Issue #6: only the compliance officer changes the whitelist. */
+  canEdit: boolean;
+}) {
   const { t, locale } = useI18n();
   const removeMutation = useRemoveWhitelistEntry();
   if (entries.length === 0) {
@@ -67,15 +77,17 @@ function WhitelistTable({ ruleId, entries }: { ruleId: string; entries: Whitelis
                   </span>
                 </td>
                 <td>
-                  <Button
-                    variant="ghost"
-                    icon={<UserMinus aria-hidden="true" />}
-                    aria-label={`${t.whitelist.removeLabel} ${entry.clientId}`}
-                    disabled={removeMutation.isPending}
-                    onClick={() => removeMutation.mutate({ ruleId, clientId: entry.clientId })}
-                  >
-                    {t.whitelist.remove}
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      icon={<UserMinus aria-hidden="true" />}
+                      aria-label={`${t.whitelist.removeLabel} ${entry.clientId}`}
+                      disabled={removeMutation.isPending}
+                      onClick={() => removeMutation.mutate({ ruleId, clientId: entry.clientId })}
+                    >
+                      {t.whitelist.remove}
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -170,6 +182,7 @@ function AddWhitelistEntryForm({ ruleId }: { ruleId: string }) {
 /** Rule-level exceptions (data model M16). Changes apply immediately: no new version, no review. */
 export function RuleWhitelistCard({ rule }: { rule: Rule }) {
   const { t } = useI18n();
+  const { canManageRules } = useRolePermissions();
   const whitelistQuery = useRuleWhitelist(rule.id);
   return (
     <Card
@@ -184,9 +197,9 @@ export function RuleWhitelistCard({ rule }: { rule: Rule }) {
       {rule.whitelistAllowed ? (
         <>
           <QueryView query={whitelistQuery}>
-            {(entries) => <WhitelistTable ruleId={rule.id} entries={entries} />}
+            {(entries) => <WhitelistTable ruleId={rule.id} entries={entries} canEdit={canManageRules} />}
           </QueryView>
-          <AddWhitelistEntryForm ruleId={rule.id} />
+          {canManageRules && <AddWhitelistEntryForm ruleId={rule.id} />}
         </>
       ) : (
         <Notice tone="info" title={t.whitelist.notAllowedTitle}>

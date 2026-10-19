@@ -25,6 +25,8 @@ export const cs: Dictionary = {
     dataSource: "Zdroj dat",
     dataSourceMock: "Mock",
     dataSourceLive: "Live",
+    user: "Uživatel",
+    activeRole: "Vystupuje jako",
   },
   databaseStatus: {
     title: "Databáze",
@@ -102,6 +104,16 @@ export const cs: Dictionary = {
     medium: "Střední",
     low: "Nízký",
     unknown: "Neznámý",
+  },
+  roles: {
+    compliance_analyst: "Compliance analytik",
+    compliance_officer: "Compliance officer",
+    lawyer: "Právník",
+    contact_person: "Kontaktní osoba (§ 22)",
+    designated_person: "Pověřená osoba (§ 22a)",
+  },
+  roleGate: {
+    requires: "Tuto akci může provést jen role {role}. Roli přepnete v postranním panelu.",
   },
   versionState: {
     draft: "Koncept",
@@ -210,6 +222,8 @@ export const cs: Dictionary = {
     versionConfiguration: "Konfigurace této verze",
     configColumn: "Konfigurace",
     pendingChange: "Čekající změna",
+    escalationRole: "Eskalovat na",
+    escalationRoleHint: "Kdo řeší zásahy pravidla. Výchozí je kontaktní osoba.",
     pendingConfigNote:
       "Verze čekající na schválení mění zvýrazněná pole. Do jejího schválení se vyhodnocuje se spouštěnou konfigurací.",
     sourceChain: "Zdroj",
@@ -376,6 +390,7 @@ export const cs: Dictionary = {
       "Výsledky jsou podkladem pro AML analytiky, nejsou to finální AML určení. Prahy jsou demo hodnoty, které musí posoudit compliance.",
   },
   transactionDetail: {
+    noHitsForRole: "Žádné nesplněné pravidlo této transakce není eskalované na roli {role}.",
     title: "Vyhodnocení transakce",
     backToBatch: "Zpět na dávku",
     transaction: "Transakce",

@@ -33,6 +33,7 @@ export function createRuleSnapshots({
         // Config always comes from the running approved version, never from a pending one.
         sensitivity: runningVersion.config.sensitivity,
         riskProfiles: runningVersion.config.riskProfiles,
+        escalationRole: runningVersion.config.escalationRole,
         // The whitelist is copied at batch creation, so later whitelist changes do not alter past batches.
         whitelistClientIds: rule.whitelistAllowed
           ? whitelistEntries.filter((entry) => entry.ruleId === rule.id).map((entry) => entry.clientId)

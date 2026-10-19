@@ -1,4 +1,4 @@
-import { CURRENT_USER } from "@/config/currentUser";
+import { getCurrentUser } from "@/config/currentUser";
 import type { EvaluationRunListItemDto } from "@/features/batches/api/dto";
 import type { RuleDto, RuleVersionDto } from "@/features/rules/api/dto";
 import { requestJson } from "@/lib/httpClient";
@@ -37,7 +37,7 @@ function createVersionDto(
     versionNo,
     status,
     createdVia: "manual",
-    createdBy: CURRENT_USER.id,
+    createdBy: getCurrentUser().id,
     createdAt: CREATED_AT,
     reviewedBy: null,
     reviewedAt: null,
@@ -51,6 +51,7 @@ function createVersionDto(
     baseScore: 60,
     sensitivity: 100,
     riskProfiles: ["high"],
+    escalationRole: "contact_person",
     legalBases: [{ regulationVersionId: "reg-1-v1", ref: "§ 9 odst. 2" }],
   };
 }
@@ -68,7 +69,7 @@ function createRunDto(id: string): EvaluationRunListItemDto {
     txFlagged: 2,
     txError: 1,
     hitThreshold: 50,
-    createdBy: CURRENT_USER.id,
+    createdBy: getCurrentUser().id,
     createdAt: CREATED_AT,
     finishedAt: CREATED_AT,
     errorMessage: null,
