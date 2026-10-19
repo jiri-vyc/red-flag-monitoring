@@ -49,11 +49,16 @@ function toBatchStatus(status: EvaluationRunListItemDto["status"]): BatchStatus 
   return status === "importing" || status === "running" ? "processing" : status;
 }
 
+function isFullDatasetScope(scope: EvaluationRunListItemDto["scope"]): boolean {
+  return scope !== null && Object.values(scope).every((value) => value === null);
+}
+
 function toBatch(run: EvaluationRunListItemDto, activeRuleCount: number): Batch {
   return {
     id: run.id,
     fileName: run.fileName,
     uploadedAt: run.createdAt,
+    finishedAt: run.finishedAt,
     uploadedBy: formatUserName(run.createdBy),
     status: toBatchStatus(run.status),
     fileRowCount: run.rowsTotal,
@@ -62,6 +67,7 @@ function toBatch(run: EvaluationRunListItemDto, activeRuleCount: number): Batch 
     activeRuleCount,
     counts: { ok: run.txPassed, to_check: run.txError, alert: run.txFlagged },
     failureReason: run.errorMessage,
+    isFullDatasetRun: isFullDatasetScope(run.scope),
   };
 }
 
@@ -158,6 +164,8 @@ function toRuleEvaluation(ruleEvaluation: RuleEvaluationDetailDto): RuleEvaluati
     ruleName: formatRuleName(ruleEvaluation.rule),
     ruleType: ruleEvaluation.rule.kind,
     ruleVersionNumber: ruleEvaluation.ruleVersion.versionNo,
+    // An errored evaluation produced no score, so the base-score calculation does not apply to it.
+    baseScore: ruleEvaluation.outcome === "error" ? null : ruleEvaluation.ruleVersion.baseScore,
     sensitivity: ruleEvaluation.ruleVersion.sensitivity,
     score: ruleEvaluation.rawScore ?? 0,
     adjustedScore: ruleEvaluation.adjustedScore ?? 0,

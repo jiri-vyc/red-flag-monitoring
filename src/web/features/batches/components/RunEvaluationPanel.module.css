@@ -19,3 +19,11 @@
   display: flex;
   justify-content: flex-end;
 }
+
+.estimateLine {
+  display: block;
+}
+
+.estimateLine + .estimateLine {
+  margin-top: var(--space-1);
+}

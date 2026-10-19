@@ -19,10 +19,15 @@ export function mapBatchRecord(record: MockBatchRecord, nowMs: number = Date.now
   const processedRowCount = countProcessedRows(record, nowMs);
   const isCompleted = processedRowCount >= record.batch.evaluatedRowCount;
   const processedRows = readBatchRows(record.batch.id).slice(0, processedRowCount);
+  // The simulated window starts at uploadedAt, so a completed run lasted durationMs like a backend run would.
+  const finishedAtMs = Date.parse(record.batch.uploadedAt) + record.durationMs;
   return {
     ...record.batch,
     status: isCompleted ? "completed" : "processing",
+    finishedAt: isCompleted ? new Date(finishedAtMs).toISOString() : null,
     processedRowCount,
     counts: countBuckets(processedRows),
+    // The mock evaluates a small demo sample, never the full dataset.
+    isFullDatasetRun: false,
   };
 }

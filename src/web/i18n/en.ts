@@ -191,6 +191,9 @@ export const en = {
     newRule: "New rule",
     filterByStatus: "Filter by status",
     sensitivity: "Sensitivity",
+    baseScore: "Base score",
+    baseScoreHint:
+      "A matching rule gets its whole base score, not a share per condition. It comes from the rule's priority in the policy.",
     riskProfiles: "Risk profiles",
     runningVersion: "Running version",
     noRunningVersion: "Not approved yet, does not run",
@@ -322,7 +325,18 @@ export const en = {
     scopeTo: "To (exclusive)",
     scopeRangeError: "“From” must be before “To”.",
     fullRunWarning:
-      "Without a limit or dates, the run processes the whole dataset (about 400,000 transactions) and can take a long time.",
+      "Without a limit or dates, the run processes the whole dataset (about {count} transactions) and can take a long time.",
+    durationEstimateTitle: "Approximate duration",
+    durationPer100k: "~{duration} per 100,000 transactions.",
+    durationFullRun: "A full run of about {count} transactions: ~{duration}.",
+    durationLimitedRun: "This run of up to {count} transactions: ~{duration}.",
+    durationRangeUnknown:
+      "No estimate for a date range: the number of transactions is not known in advance. Set a limit to get one.",
+    durationBasedOnLastRun: "Based on the last run: {count} transactions in {duration}.",
+    durationBasedOnDefault:
+      "Based on a reference measurement (no recent run of at least {count} transactions).",
+    durationCaveat:
+      "Only an estimate: the duration depends on the number of active rules, and agentic (LLM) rules are much slower.",
     history: "Batch history",
     empty: "No batches yet.",
     file: "File",
@@ -341,6 +355,8 @@ export const en = {
     runFailedUnknownReason: "The backend gave no reason.",
     activeRulesUsed: "Active rules",
     foundSoFar: "Found so far",
+    elapsedTime: "Elapsed {time}",
+    remainingEstimate: "~{duration} remaining",
     resultTitle: "Evaluation result",
     clickBucket: "Select a result to list its transactions.",
     capNote: "Demo mock evaluated the first {evaluated} of {total} rows of the file.",
@@ -376,6 +392,11 @@ export const en = {
     score: "Score",
     adjustedScore: "Adjusted score",
     sensitivity: "sensitivity",
+    baseScore: "Base score of the rule",
+    baseScoreHint:
+      "A matching rule always gets its whole base score; it is not added up per condition. The base score comes from the rule's priority in the policy.",
+    matchedScore: "Matched → score",
+    notMatchedScore: "Not matched → score",
     trace: "Trace",
     openRule: "Open rule detail",
     passedRules: "Rules passed",

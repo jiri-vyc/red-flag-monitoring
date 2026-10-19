@@ -1,7 +1,7 @@
 import { buildSeedDatabase } from "../seed/buildSeedDatabase";
 import { readMockDatabase, resetMockDatabase, writeMockDatabase } from "./mockDatabase";
 
-const DATABASE_KEY = "redflag.mock.database.v4";
+const DATABASE_KEY = "redflag.mock.database.v5";
 
 describe("mockDatabase", () => {
   beforeEach(() => {

@@ -16,7 +16,7 @@ export type MockRegulationRecord = Omit<Regulation, "policyIds" | "ruleIds">;
 export type MockPolicyRecord = Omit<Policy, "ruleIds">;
 
 export type MockBatchRecord = {
-  batch: Omit<Batch, "status" | "processedRowCount" | "counts">;
+  batch: Omit<Batch, "status" | "processedRowCount" | "counts" | "finishedAt" | "isFullDatasetRun">;
   /** Simulated processing window. Progress is derived from wall-clock time so it survives navigation. */
   startedAtMs: number;
   durationMs: number;
@@ -53,7 +53,8 @@ const MOCK_KEY_PREFIX = "redflag.mock.";
 // v2: sensitivity, risk profiles and whitelist moved from the rule into each rule version.
 // v3: whitelist moved out of rule versions into rule-level entries with a reason (data model M16).
 // v4: policies cite 0..N regulations, rule versions carry their own legal bases, a rule's policy is optional (M3-M5).
-const DATABASE_KEY = `${MOCK_KEY_PREFIX}database.v4`;
+// v5: rule versions carry a nullable base score.
+const DATABASE_KEY = `${MOCK_KEY_PREFIX}database.v5`;
 const BATCH_ROWS_KEY_PREFIX = `${MOCK_KEY_PREFIX}batch-rows.v1.`;
 
 let cachedDatabase: MockDatabase | null = null;

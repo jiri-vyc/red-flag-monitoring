@@ -147,6 +147,7 @@ export const mockRulesService: RulesService = {
           state: "pending_review",
           content: generatedDraft.content,
           config: { sensitivity, riskProfiles },
+          baseScore: null,
           changeNote: "Vytvořeno ručně, obsah vygenerován z popisu.",
           createdAt: now,
           createdBy: author,

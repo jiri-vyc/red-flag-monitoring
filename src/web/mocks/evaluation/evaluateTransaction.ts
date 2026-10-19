@@ -79,6 +79,8 @@ export function evaluateTransaction(
       ruleName: rule.ruleName,
       ruleType: rule.ruleType,
       ruleVersionNumber: rule.versionNumber,
+      // Mock checks score each transaction differently, so there is no fixed base score.
+      baseScore: null,
       sensitivity: rule.sensitivity,
       score: checkResult.score,
       adjustedScore,

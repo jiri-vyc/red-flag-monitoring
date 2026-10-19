@@ -62,3 +62,34 @@ export function formatElapsedTime(milliseconds: number): string {
   const seconds = String(totalSeconds % 60).padStart(2, "0");
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
 }
+
+/** A duration as "1 h 5 min", "4 min 13 s" or "8 s"; the units read the same in English and Czech. */
+export function formatDuration(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts = [
+    hours > 0 && `${hours} h`,
+    minutes > 0 && `${minutes} min`,
+    seconds > 0 && `${seconds} s`,
+  ].filter((part) => part !== false);
+  return parts.length > 0 ? parts.join(" ") : "0 s";
+}
+
+function findEstimatePrecisionSeconds(totalSeconds: number): number {
+  if (totalSeconds < 60) {
+    return 1;
+  }
+  return totalSeconds < 600 ? 5 : 60;
+}
+
+/**
+ * An estimated duration rounded to a precision it can honestly have: whole seconds under a minute, 5 s under
+ * 10 minutes, whole minutes above. At least 1 s, so an estimate never reads as zero.
+ */
+export function formatApproximateDuration(milliseconds: number): string {
+  const totalSeconds = Math.max(1, Math.round(milliseconds / 1000));
+  const precisionSeconds = findEstimatePrecisionSeconds(totalSeconds);
+  return formatDuration(Math.round(totalSeconds / precisionSeconds) * precisionSeconds * 1000);
+}

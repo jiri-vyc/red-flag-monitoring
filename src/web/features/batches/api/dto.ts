@@ -30,6 +30,7 @@ export const evaluationRunListItemDtoSchema = z.object({
   hitThreshold: z.number().int(),
   createdBy: z.string(),
   createdAt: z.string(),
+  finishedAt: z.string().nullable(),
   errorMessage: z.string().nullable(),
 });
 export type EvaluationRunListItemDto = z.infer<typeof evaluationRunListItemDtoSchema>;
@@ -152,7 +153,11 @@ export const ruleEvaluationDetailDtoSchema = z.object({
     alertType: z.string(),
     kind: z.enum(["deterministic", "agentic"]),
   }),
-  ruleVersion: z.object({ versionNo: z.number().int(), sensitivity: z.number() }),
+  ruleVersion: z.object({
+    versionNo: z.number().int(),
+    baseScore: z.number().nullable(),
+    sensitivity: z.number(),
+  }),
 });
 export type RuleEvaluationDetailDto = z.infer<typeof ruleEvaluationDetailDtoSchema>;
 

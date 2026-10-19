@@ -16,6 +16,8 @@ export const batchSchema = z.object({
   id: z.string(),
   fileName: z.string(),
   uploadedAt: z.string(),
+  /** When the run completed or failed; null while it is processing. */
+  finishedAt: z.string().nullable(),
   uploadedBy: z.string(),
   status: batchStatusSchema,
   /** Data rows found in the uploaded file. */
@@ -26,6 +28,8 @@ export const batchSchema = z.object({
   activeRuleCount: z.number(),
   counts: bucketCountsSchema,
   failureReason: z.string().nullable(),
+  /** A database run with an empty scope, so it evaluated every transaction in the system. */
+  isFullDatasetRun: z.boolean(),
 });
 export type Batch = z.infer<typeof batchSchema>;
 
@@ -71,6 +75,11 @@ export const ruleEvaluationSchema = z.object({
   ruleName: z.string(),
   ruleType: ruleTypeSchema,
   ruleVersionNumber: z.number(),
+  /**
+   * Score a matching deterministic rule gets in full (not a share per condition). Null when unknown: agentic
+   * rules, failed evaluations and mock checks, whose score varies per transaction.
+   */
+  baseScore: z.number().nullable(),
   sensitivity: z.number(),
   score: z.number(),
   adjustedScore: z.number(),

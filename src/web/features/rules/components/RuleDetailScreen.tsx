@@ -178,9 +178,13 @@ function RuleConfiguration({ rule }: { rule: Rule }) {
       }
     >
       {runningVersion ? (
-        <RuleConfigView config={runningVersion.config} pendingConfig={pendingVersion?.config ?? null} />
+        <RuleConfigView
+          config={runningVersion.config}
+          baseScore={runningVersion.baseScore}
+          pendingConfig={pendingVersion?.config ?? null}
+        />
       ) : (
-        <RuleConfigView config={getLatestVersion(rule).config} />
+        <RuleConfigView config={getLatestVersion(rule).config} baseScore={getLatestVersion(rule).baseScore} />
       )}
       {hasPendingConfigChange && <Notice tone="info">{t.rules.pendingConfigNote}</Notice>}
       <Notice tone="compliance">{t.compliance.suppressionWarning}</Notice>
@@ -335,7 +339,7 @@ function RuleDetail({ rule }: { rule: Rule }) {
         <RuleContentView content={selectedVersion.content} />
         <div>
           <h3 className={configStyles.sectionTitle}>{t.rules.versionConfiguration}</h3>
-          <RuleConfigView config={selectedVersion.config} />
+          <RuleConfigView config={selectedVersion.config} baseScore={selectedVersion.baseScore} />
         </div>
         <div>
           <h3 className={configStyles.sectionTitle}>{t.rules.legalBasisOfVersion}</h3>

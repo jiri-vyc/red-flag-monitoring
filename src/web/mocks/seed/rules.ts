@@ -58,6 +58,8 @@ function buildSeedVersion(
     state: seedVersion.state,
     content: seedVersion.content,
     config: { ...config, ...seedVersion.configChanges },
+    // Mock checks score each transaction differently, so seeded rules have no fixed base score.
+    baseScore: null,
     changeNote: seedVersion.changeNote,
     createdAt: seedVersion.createdAt,
     createdBy: AUTHOR,

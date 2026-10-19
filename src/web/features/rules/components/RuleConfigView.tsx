@@ -38,13 +38,26 @@ function ConfigFieldValue({ field, config }: { field: RuleConfigField; config: R
   }
 }
 
+function BaseScoreItem({ baseScore }: { baseScore: number }) {
+  const { t } = useI18n();
+  return (
+    <div className={styles.configItem}>
+      <span className={styles.configLabel}>{t.rules.baseScore}</span>
+      <strong className={styles.baseScoreValue}>{baseScore}</strong>
+      <span className={styles.baseScoreHint}>{t.rules.baseScoreHint}</span>
+    </div>
+  );
+}
+
 type RuleConfigViewProps = {
   config: RuleConfig;
+  /** Read-only base score of the shown version; hidden when null (agentic rules or unknown). */
+  baseScore?: number | null;
   /** Config of a version awaiting review; changed fields are highlighted next to the running value. */
   pendingConfig?: RuleConfig | null;
 };
 
-export function RuleConfigView({ config, pendingConfig = null }: RuleConfigViewProps) {
+export function RuleConfigView({ config, baseScore = null, pendingConfig = null }: RuleConfigViewProps) {
   const { t } = useI18n();
   const changedFields = pendingConfig ? getChangedConfigFields(config, pendingConfig) : [];
   const labels: Record<RuleConfigField, ReactNode> = {
@@ -71,6 +84,7 @@ export function RuleConfigView({ config, pendingConfig = null }: RuleConfigViewP
           </div>
         );
       })}
+      {baseScore !== null && <BaseScoreItem baseScore={baseScore} />}
     </div>
   );
 }

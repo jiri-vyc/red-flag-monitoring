@@ -35,6 +35,16 @@
   font-size: var(--font-size-sm);
 }
 
+.baseScoreValue {
+  font-size: var(--font-size-2xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.baseScoreHint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
 .pendingValue {
   display: grid;
   gap: var(--space-2);

@@ -170,6 +170,8 @@ export function addRuleVersion(
     state: "pending_review",
     content,
     config,
+    // The base score is not edited in the web app, so it carries over from the latest version.
+    baseScore: getLatestVersion(rule).baseScore,
     changeNote,
     createdAt: now,
     createdBy: author,

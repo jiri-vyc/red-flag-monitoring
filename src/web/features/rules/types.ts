@@ -48,6 +48,8 @@ export const ruleVersionSchema = z.object({
   state: ruleVersionStateSchema,
   content: ruleContentSchema,
   config: ruleConfigSchema,
+  /** Score a matching deterministic rule gets in full; set by the backend, not editable here. Null when unknown. */
+  baseScore: z.number().int().nullable(),
   changeNote: z.string(),
   createdAt: z.string(),
   createdBy: z.string(),

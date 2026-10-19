@@ -9,10 +9,14 @@ import { Card } from "@/components/ui/Card";
 import { Field, fieldStyles } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { ErrorState } from "@/components/ui/StateViews";
+import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
+import { formatNumber } from "@/lib/format";
 
-import { useBatchesMode, useStartEvaluationRun } from "../api/hooks";
+import { useBatches, useBatchesMode, useStartEvaluationRun } from "../api/hooks";
+import { estimateThroughput, findFullDatasetTxCount } from "../domain/runDuration";
 import type { RunScope } from "../types";
+import { RunDurationEstimate } from "./RunDurationEstimate";
 import styles from "./RunEvaluationPanel.module.css";
 
 type ScopeForm = { limit: string; from: string; to: string };
@@ -33,9 +37,10 @@ function toOptionalDate(date: string): string | undefined {
 }
 
 export function RunEvaluationPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const batchesMode = useBatchesMode();
+  const batchesQuery = useBatches();
   const startRunMutation = useStartEvaluationRun();
   const [scopeForm, setScopeForm] = useState(EMPTY_SCOPE_FORM);
 
@@ -46,6 +51,10 @@ export function RunEvaluationPanel() {
   // Stays locked after success until the page navigates away: a second click would start another (possibly full-DB) run.
   const isStartLocked = startRunMutation.isPending || startRunMutation.isSuccess;
   const canSubmit = limit !== null && !isRangeInvalid && !isStartLocked;
+  // Past runs give the speed; a failed run list falls back to the default speed instead of hiding the estimate.
+  const pastRuns = batchesQuery.isPending ? null : (batchesQuery.data ?? []);
+  const throughput = pastRuns && estimateThroughput(pastRuns);
+  const fullDatasetTxCount = findFullDatasetTxCount(pastRuns ?? []);
 
   const updateField = (field: keyof ScopeForm) => (value: string) =>
     setScopeForm((current) => ({ ...current, [field]: value }));
@@ -113,7 +122,25 @@ export function RunEvaluationPanel() {
         </div>
         {/* The mock runs over a small demo sample; only the database holds the full dataset. */}
         {isScopeEmpty && batchesMode === "live" && (
-          <Notice tone="compliance">{t.batches.fullRunWarning}</Notice>
+          <Notice tone="compliance">
+            <span className={styles.estimateLine}>
+              {formatMessage(t.batches.fullRunWarning, { count: formatNumber(fullDatasetTxCount, locale) })}
+            </span>
+            {throughput && (
+              <RunDurationEstimate txCount={fullDatasetTxCount} isFullRun throughput={throughput} />
+            )}
+          </Notice>
+        )}
+        {/* With a limit, its estimate replaces the full-dataset warning; it also bounds a date range. */}
+        {typeof limit === "number" && throughput && (
+          <Notice tone="info" title={t.batches.durationEstimateTitle}>
+            <RunDurationEstimate txCount={limit} isFullRun={false} throughput={throughput} />
+          </Notice>
+        )}
+        {limit === undefined && !isScopeEmpty && (
+          <Notice tone="info" title={t.batches.durationEstimateTitle}>
+            {t.batches.durationRangeUnknown}
+          </Notice>
         )}
         <div className={styles.actions}>
           <Button type="submit" icon={<Play aria-hidden="true" />} disabled={!canSubmit}>

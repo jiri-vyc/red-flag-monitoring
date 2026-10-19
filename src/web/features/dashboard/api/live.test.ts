@@ -70,6 +70,7 @@ function createRunDto(id: string): EvaluationRunListItemDto {
     hitThreshold: 50,
     createdBy: CURRENT_USER.id,
     createdAt: CREATED_AT,
+    finishedAt: CREATED_AT,
     errorMessage: null,
   };
 }

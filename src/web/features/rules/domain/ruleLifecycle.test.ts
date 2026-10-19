@@ -35,6 +35,7 @@ function createDraftRule(): Rule {
         state: "draft",
         content: { type: "agentic", ruleText: "v1" },
         config: INITIAL_CONFIG,
+        baseScore: null,
         changeNote: "",
         createdAt: NOW,
         createdBy: "Author",

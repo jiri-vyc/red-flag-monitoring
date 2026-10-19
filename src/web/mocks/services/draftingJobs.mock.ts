@@ -62,6 +62,7 @@ function generateRules(policy: MockPolicyRecord, now: string) {
             sensitivity: blueprint.sensitivity,
             riskProfiles: ["high", "medium", "low", "unknown"],
           },
+          baseScore: null,
           changeNote: "Vygenerováno wizardem z interního předpisu.",
           createdAt: now,
           createdBy: GENERATED_BY,

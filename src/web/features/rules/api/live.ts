@@ -89,6 +89,7 @@ function toRuleVersion(
     state: version.status,
     content: toRuleContent(rule, version),
     config: { sensitivity: version.sensitivity, riskProfiles: version.riskProfiles },
+    baseScore: version.baseScore,
     // The backend has no change note; the threshold rationale is the closest free-text field.
     changeNote: version.thresholdRationale ?? "",
     createdAt: version.createdAt,

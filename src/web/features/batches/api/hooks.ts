@@ -7,6 +7,7 @@ import { CURRENT_USER } from "@/config/currentUser";
 import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
+import { MIN_ETA_ELAPSED_MS } from "../domain/runDuration";
 import type { Batch, Bucket, RunScope } from "../types";
 import type { BatchesCapabilities } from "./contract";
 import { batchesImplementations, batchesService } from "./service";
@@ -14,6 +15,8 @@ import { batchesImplementations, batchesService } from "./service";
 // The mock's simulated run lasts a few seconds, so it is polled often for a smooth progress; a live run over
 // the database takes minutes and is polled every 2 s.
 const PROCESSING_POLL_INTERVAL_MS: Record<ApiMode, number> = { mock: 400, live: 2000 };
+// A mock run lasts 3 to 8 s, so it would end before the live 5 s minimum for a remaining-time estimate.
+export const ETA_MIN_ELAPSED_MS: Record<ApiMode, number> = { mock: 1000, live: MIN_ETA_ELAPSED_MS };
 const FIRST_PAGE_CURSOR: string | null = null;
 
 export const batchQueryKeys = {

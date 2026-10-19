@@ -10,7 +10,7 @@ import { LegalBasisList } from "@/features/regulations/components/LegalBasisList
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 
-import type { Rule, RuleConfig } from "../types";
+import type { Rule, RuleVersion } from "../types";
 import { VersionStateBadge } from "./RuleBadges";
 
 type RuleVersionHistoryProps = {
@@ -19,12 +19,18 @@ type RuleVersionHistoryProps = {
   onSelectVersion: (versionNumber: number) => void;
 };
 
-function VersionConfigSummary({ config }: { config: RuleConfig }) {
+function VersionConfigSummary({ version }: { version: RuleVersion }) {
   const { t } = useI18n();
+  const { config, baseScore } = version;
   const riskProfileLabels = config.riskProfiles.map((riskProfile) => t.riskProfile[riskProfile]).join(", ");
   return (
     <span className={tableStyles.primaryCell}>
       {t.rules.sensitivity} {config.sensitivity}
+      {baseScore !== null && (
+        <span className={tableStyles.secondaryText}>
+          {t.rules.baseScore} {baseScore}
+        </span>
+      )}
       <span className={tableStyles.secondaryText}>{riskProfileLabels}</span>
     </span>
   );
@@ -75,7 +81,7 @@ export function RuleVersionHistory({
                   <VersionStateBadge state={version.state} />
                 </td>
                 <td>
-                  <VersionConfigSummary config={version.config} />
+                  <VersionConfigSummary version={version} />
                 </td>
                 <td>
                   <LegalBasisList legalBases={version.legalBases} emptyLabel={t.rules.noLegalBasis} />

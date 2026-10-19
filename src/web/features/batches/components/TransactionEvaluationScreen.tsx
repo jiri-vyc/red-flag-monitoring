@@ -36,6 +36,47 @@ function TraceTimeline({ evaluation }: { evaluation: RuleEvaluation }) {
   );
 }
 
+/** Only a deterministic rule with a known base score has a fixed score: its whole base score when it matches. */
+function findKnownBaseScore(evaluation: RuleEvaluation): number | null {
+  return evaluation.ruleType === "deterministic" ? evaluation.baseScore : null;
+}
+
+function ScoreCalculation({ evaluation }: { evaluation: RuleEvaluation }) {
+  const { t } = useI18n();
+  const baseScore = findKnownBaseScore(evaluation);
+  if (baseScore === null) {
+    return (
+      <>
+        <ScoreBar score={evaluation.score} label={t.transactionDetail.score} />
+        <p className={styles.sensitivityStep}>
+          × {t.transactionDetail.sensitivity} <strong>{evaluation.sensitivity} %</strong>
+        </p>
+        <ScoreBar score={evaluation.adjustedScore} label={t.transactionDetail.adjustedScore} />
+      </>
+    );
+  }
+  // Failed rules matched (outcome hit); passed rules did not, so their score is 0.
+  const matchLabel = evaluation.isFailed
+    ? t.transactionDetail.matchedScore
+    : t.transactionDetail.notMatchedScore;
+  return (
+    <>
+      <div className={styles.baseScore}>
+        <p className={styles.baseScoreRow}>
+          <span>{t.transactionDetail.baseScore}</span>
+          <strong>{baseScore}</strong>
+        </p>
+        <p className={styles.baseScoreHint}>{t.transactionDetail.baseScoreHint}</p>
+      </div>
+      <ScoreBar score={evaluation.score} label={matchLabel} />
+      <p className={styles.sensitivityStep}>
+        × {t.transactionDetail.sensitivity} <strong>{evaluation.sensitivity} %</strong>
+      </p>
+      <ScoreBar score={evaluation.adjustedScore} label={`= ${t.transactionDetail.adjustedScore}`} />
+    </>
+  );
+}
+
 const SCORE_TILE_CLASS = {
   low: styles.scoreTileLow,
   medium: styles.scoreTileMedium,
@@ -73,11 +114,7 @@ function FailedRuleCard({ evaluation }: { evaluation: RuleEvaluation }) {
           <TraceTimeline evaluation={evaluation} />
         </div>
         <aside className={styles.scorePanel}>
-          <ScoreBar score={evaluation.score} label={t.transactionDetail.score} />
-          <p className={styles.sensitivityStep}>
-            × {t.transactionDetail.sensitivity} <strong>{evaluation.sensitivity} %</strong>
-          </p>
-          <ScoreBar score={evaluation.adjustedScore} label={t.transactionDetail.adjustedScore} />
+          <ScoreCalculation evaluation={evaluation} />
         </aside>
       </div>
     </article>
@@ -88,29 +125,38 @@ function PassedRuleList({ evaluations }: { evaluations: RuleEvaluation[] }) {
   const { t } = useI18n();
   return (
     <ul className={styles.ruleRowList}>
-      {evaluations.map((evaluation) => (
-        <li key={evaluation.ruleId}>
-          <details className={styles.passedRule}>
-            <summary>
-              <ChevronRight aria-hidden="true" className={styles.disclosureIcon} />
-              <span className={styles.passedRuleName}>
-                <strong>{evaluation.ruleName}</strong>
-                <small>
-                  v{evaluation.ruleVersionNumber} · {t.transactionDetail.adjustedScore}{" "}
-                  {evaluation.adjustedScore}
-                </small>
-              </span>
-              <Link href={`/rules/${evaluation.ruleId}`} className={styles.inlineRuleLink}>
-                {t.transactionDetail.openRule}
-                <ArrowRight aria-hidden="true" />
-              </Link>
-            </summary>
-            <div className={styles.passedRuleTrace}>
-              <TraceTimeline evaluation={evaluation} />
-            </div>
-          </details>
-        </li>
-      ))}
+      {evaluations.map((evaluation) => {
+        const baseScore = findKnownBaseScore(evaluation);
+        return (
+          <li key={evaluation.ruleId}>
+            <details className={styles.passedRule}>
+              <summary>
+                <ChevronRight aria-hidden="true" className={styles.disclosureIcon} />
+                <span className={styles.passedRuleName}>
+                  <strong>{evaluation.ruleName}</strong>
+                  <small>
+                    v{evaluation.ruleVersionNumber}
+                    {baseScore !== null && ` · ${t.transactionDetail.baseScore} ${baseScore}`} ·{" "}
+                    {t.transactionDetail.adjustedScore} {evaluation.adjustedScore}
+                  </small>
+                </span>
+                <Link href={`/rules/${evaluation.ruleId}`} className={styles.inlineRuleLink}>
+                  {t.transactionDetail.openRule}
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              </summary>
+              <div className={styles.passedRuleTrace}>
+                <TraceTimeline evaluation={evaluation} />
+                {baseScore !== null && (
+                  <div className={styles.scorePanel}>
+                    <ScoreCalculation evaluation={evaluation} />
+                  </div>
+                )}
+              </div>
+            </details>
+          </li>
+        );
+      })}
     </ul>
   );
 }

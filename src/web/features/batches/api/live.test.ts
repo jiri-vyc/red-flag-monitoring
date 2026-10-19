@@ -22,6 +22,7 @@ const RUN = {
   hitThreshold: 50,
   createdBy: "user-1",
   createdAt: "2026-10-19T10:00:00.000Z",
+  finishedAt: null,
   errorMessage: null,
 };
 
@@ -63,6 +64,8 @@ describe("liveBatchesService", () => {
       processedRowCount: 3,
       evaluatedRowCount: 10,
       activeRuleCount: 1,
+      finishedAt: null,
+      isFullDatasetRun: true,
     });
   });
 
@@ -116,7 +119,22 @@ describe("liveBatchesService", () => {
     expect(requestJsonMock).toHaveBeenCalledWith(expect.objectContaining({ path: "/evaluation-runs/run-1" }));
   });
 
-  it("flattens nested condition groups of a deterministic trace", async () => {
+  it("keeps the finish time and marks only an empty database scope as a full-dataset run", async () => {
+    const finishedAt = "2026-10-19T10:04:13.000Z";
+    requestJsonMock.mockResolvedValueOnce({
+      run: { ...RUN, status: "completed", finishedAt, scope: { ...RUN.scope, limit: 1000 } },
+      ruleVersions: [],
+    });
+    requestJsonMock.mockResolvedValueOnce({ run: { ...RUN, scope: null }, ruleVersions: [] });
+
+    const limitedBatch = await liveBatchesService.loadBatch("run-1");
+    const uploadedBatch = await liveBatchesService.loadBatch("run-1");
+
+    expect(limitedBatch).toMatchObject({ finishedAt, isFullDatasetRun: false });
+    expect(uploadedBatch.isFullDatasetRun).toBe(false);
+  });
+
+  it("flattens nested condition groups and keeps the base score only for scored evaluations", async () => {
     const operand = (feature: string, value: number) => ({ feature, value });
     requestJsonMock.mockResolvedValue({
       evaluation: {
@@ -148,7 +166,7 @@ describe("liveBatchesService", () => {
           features: null,
           errorMessage: null,
           rule: { id: "rule-1", code: "R1", alertType: "Velká částka", kind: "deterministic" },
-          ruleVersion: { versionNo: 1, sensitivity: 100 },
+          ruleVersion: { versionNo: 1, humanText: "Velká částka", baseScore: 80, sensitivity: 100 },
           trace: {
             summary: "Hit",
             conditions: [
@@ -169,6 +187,17 @@ describe("liveBatchesService", () => {
             ],
           },
         },
+        {
+          outcome: "error",
+          skipReason: null,
+          rawScore: null,
+          adjustedScore: null,
+          features: null,
+          errorMessage: "Timeout",
+          rule: { id: "rule-2", code: "R2", alertType: "Agent", kind: "deterministic" },
+          ruleVersion: { versionNo: 2, humanText: "Agent", baseScore: 60, sensitivity: 50 },
+          trace: null,
+        },
       ],
     });
 
@@ -180,6 +209,13 @@ describe("liveBatchesService", () => {
     expect(evaluation.failedRules[0]?.trace).toEqual([
       { condition: "Rizikový klient", isMet: true, detail: "all (1)" },
       { condition: "Rizikový klient › Částka", isMet: true, detail: "amount_czk (1000) > 500" },
+    ]);
+    expect(
+      evaluation.failedRules.map(({ ruleId, baseScore, score }) => ({ ruleId, baseScore, score })),
+    ).toEqual([
+      { ruleId: "rule-1", baseScore: 80, score: 80 },
+      // An errored evaluation has no score, so its base score is not shown.
+      { ruleId: "rule-2", baseScore: null, score: 0 },
     ]);
   });
 });

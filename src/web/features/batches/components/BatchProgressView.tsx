@@ -1,16 +1,52 @@
 "use client";
 
-import { ListChecks } from "lucide-react";
+import { Clock, ListChecks } from "lucide-react";
 
 import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
 import { LoadingRing } from "@/components/ui/LoadingRing";
 import { ProgressBar, ProgressRing } from "@/components/ui/Progress";
+import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
-import { formatNumber } from "@/lib/format";
+import { formatApproximateDuration, formatElapsedTime, formatNumber } from "@/lib/format";
+import { useNow } from "@/lib/useNow";
 
+import { ETA_MIN_ELAPSED_MS, useBatchesMode } from "../api/hooks";
+import { estimateRemainingMs } from "../domain/runDuration";
 import type { Batch } from "../types";
 import { BucketCountsInline } from "./BucketCountsInline";
 import styles from "./BatchDetail.module.css";
+
+const ELAPSED_TICK_MS = 1000;
+
+/** Elapsed time since the run started and, once the rate is measurable, the time left at that rate. */
+function RunTiming({ batch }: { batch: Batch }) {
+  const { t } = useI18n();
+  const batchesMode = useBatchesMode();
+  const nowMs = useNow(ELAPSED_TICK_MS, batch.status === "processing");
+  const remainingMs = estimateRemainingMs({
+    processedCount: batch.processedRowCount,
+    totalCount: batch.evaluatedRowCount,
+    startedAt: batch.uploadedAt,
+    nowMs,
+    minElapsedMs: ETA_MIN_ELAPSED_MS[batchesMode],
+  });
+  return (
+    <p className={styles.progressMeta}>
+      <Clock aria-hidden="true" />
+      {formatMessage(t.batches.elapsedTime, {
+        time: formatElapsedTime(nowMs - Date.parse(batch.uploadedAt)),
+      })}
+      {remainingMs !== null && (
+        <>
+          {" · "}
+          <strong>
+            {formatMessage(t.batches.remainingEstimate, { duration: formatApproximateDuration(remainingMs) })}
+          </strong>
+        </>
+      )}
+    </p>
+  );
+}
 
 export function BatchProgressView({ batch }: { batch: Batch }) {
   const { t, locale } = useI18n();
@@ -36,6 +72,7 @@ export function BatchProgressView({ batch }: { batch: Batch }) {
           </span>
         </p>
         {isTotalKnown && <ProgressBar percent={percent} label={t.batches.evaluating} />}
+        <RunTiming batch={batch} />
         <p className={styles.progressMeta}>
           <ListChecks aria-hidden="true" />
           {t.batches.activeRulesUsed}: <strong>{batch.activeRuleCount}</strong>

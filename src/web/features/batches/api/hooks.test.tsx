@@ -32,6 +32,7 @@ const RUN: EvaluationRunListItemDto = {
   hitThreshold: 50,
   createdBy: "user-1",
   createdAt: "2026-10-19T10:00:00.000Z",
+  finishedAt: null,
   errorMessage: null,
 };
 
