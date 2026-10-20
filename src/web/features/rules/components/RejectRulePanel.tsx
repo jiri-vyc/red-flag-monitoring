@@ -15,7 +15,7 @@ import styles from "./RejectRulePanel.module.css";
 
 type RejectRulePanelProps = {
   ruleId: string;
-  /** The escalation role picked at review (issue #6); null keeps the version's role. */
+  /** The role picked at review while a draft can't be edited (until issue #8); null keeps the version's role. */
   escalationRole?: UserRole | null;
   onRejected: (rule: Rule) => void;
   onCancel: () => void;

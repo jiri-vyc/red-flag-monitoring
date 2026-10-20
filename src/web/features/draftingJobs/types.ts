@@ -43,9 +43,16 @@ export function isDraftingJobInFlight(job: DraftingJob): boolean {
   return IN_FLIGHT_DRAFTING_JOB_STATUSES.includes(job.status);
 }
 
-/** The policy job a wizard run is resumed from (`/wizard?jobId=`), or null for a rules job started outside it. */
+/**
+ * The policy job a wizard run is resumed from (`/wizard?jobId=`), or null for a rules job started outside it
+ * and for a finished policy job whose drafts were all deleted since (nothing is left to resume).
+ */
 export function findWizardRunJobId(job: DraftingJob): string | null {
-  return job.kind === "policy_from_regulation" ? job.id : job.parentJobId;
+  if (job.kind !== "policy_from_regulation") {
+    return job.parentJobId;
+  }
+  const hasNoDraftsLeft = job.status === "succeeded" && job.policyIds.length === 0;
+  return hasNoDraftsLeft ? null : job.id;
 }
 
 export function wizardRunHref(jobId: string): string {

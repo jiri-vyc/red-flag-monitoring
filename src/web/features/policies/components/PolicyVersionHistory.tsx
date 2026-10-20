@@ -1,6 +1,7 @@
 "use client";
 
-import { Eye, GitBranch } from "lucide-react";
+import { Eye, GitBranch, GitCompare } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -11,6 +12,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 
 import type { PolicyVersion } from "../types";
+import { PolicyVersionDiff } from "./PolicyVersionDiff";
 
 type PolicyVersionHistoryProps = {
   /** Oldest first, as on the policy. */
@@ -36,7 +38,9 @@ export function PolicyVersionHistory({
   onSelectVersion,
 }: PolicyVersionHistoryProps) {
   const { t } = useI18n();
+  const [isComparing, setIsComparing] = useState(false);
   const versionsNewestFirst = versions.toReversed();
+  const canCompare = versions.length >= 2;
   return (
     <Card
       title={
@@ -104,6 +108,19 @@ export function PolicyVersionHistory({
           </tbody>
         </table>
       </div>
+      {canCompare && (
+        <div>
+          <Button
+            variant="secondary"
+            icon={<GitCompare aria-hidden="true" />}
+            aria-expanded={isComparing}
+            onClick={() => setIsComparing((current) => !current)}
+          >
+            {isComparing ? t.policies.hideComparison : t.policies.compareVersions}
+          </Button>
+        </div>
+      )}
+      {canCompare && isComparing && <PolicyVersionDiff versions={versions} />}
     </Card>
   );
 }

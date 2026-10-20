@@ -4,13 +4,13 @@ import { CircleCheck, Save } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
-import { fieldStyles } from "@/components/ui/Field";
 import { ErrorState } from "@/components/ui/StateViews";
 import { useI18n } from "@/i18n/I18nProvider";
 
 import { useApprovePolicy, useUpdatePolicyText } from "../api/hooks";
 import type { Policy, PolicyApproval } from "../types";
 import styles from "./PolicyDetailScreen.module.css";
+import { PolicyTextField } from "./PolicyTextField";
 
 type PolicyTextEditorProps = {
   policy: Policy;
@@ -29,15 +29,11 @@ export function PolicyTextEditor({ policy, showApprove = true, onApproved }: Pol
 
   return (
     <div className={styles.editor}>
-      <label htmlFor={editorId} className="visually-hidden">
-        {t.policies.text}
-      </label>
-      <textarea
+      <PolicyTextField
         id={editorId}
-        className={`${fieldStyles.textarea} ${styles.textArea}`}
         value={draftText}
-        onChange={(event) => setDraftText(event.target.value)}
-        rows={12}
+        onChange={setDraftText}
+        textAreaClassName={styles.textArea}
       />
       <div className={styles.editorActions}>
         <Button

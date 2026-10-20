@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 import { useRolePermissions } from "@/features/users/api/hooks";
+import { getRolePermissions } from "@/features/users/permissions";
 import { en } from "@/i18n/en";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import fixtureReport from "@/mocks/seed/ruleReviewReport.json";
@@ -39,13 +40,9 @@ function loaded<T>(data: T) {
 }
 
 function renderScreen(canManageRules: boolean) {
-  jest.mocked(useRolePermissions).mockReturnValue({
-    canCreateRegulation: false,
-    canDraftPolicies: false,
-    canApprovePolicy: false,
-    canDraftRules: false,
-    canManageRules,
-  });
+  jest
+    .mocked(useRolePermissions)
+    .mockReturnValue(getRolePermissions(canManageRules ? "compliance_officer" : "lawyer"));
   jest.mocked(useRuleReviewsCapabilities).mockReturnValue({ canStartReview: true });
   jest
     .mocked(useRuleReviews)

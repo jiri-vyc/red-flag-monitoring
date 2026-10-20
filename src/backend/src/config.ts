@@ -3,6 +3,8 @@ const DEFAULT_POSTGRES_PORT = 5432;
 const DEFAULT_BEDROCK_REGION = "eu-central-1";
 // EU cross-region inference profile keeps processing inside the EU.
 const DEFAULT_BEDROCK_MODEL_ID = "eu.anthropic.claude-opus-4-5-20251101-v1:0";
+const DEFAULT_TRIAGE_CONCURRENCY = 8;
+const DEFAULT_TRIAGE_MODEL_ID = "eu.anthropic.claude-haiku-4-5-20251001-v1:0";
 
 export type PasswordDatabaseConfig = { authMode: "password"; url: string };
 export type IamDatabaseConfig = {
@@ -27,6 +29,7 @@ export type AppConfig = {
   evaluationWorker: WorkerConfig;
   draftingWorker: WorkerConfig;
   draftGenerator: DraftGeneratorConfig;
+  alertTriage: AlertTriageConfig;
 };
 
 const LOCAL_ENGINE_VERSION = "local";
@@ -39,6 +42,9 @@ export type BedrockConfig = { region: string; modelId: string; auth: BedrockAuth
 
 // Who writes the wizard drafts (#1, #2): a placeholder without an LLM, or Claude on Amazon Bedrock.
 export type DraftGeneratorConfig = { mode: "dummy" } | { mode: "bedrock"; bedrock: BedrockConfig };
+
+export type AlertTriageConfig =
+  { mode: "off" } | { mode: "bedrock"; bedrock: BedrockConfig; concurrency: number };
 
 export class InvalidConfigError extends Error {}
 
@@ -74,7 +80,32 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
     evaluationWorker: parseWorkerConfig(environment, "EVALUATION_WORKER_FUNCTION"),
     draftingWorker: parseWorkerConfig(environment, "DRAFTING_WORKER_FUNCTION"),
     draftGenerator: parseDraftGeneratorConfig(environment),
+    alertTriage: parseAlertTriageConfig(environment),
   };
+}
+
+function parseAlertTriageConfig(environment: NodeJS.ProcessEnv): AlertTriageConfig {
+  const mode = environment.ALERT_TRIAGE ?? "off";
+
+  if (mode === "off") {
+    return { mode };
+  }
+
+  if (mode === "bedrock") {
+    const bedrock = parseBedrockConfig(environment);
+
+    return {
+      mode,
+      bedrock: { ...bedrock, modelId: environment.TRIAGE_MODEL_ID || DEFAULT_TRIAGE_MODEL_ID },
+      concurrency: parsePositiveInteger(
+        "TRIAGE_CONCURRENCY",
+        environment.TRIAGE_CONCURRENCY,
+        DEFAULT_TRIAGE_CONCURRENCY,
+      ),
+    };
+  }
+
+  throw new InvalidConfigError(`ALERT_TRIAGE must be "off" or "bedrock", got "${mode}"`);
 }
 
 function parseDraftGeneratorConfig(environment: NodeJS.ProcessEnv): DraftGeneratorConfig {
@@ -122,6 +153,16 @@ function parseListenAddress(environment: NodeJS.ProcessEnv): { host?: string; po
     host: lambdaEndpoint.slice(0, separatorIndex),
     port: parsePort("AWS_LAMBDA_HTTP_ENDPOINT port", lambdaEndpoint.slice(separatorIndex + 1)),
   };
+}
+
+function parsePositiveInteger(name: string, rawValue: string | undefined, defaultValue: number): number {
+  const value = rawValue === undefined ? defaultValue : Number(rawValue);
+
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new InvalidConfigError(`${name} must be a positive integer, got "${rawValue}"`);
+  }
+
+  return value;
 }
 
 function parsePort(name: string, rawPort: string | undefined): number {

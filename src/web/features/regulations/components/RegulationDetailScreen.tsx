@@ -4,7 +4,6 @@ import { ExternalLink, FileText, ListChecks, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/Badge";
-import { ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/ui/KeyValueList";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -17,10 +16,11 @@ import { findRuleLegalBases } from "@/features/rules/domain/ruleLifecycle";
 import { useWizardCapabilities } from "@/features/wizard/api/hooks";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
-import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGatedButtonLink } from "@/features/users/components/RoleGatedButton";
 
 import { useRegulation } from "../api/hooks";
 import { formatLegalBasisRefs, type LegalBasis, type Regulation } from "../types";
+import { DeleteRegulationAction } from "./DeleteRegulationAction";
 import styles from "./RegulationDetailScreen.module.css";
 
 /** The provisions of this regulation that a policy or rule cites (M3, M5). */
@@ -104,7 +104,6 @@ function RelatedRules({ regulation }: { regulation: Regulation }) {
 function RegulationDetail({ regulation }: { regulation: Regulation }) {
   const { t, locale } = useI18n();
   const { isAvailable: isWizardAvailable } = useWizardCapabilities();
-  const { canDraftPolicies } = useRolePermissions();
   return (
     <>
       <PageHeader
@@ -113,11 +112,14 @@ function RegulationDetail({ regulation }: { regulation: Regulation }) {
         meta={<Badge tone="primary">{t.jurisdiction[regulation.jurisdiction]}</Badge>}
         description={regulation.name}
         actions={
-          isWizardAvailable &&
-          canDraftPolicies && (
-            <ButtonLink href={`/wizard?regulationId=${regulation.id}`} icon={<Sparkles aria-hidden="true" />}>
+          isWizardAvailable && (
+            <RoleGatedButtonLink
+              permission="canDraftPolicies"
+              href={`/wizard?regulationId=${regulation.id}`}
+              icon={<Sparkles aria-hidden="true" />}
+            >
               {t.regulations.createRules}
-            </ButtonLink>
+            </RoleGatedButtonLink>
           )
         }
       />
@@ -148,6 +150,7 @@ function RegulationDetail({ regulation }: { regulation: Regulation }) {
             ))}
           </ul>
         </div>
+        <DeleteRegulationAction regulationId={regulation.id} />
       </Card>
       <div className={styles.columns}>
         <RelatedPolicies regulation={regulation} />

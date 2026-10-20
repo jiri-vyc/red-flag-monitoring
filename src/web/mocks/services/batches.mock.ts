@@ -3,6 +3,7 @@ import type { Batch, RuleEvaluation, RunScope, Transaction } from "@/features/ba
 import type { UserRole } from "@/features/users/types";
 import type { MockBatchRecord, MockBatchRow } from "../store/mockDatabase";
 import { ApiError } from "@/lib/apiError";
+import { parseOffsetCursor } from "@/lib/offsetCursor";
 
 import { createMockId } from "../createMockId";
 import { createRuleSnapshots, evaluateBatchRows } from "../evaluation/batchEvaluation";
@@ -36,11 +37,6 @@ async function parseUploadedFile(file: File) {
     }
     throw error;
   }
-}
-
-function parseCursor(cursor: string | null): number {
-  const offset = Number(cursor ?? 0);
-  return Number.isInteger(offset) && offset >= 0 ? offset : 0;
 }
 
 /** Applies the run scope like the backend: `from` inclusive, `to` exclusive, then the first `limit` in time order. */
@@ -167,7 +163,7 @@ export const mockBatchesService: BatchesService = {
     const bucketRows = processedRows
       .filter((row) => row.bucket === bucket)
       .flatMap((row) => restrictRowToRole(row, record.ruleSnapshots, role));
-    const offset = parseCursor(cursor);
+    const offset = parseOffsetCursor(cursor);
     const nextOffset = offset + TRANSACTION_PAGE_SIZE;
     return {
       items: bucketRows.slice(offset, nextOffset),

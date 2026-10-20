@@ -2,6 +2,8 @@ import type { Rule, RuleConfig } from "../types";
 import {
   addRuleVersion,
   approveRule,
+  canDeleteRule,
+  deactivateRule,
   findPendingVersion,
   findRuleLegalBases,
   findRunningVersion,
@@ -228,5 +230,34 @@ describe("rule lifecycle", () => {
         now: NOW,
       }),
     ).toThrow(RuleTransitionError);
+  });
+});
+
+describe("canDeleteRule", () => {
+  it("allows deleting a rule whose versions were never approved", () => {
+    const draftRule = createDraftRule();
+
+    expect(canDeleteRule(draftRule)).toBe(true);
+    expect(canDeleteRule(submitRuleForReview(draftRule, NOW))).toBe(true);
+    expect(canDeleteRule(rejectRule(draftRule, REVIEW))).toBe(true);
+  });
+
+  it("refuses a rule that has an approved version, even when it is switched off", () => {
+    const approvedRule = approveRule(createDraftRule(), REVIEW);
+
+    expect(canDeleteRule(approvedRule)).toBe(false);
+    expect(canDeleteRule(deactivateRule(approvedRule, NOW))).toBe(false);
+  });
+
+  it("refuses a rule whose approved version was superseded by a rejected update", () => {
+    const approvedRule = approveRule(createDraftRule(), REVIEW);
+    const ruleWithSupersededVersion: Rule = {
+      ...approvedRule,
+      status: "inactive",
+      runningVersionNumber: null,
+      versions: approvedRule.versions.map((version) => ({ ...version, state: "superseded" })),
+    };
+
+    expect(canDeleteRule(ruleWithSupersededVersion)).toBe(false);
   });
 });

@@ -1,0 +1,17 @@
+.field {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.preview {
+  min-height: 18rem;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}

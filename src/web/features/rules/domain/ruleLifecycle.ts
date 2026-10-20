@@ -8,6 +8,7 @@ import {
   type RuleContent,
   type RuleStatus,
   type RuleVersion,
+  type RuleVersionState,
 } from "../types";
 import type { UserRole } from "@/features/users/types";
 
@@ -90,6 +91,20 @@ export function getAvailableRuleActions(rule: Rule): RuleAction[] {
     case "inactive":
       return rule.runningVersionNumber === null ? ["create_version"] : ["activate", "create_version"];
   }
+}
+
+// A superseded version was approved before a newer one replaced it.
+const EVER_APPROVED_VERSION_STATES: readonly RuleVersionState[] = ["approved", "superseded"];
+
+/**
+ * Only a rule that never had an approved version may be deleted: it never ran, so no evaluation run refers to it.
+ * An approved rule keeps its audit trail and can only be switched off.
+ */
+export function canDeleteRule(rule: Rule): boolean {
+  const hadApprovedVersion = rule.versions.some((version) =>
+    EVER_APPROVED_VERSION_STATES.includes(version.state),
+  );
+  return rule.runningVersionNumber === null && !hadApprovedVersion;
 }
 
 function assertActionAllowed(rule: Rule, action: RuleAction): void {
@@ -177,7 +192,7 @@ export function addRuleVersion(
     state: "pending_review",
     content,
     config,
-    // The base score is not edited in the web app, so it carries over from the latest version.
+    // A new version has no base score input, so it carries over from the latest version.
     baseScore: getLatestVersion(rule).baseScore,
     changeNote,
     createdAt: now,
@@ -193,14 +208,25 @@ export function addRuleVersion(
 
 export function updateDraftContent(
   rule: Rule,
-  { content, now }: { content: RuleContent; now: string },
+  {
+    content,
+    config,
+    baseScore,
+    now,
+  }: { content: RuleContent; config?: RuleConfig; baseScore?: number; now: string },
 ): Rule {
   const latestVersion = getLatestVersion(rule);
   const isEditable = REVIEWABLE_STATUSES.includes(rule.status) && latestVersion.state !== "approved";
   if (!isEditable) {
     throw new Error(`Rule ${rule.id} has no unapproved version to edit.`);
   }
-  return { ...rule, versions: replaceLatestVersion(rule, { ...latestVersion, content }), updatedAt: now };
+  const editedVersion = {
+    ...latestVersion,
+    content,
+    config: config ?? latestVersion.config,
+    baseScore: baseScore ?? latestVersion.baseScore,
+  };
+  return { ...rule, versions: replaceLatestVersion(rule, editedVersion), updatedAt: now };
 }
 
 /** The version that describes the rule: the running one, else the newest (it awaits review or was rejected). */

@@ -1,5 +1,6 @@
 import { fetchPoliciesWithVersions } from "@/features/policies/api/dto";
 import { fetchRulesWithVersions, findDescribingVersionDto } from "@/features/rules/api/dto";
+import { ApiError } from "@/lib/apiError";
 import { toSafeSourceUrl } from "@/lib/url";
 
 import type { Regulation } from "../types";
@@ -73,6 +74,8 @@ async function loadCitations(): Promise<RegulationCitations> {
 }
 
 export const liveRegulationsService: RegulationsService = {
+  capabilities: { canDeleteRegulation: false },
+
   async loadRegulations() {
     const [regulationsWithVersions, citations] = await Promise.all([
       fetchRegulationsWithVersions(),
@@ -95,5 +98,13 @@ export const liveRegulationsService: RegulationsService = {
   async loadRegulationNames() {
     const regulations = await fetchRegulationDtos();
     return Object.fromEntries(regulations.map((regulation) => [regulation.id, regulation.code]));
+  },
+
+  // The backend has no regulation deletion endpoint yet (BE-23, issue #30). Hidden in the UI; this is the safety net.
+  deleteRegulation: () => {
+    throw new ApiError({
+      kind: "unsupported",
+      message: "Deleting a regulation is not supported by the API yet.",
+    });
   },
 };

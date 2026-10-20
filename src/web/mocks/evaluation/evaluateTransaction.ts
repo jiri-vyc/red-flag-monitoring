@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type {
   Bucket,
   RuleEvaluation,
@@ -5,26 +7,27 @@ import type {
   Transaction,
   TransactionEvaluation,
 } from "@/features/batches/types";
-import type { RiskProfile, RuleType } from "@/features/rules/types";
+import { riskProfileSchema, ruleTypeSchema, type RiskProfile } from "@/features/rules/types";
 
 import { getMockClient } from "./mockClient";
-import { runMockCheck, type MockCheckKind } from "./ruleChecks";
-import { DEFAULT_ESCALATION_ROLE, type UserRole } from "@/features/users/types";
+import { mockCheckKindSchema, runMockCheck } from "./ruleChecks";
+import { DEFAULT_ESCALATION_ROLE, userRoleSchema } from "@/features/users/types";
 
 /** Snapshot of an executable rule taken when a batch starts, so later rule changes do not alter stored results. */
-export type MockRuleSnapshot = {
-  ruleId: string;
-  ruleName: string;
-  ruleType: RuleType;
-  versionNumber: number;
-  sensitivity: number;
-  riskProfiles: RiskProfile[];
+export const mockRuleSnapshotSchema = z.object({
+  ruleId: z.string(),
+  ruleName: z.string(),
+  ruleType: ruleTypeSchema,
+  versionNumber: z.number(),
+  sensitivity: z.number(),
+  riskProfiles: z.array(riskProfileSchema),
   /** Whitelist entries of the rule as they were at batch creation (not part of the version config). */
-  whitelistClientIds: string[];
-  checkKind: MockCheckKind;
+  whitelistClientIds: z.array(z.string()),
+  checkKind: mockCheckKindSchema,
   /** Issue #6. Missing in snapshots stored before roles existed, which then escalate to the default. */
-  escalationRole?: UserRole;
-};
+  escalationRole: userRoleSchema.optional(),
+});
+export type MockRuleSnapshot = z.infer<typeof mockRuleSnapshotSchema>;
 
 // Demo thresholds. Real aggregation and thresholds are an open question (spec 10.7) and need compliance review.
 export const FAILED_RULE_MIN_ADJUSTED_SCORE = 40;

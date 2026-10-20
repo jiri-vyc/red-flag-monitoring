@@ -6,6 +6,7 @@ import {
   URL_REGULATION_KIND,
 } from "../../domain/regulationSource";
 import { findRuleLogicViolation } from "../../domain/rule";
+import { recordAuditEvent } from "../audit/auditLog";
 import type { Clock } from "../clock";
 import { BusinessRuleViolationError, NotFoundError, toErrorMessage } from "../errors";
 import type { InternalPolicyRepository } from "../internalPolicies/internalPolicyRepository";
@@ -39,6 +40,13 @@ export class DraftingJobExecutor {
     const startedAt = clock();
 
     console.log(`Drafting job ${jobId} (${job.kind}) started, attempt ${job.attempts}`);
+    recordAuditEvent({
+      action: "drafting_job.started",
+      entityType: "drafting_job",
+      entityId: jobId,
+      actorId: job.createdBy,
+      payload: { kind: job.kind, attempt: job.attempts },
+    });
 
     try {
       if (job.kind === "policy_from_regulation") {
@@ -48,10 +56,24 @@ export class DraftingJobExecutor {
       }
 
       console.log(`Drafting job ${jobId} succeeded after ${formatDuration(startedAt, clock())}`);
+      recordAuditEvent({
+        action: "drafting_job.succeeded",
+        entityType: "drafting_job",
+        entityId: jobId,
+        actorId: job.createdBy,
+        payload: { kind: job.kind, durationMs: clock().getTime() - startedAt.getTime() },
+      });
     } catch (error) {
       console.error(
         `Drafting job ${jobId} failed after ${formatDuration(startedAt, clock())}: ${toErrorMessage(error)}`,
       );
+      recordAuditEvent({
+        action: "drafting_job.failed",
+        entityType: "drafting_job",
+        entityId: jobId,
+        actorId: job.createdBy,
+        payload: { kind: job.kind, error: toErrorMessage(error) },
+      });
       await draftingJobRepository.markJobFailed({
         jobId,
         errorMessage: toErrorMessage(error),

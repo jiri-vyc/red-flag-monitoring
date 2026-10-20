@@ -1,5 +1,7 @@
 import express, { type Express } from "express";
 
+import type { AlertTriageUseCases } from "../../application/alertTriage/alertTriageUseCases";
+import type { AmlEventQueries } from "../../application/amlEvents/amlEventQueries";
 import type { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
 import type { DraftingJobUseCases } from "../../application/drafting/draftingJobUseCases";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
@@ -13,6 +15,7 @@ import type { TransactionQueries } from "../../application/transactions/transact
 import type { UserUseCases } from "../../application/users/userUseCases";
 import type { WhitelistUseCases } from "../../application/whitelist/whitelistUseCases";
 import type { EnsureDatabaseReady } from "../../infrastructure/database/memoizeInitialization";
+import { createAmlEventsRouter } from "./amlEventsRouter";
 import { createDatabaseStatusRouter } from "./databaseStatusRouter";
 import { createDraftingJobsRouter } from "./draftingJobsRouter";
 import { errorHandler, notFoundHandler } from "./errorHandler";
@@ -38,6 +41,8 @@ export type AppUseCases = {
   referenceLists: ReferenceListUseCases;
   evaluationRuns: EvaluationRunQueries;
   evaluationRunUseCases: EvaluationRunUseCases;
+  amlEvents: AmlEventQueries;
+  alertTriage: AlertTriageUseCases;
   databaseStatus: DatabaseStatusQueries;
   users: UserUseCases;
   transactions: TransactionQueries;
@@ -60,8 +65,14 @@ export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureData
   app.use("/api/reference-lists", createReferenceListsRouter(useCases.referenceLists));
   app.use(
     "/api/evaluation-runs",
-    createEvaluationRunsRouter(useCases.evaluationRuns, useCases.evaluationRunUseCases),
+    createEvaluationRunsRouter(
+      useCases.evaluationRuns,
+      useCases.evaluationRunUseCases,
+      useCases.amlEvents,
+      useCases.alertTriage,
+    ),
   );
+  app.use("/api/aml-events", createAmlEventsRouter(useCases.amlEvents));
   app.use("/api/database-status", createDatabaseStatusRouter(useCases.databaseStatus));
   app.use("/api/users", createUsersRouter(useCases.users));
   app.use("/api/transactions", createTransactionsRouter(useCases.transactions));

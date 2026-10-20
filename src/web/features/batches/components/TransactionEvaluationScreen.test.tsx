@@ -11,6 +11,10 @@ const PATHNAME = "/batches/run-1/transactions/TX000000001";
 
 jest.mock("next/navigation", () => ({ usePathname: () => PATHNAME }));
 jest.mock("../api/hooks", () => ({ useTransactionEvaluation: jest.fn() }));
+// The FAÚ report action has its own tests (FauReportAlertAction.test.tsx).
+jest.mock("@/features/fauReports/components/FauReportAlertAction", () => ({
+  FauReportAlertAction: () => null,
+}));
 
 const RULE_EVALUATION: RuleEvaluation = {
   ruleId: "rule-1",

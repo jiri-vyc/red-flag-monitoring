@@ -2,7 +2,7 @@ import { toDraftingJob } from "./dto";
 import { createDraftingJobDto } from "./draftingJobDtoFixture";
 import { findDraftingJobsRefetchInterval } from "./hooks";
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 5_000;
 
 const jobWithStatus = (status: "pending" | "running" | "succeeded" | "failed") =>
   toDraftingJob(createDraftingJobDto({ status }));

@@ -1,3 +1,4 @@
+import { recordAuditEvent } from "../audit/auditLog";
 import type { Regulation, RegulationVersion } from "../../domain/regulation";
 import { NotFoundError } from "../errors";
 import type {
@@ -10,8 +11,18 @@ import type {
 export class RegulationUseCases {
   constructor(private readonly regulationRepository: RegulationRepository) {}
 
-  createRegulation(regulation: NewRegulation): Promise<Regulation> {
-    return this.regulationRepository.createRegulation(regulation);
+  async createRegulation(regulation: NewRegulation): Promise<Regulation> {
+    const created = await this.regulationRepository.createRegulation(regulation);
+
+    recordAuditEvent({
+      action: "regulation.created",
+      entityType: "regulation",
+      entityId: created.id,
+      actorId: null,
+      payload: { code: created.code },
+    });
+
+    return created;
   }
 
   listRegulations(): Promise<Regulation[]> {
@@ -31,8 +42,17 @@ export class RegulationUseCases {
   // M1: a new wording is always a new version; existing wordings are never edited.
   async createVersion(version: NewRegulationVersion): Promise<RegulationVersion> {
     await this.getRegulation(version.regulationId);
+    const created = await this.regulationRepository.createVersion(version);
 
-    return this.regulationRepository.createVersion(version);
+    recordAuditEvent({
+      action: "regulation.version_created",
+      entityType: "regulation",
+      entityId: version.regulationId,
+      actorId: null,
+      payload: { versionId: created.id },
+    });
+
+    return created;
   }
 
   async listVersions(regulationId: string): Promise<RegulationVersionSummary[]> {

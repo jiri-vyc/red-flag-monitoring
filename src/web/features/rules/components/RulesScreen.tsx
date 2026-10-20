@@ -4,7 +4,6 @@ import { Plus, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { ButtonLink } from "@/components/ui/Button";
 import tableStyles from "@/components/ui/DataTable.module.css";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -12,7 +11,7 @@ import { EmptyState, QueryView } from "@/components/ui/StateViews";
 import { PolicyLink } from "@/features/policies/components/PolicyLink";
 import { LegalBasisList } from "@/features/regulations/components/LegalBasisList";
 import { useI18n } from "@/i18n/I18nProvider";
-import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGatedButtonLink } from "@/features/users/components/RoleGatedButton";
 
 import { useRules, useRulesCapabilities } from "../api/hooks";
 import { findDescribingVersion } from "../domain/ruleLifecycle";
@@ -121,29 +120,31 @@ export function RulesScreen() {
   const { t } = useI18n();
   const rulesQuery = useRules();
   const { canCreateDeterministicRule, canCreateAgenticRule } = useRulesCapabilities();
-  const { canManageRules } = useRolePermissions();
   return (
     <>
       <PageHeader
         title={t.rules.title}
         description={t.rules.subtitle}
         actions={
-          canManageRules && (
-            <>
-              <ButtonLink
-                href="/rules/gap-analysis"
-                variant="secondary"
-                icon={<ScanSearch aria-hidden="true" />}
+          <>
+            <RoleGatedButtonLink
+              permission="canManageRules"
+              href="/rules/gap-analysis"
+              variant="secondary"
+              icon={<ScanSearch aria-hidden="true" />}
+            >
+              {t.rules.gapAnalysis}
+            </RoleGatedButtonLink>
+            {(canCreateDeterministicRule || canCreateAgenticRule) && (
+              <RoleGatedButtonLink
+                permission="canManageRules"
+                href="/rules/new"
+                icon={<Plus aria-hidden="true" />}
               >
-                {t.rules.gapAnalysis}
-              </ButtonLink>
-              {(canCreateDeterministicRule || canCreateAgenticRule) && (
-                <ButtonLink href="/rules/new" icon={<Plus aria-hidden="true" />}>
-                  {t.rules.newRule}
-                </ButtonLink>
-              )}
-            </>
-          )
+                {t.rules.newRule}
+              </RoleGatedButtonLink>
+            )}
+          </>
         }
       />
       <QueryView query={rulesQuery}>{(rules) => <FilteredRules rules={rules} />}</QueryView>

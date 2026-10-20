@@ -50,6 +50,7 @@ describe("parseTransactionsCsv", () => {
     ["a time without separators", "01.07.2026;0905;CZK"],
     ["a non-ISO currency", "01.07.2026;10:00:00;Kč"],
     ["an impossible date", "31.02.2026;10:00:00;CZK"],
+    ["a currency without a demo rate", "01.07.2026;10:00:00;XYZ"],
   ])("counts a row with %s as invalid", (_label, dateTimeCurrency) => {
     const [date, time, currency] = dateTimeCurrency.split(";");
     const csvText = `${HEADER}\nTX1;K1;${date};${time};1;${currency};CZ;CZ;a;b;x`;
@@ -58,6 +59,30 @@ describe("parseTransactionsCsv", () => {
 
     expect(parsed.rows).toHaveLength(0);
     expect(parsed.invalidRowCount).toBe(1);
+  });
+
+  it("counts a row with an empty amount as invalid instead of a zero amount", () => {
+    const csvText = `${HEADER}\nTX1;K1;01.07.2026;10:00:00; ;CZK;CZ;CZ;a;b;x`;
+
+    const parsed = parseTransactionsCsv(csvText, { maxRows: 10 });
+
+    expect(parsed.rows).toHaveLength(0);
+    expect(parsed.invalidRowCount).toBe(1);
+  });
+
+  it("keeps the first row of a repeated transaction ID and counts the rest as invalid", () => {
+    const dataLines = ["TX1;100", "TX2;200", "TX1;300", "TX1;400"].map((idAndVolume) => {
+      const [id, volume] = idAndVolume.split(";");
+      return `${id};K1;01.07.2026;10:00:00;${volume};CZK;CZ;CZ;a;b;x`;
+    });
+
+    const parsed = parseTransactionsCsv([HEADER, ...dataLines].join("\n"), { maxRows: 10 });
+
+    expect(parsed.rows.map((row) => [row.transactionId, row.volume])).toEqual([
+      ["TX1", 100],
+      ["TX2", 200],
+    ]);
+    expect(parsed.invalidRowCount).toBe(2);
   });
 
   it("fails when a required column is missing", () => {
@@ -91,5 +116,23 @@ describe("mapCsvRowToTransaction", () => {
 
     expect(transaction.bookedAt).toBe("2026-07-05T08:30:00");
     expect(transaction.amountCzk).toBe(2500);
+  });
+
+  it("refuses a currency without a demo rate instead of converting it 1:1", () => {
+    expect(() =>
+      mapCsvRowToTransaction({
+        transactionId: "TX1",
+        clientId: "K1",
+        date: "05.07.2026",
+        time: "08:30:00",
+        volume: 100,
+        currency: "XYZ",
+        payerCountry: "CZ",
+        payeeCountry: "AT",
+        payerAccount: "",
+        payeeAccount: "",
+        transactionType: "remittance",
+      }),
+    ).toThrow("XYZ");
   });
 });

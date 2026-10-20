@@ -23,7 +23,7 @@ import { translateDatabaseErrors } from "../translateDatabaseErrors";
 import { insertDraftingJob } from "./draftingJobWrites";
 import { insertPolicy, insertPolicyVersion } from "./policyWrites";
 import { insertRule, insertRuleVersion } from "./ruleWrites";
-import { DEFAULT_ESCALATION_ROLE } from "../../../domain/rule";
+import { DEFAULT_ALERT_GRANULARITY, DEFAULT_ESCALATION_ROLE } from "../../../domain/rule";
 
 // Mirrors reportTimedOutJob, so a status filter matches the status the API reports.
 const REPORTED_STATUS_SQL = `CASE
@@ -153,6 +153,7 @@ export class TypeOrmDraftingJobRepository implements DraftingJobRepository {
             policyId: completion.policyId,
             code,
             alertType,
+            alertGranularity: DEFAULT_ALERT_GRANULARITY,
             kind,
             isWhitelistAllowed,
           });

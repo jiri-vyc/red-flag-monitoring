@@ -11,6 +11,7 @@ async function setUp({ isWhitelistAllowed }: { isWhitelistAllowed: boolean }) {
     policyId: null,
     code: "B",
     alertType: "high_risk_country",
+    alertGranularity: "transaction",
     kind: "deterministic",
     isWhitelistAllowed,
   });
@@ -58,6 +59,27 @@ describe("WhitelistUseCases", () => {
         createdBy: ADMIN_ID,
       }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("audits a removal with the removed entry", async () => {
+    const { whitelistUseCases, rule } = await setUp({ isWhitelistAllowed: true });
+    await whitelistUseCases.addEntry({
+      ruleId: rule.id,
+      clientId: "K000001",
+      reason: "Ověřeno",
+      createdBy: ADMIN_ID,
+    });
+    const consoleLog = jest.spyOn(console, "log").mockImplementation(() => {});
+
+    await whitelistUseCases.removeEntry({ ruleId: rule.id, clientId: "K000001" });
+
+    expect(consoleLog).toHaveBeenCalledWith(
+      expect.stringContaining("[audit] action=whitelist_entry.removed"),
+    );
+    expect(consoleLog).toHaveBeenCalledWith(
+      expect.stringContaining(`"removedEntry":{"reason":"Ověřeno","createdBy":"${ADMIN_ID}"`),
+    );
+    consoleLog.mockRestore();
   });
 
   it("reports a missing entry on removal", async () => {

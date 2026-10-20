@@ -10,8 +10,8 @@ const requestJsonMock = jest.mocked(requestJson);
 describe("liveDraftingJobsService", () => {
   beforeEach(() => requestJsonMock.mockReset());
 
-  it("polls every 30 s, as the jobs run for minutes", () => {
-    expect(liveDraftingJobsService.pollIntervalMs).toBe(30_000);
+  it("polls every 5 s", () => {
+    expect(liveDraftingJobsService.pollIntervalMs).toBe(5_000);
   });
 
   it("sends status and kind filters as comma-separated lists", async () => {

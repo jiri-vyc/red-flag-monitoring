@@ -2,7 +2,6 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeftRight,
   Database,
   FileText,
   Flag,
@@ -28,6 +27,9 @@ import { useMockedServicesInUse } from "@/providers/MockUsageProvider";
 
 import styles from "./Sidebar.module.css";
 
+// The Aurora status panel is hidden for the demo; flip to true to show it again (the /api/database-status probe stays).
+const IS_DATABASE_STATUS_VISIBLE = false;
+
 // Each section is served by one service. In live mode, a section still served by mocks gets a dot next to its label;
 // in mock mode everything is mock, so the dots would carry no information.
 const NAVIGATION_ITEMS = [
@@ -36,7 +38,6 @@ const NAVIGATION_ITEMS = [
   { href: "/policies", labelKey: "policies", service: "policies", Icon: FileText },
   { href: "/rules", labelKey: "rules", service: "rules", Icon: ListChecks },
   { href: "/batches", labelKey: "batches", service: "batches", Icon: Layers },
-  { href: "/transactions", labelKey: "transactions", service: "transactions", Icon: ArrowLeftRight },
 ] as const;
 
 const LOCALE_OPTIONS: { value: Locale; label: string }[] = [
@@ -155,7 +156,7 @@ export function Sidebar() {
             fullWidth
           />
         </div>
-        <DatabaseStatusPanel />
+        {IS_DATABASE_STATUS_VISIBLE && <DatabaseStatusPanel />}
       </div>
     </aside>
   );

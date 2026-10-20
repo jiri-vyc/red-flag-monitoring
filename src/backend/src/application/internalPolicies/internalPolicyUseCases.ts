@@ -1,3 +1,4 @@
+import { recordAuditEvent } from "../audit/auditLog";
 import type { DraftingJob } from "../../domain/draftingJob";
 import type { InternalPolicy, InternalPolicyVersion } from "../../domain/internalPolicy";
 import type { Clock } from "../clock";
@@ -22,8 +23,18 @@ export class InternalPolicyUseCases {
     private readonly ruleDrafting: RuleDrafting,
   ) {}
 
-  createPolicy(policy: NewInternalPolicy): Promise<InternalPolicy> {
-    return this.internalPolicyRepository.createPolicy(policy);
+  async createPolicy(policy: NewInternalPolicy): Promise<InternalPolicy> {
+    const created = await this.internalPolicyRepository.createPolicy(policy);
+
+    recordAuditEvent({
+      action: "internal_policy.created",
+      entityType: "internal_policy",
+      entityId: created.id,
+      actorId: null,
+      payload: { code: created.code },
+    });
+
+    return created;
   }
 
   listPolicies(): Promise<InternalPolicy[]> {
@@ -42,8 +53,17 @@ export class InternalPolicyUseCases {
 
   async createVersion(version: NewInternalPolicyVersion): Promise<InternalPolicyVersion> {
     await this.getPolicy(version.policyId);
+    const created = await this.internalPolicyRepository.createVersion(version);
 
-    return this.internalPolicyRepository.createVersion(version);
+    recordAuditEvent({
+      action: "internal_policy.version_created",
+      entityType: "internal_policy",
+      entityId: version.policyId,
+      actorId: version.createdBy,
+      payload: { versionId: created.id, versionNo: created.versionNo, createdVia: version.createdVia },
+    });
+
+    return created;
   }
 
   async listVersions(policyId: string): Promise<InternalPolicyVersion[]> {
@@ -66,6 +86,13 @@ export class InternalPolicyUseCases {
     const version = await this.getVersion(policyId, versionId);
 
     await this.internalPolicyRepository.updateVersionStatus(createReviewSubmission(version));
+    recordAuditEvent({
+      action: "internal_policy.version_submitted",
+      entityType: "internal_policy",
+      entityId: policyId,
+      actorId: null,
+      payload: { versionId },
+    });
 
     return this.getVersion(policyId, versionId);
   }
@@ -93,6 +120,19 @@ export class InternalPolicyUseCases {
       review,
       supersededVersionIds,
       rulesJob,
+    });
+    recordAuditEvent({
+      action: "internal_policy.version_reviewed",
+      entityType: "internal_policy",
+      entityId: policyId,
+      actorId: input.reviewedBy,
+      payload: {
+        versionId,
+        decision: input.decision,
+        reviewComment: input.reviewComment,
+        supersededVersionIds,
+        rulesJobId,
+      },
     });
     const reviewedVersion = await this.getVersion(policyId, versionId);
 

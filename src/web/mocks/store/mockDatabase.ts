@@ -1,14 +1,21 @@
 import { z } from "zod";
 
-import type { Batch, BatchTransaction, Transaction } from "@/features/batches/types";
+import {
+  batchTransactionSchema,
+  transactionSchema,
+  type Batch,
+  type BatchTransaction,
+  type Transaction,
+} from "@/features/batches/types";
 import type { DraftingJob } from "@/features/draftingJobs/types";
+import type { FauReport } from "@/features/fauReports/types";
 import { policySchema, type Policy } from "@/features/policies/types";
 import { regulationSchema, type Regulation } from "@/features/regulations/types";
 import { ruleSchema, whitelistEntrySchema, type Rule, type WhitelistEntry } from "@/features/rules/types";
 import { ApiError } from "@/lib/apiError";
 
-import type { MockRuleSnapshot } from "../evaluation/evaluateTransaction";
-import type { MockCheckKind } from "../evaluation/ruleChecks";
+import { mockRuleSnapshotSchema, type MockRuleSnapshot } from "../evaluation/evaluateTransaction";
+import { mockCheckKindSchema, type MockCheckKind } from "../evaluation/ruleChecks";
 import { buildSeedDatabase } from "../seed/buildSeedDatabase";
 
 /** Relations (policyIds, ruleIds) are derived from foreign keys when mapping to the domain model. */
@@ -42,6 +49,8 @@ export type MockDatabase = {
   whitelistEntries: WhitelistEntry[];
   batches: MockBatchRecord[];
   draftingJobs: MockDraftingJobRecord[];
+  /** Issue #20. The seed has none; reports are created in the demo. */
+  fauReports: FauReport[];
 };
 
 /** The mock engine re-evaluates stored rows, so it keeps the full transaction with its CZK amount. */
@@ -120,10 +129,17 @@ const storedDatabaseSchema = z.object({
   regulations: z.array(regulationSchema.omit({ policyIds: true, ruleIds: true })),
   policies: z.array(policySchema.omit({ ruleIds: true })),
   rules: z.array(ruleSchema),
-  ruleCheckKinds: z.record(z.string(), z.string()),
+  ruleCheckKinds: z.record(z.string(), mockCheckKindSchema),
   whitelistEntries: z.array(whitelistEntrySchema),
   batches: z.array(
-    z.object({ batch: z.object({ id: z.string() }).loose(), ruleSnapshots: z.array(z.unknown()) }).loose(),
+    z
+      .object({
+        batch: z.object({ id: z.string() }).loose(),
+        startedAtMs: z.number(),
+        durationMs: z.number(),
+        ruleSnapshots: z.array(mockRuleSnapshotSchema),
+      })
+      .loose(),
   ),
   // Optional: data stored before drafting jobs existed stays valid and starts with none.
   draftingJobs: z
@@ -142,12 +158,35 @@ const storedDatabaseSchema = z.object({
       }),
     )
     .optional(),
+  // Optional for the same reason: data stored before FAÚ reports existed starts with none.
+  fauReports: z
+    .array(
+      z
+        .object({
+          id: z.string(),
+          status: z.string(),
+          alert: z.object({ batchId: z.string(), transactionId: z.string() }),
+          history: z.array(z.unknown()),
+        })
+        .loose(),
+    )
+    .optional(),
 });
 
-type StoredDatabase = Omit<MockDatabase, "draftingJobs"> & { draftingJobs?: MockDraftingJobRecord[] };
+type StoredDatabase = Omit<MockDatabase, "draftingJobs" | "fauReports"> & {
+  draftingJobs?: MockDraftingJobRecord[];
+  fauReports?: FauReport[];
+};
 
 function isStoredDatabase(value: unknown): value is StoredDatabase {
   return storedDatabaseSchema.safeParse(value).success;
+}
+
+// The engine re-evaluates stored rows, so they need the full transaction including its CZK amount.
+const storedBatchRowsSchema = z.array(batchTransactionSchema.extend({ transaction: transactionSchema }));
+
+function isStoredBatchRows(value: unknown): value is MockBatchRow[] {
+  return storedBatchRowsSchema.safeParse(value).success;
 }
 
 function removeAllMockKeys(): void {
@@ -164,7 +203,11 @@ export function readMockDatabase(): MockDatabase {
   }
   const storedDatabase = readStorageItem(DATABASE_KEY);
   if (isStoredDatabase(storedDatabase)) {
-    cachedDatabase = { ...storedDatabase, draftingJobs: storedDatabase.draftingJobs ?? [] };
+    cachedDatabase = {
+      ...storedDatabase,
+      draftingJobs: storedDatabase.draftingJobs ?? [],
+      fauReports: storedDatabase.fauReports ?? [],
+    };
     return cachedDatabase;
   }
   if (storedDatabase !== null) {
@@ -186,7 +229,11 @@ export function readBatchRows(batchId: string): MockBatchRow[] {
     return cachedRows;
   }
   const storedRows = readStorageItem(`${BATCH_ROWS_KEY_PREFIX}${batchId}`);
-  const rows = Array.isArray(storedRows) ? (storedRows as MockBatchRow[]) : [];
+  const hasValidRows = isStoredBatchRows(storedRows);
+  const rows = hasValidRows ? storedRows : [];
+  if (storedRows !== null && !hasValidRows) {
+    console.warn(`Stored rows of batch ${batchId} have an outdated shape; treating them as missing.`);
+  }
   cachedBatchRows.set(batchId, rows);
   return rows;
 }

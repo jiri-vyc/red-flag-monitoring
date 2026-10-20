@@ -1,8 +1,8 @@
 # Datový model
 
-- **Verze:** 0.4, 2026-10-19
-- **Rozsah:** regulace, interní předpisy, pravidla, referenční seznamy, whitelist, nahrání CSV s transakcemi, vyhodnocovací běh, výsledky pravidel a trace až k regulaci. Model zpřesňuje [sekce 3 a 5 specifikace](spec.md#3-doménový-model).
-- **Mimo rozsah:** AML události, triage (`FP` / `REVIEW`), eskalace, lidské review, export povinného CSV a audit log. MVP končí zobrazením výsledku běhu.
+- **Verze:** 0.5, 2026-10-20
+- **Rozsah:** regulace, interní předpisy, pravidla, referenční seznamy, whitelist, nahrání CSV s transakcemi, vyhodnocovací běh, výsledky pravidel a trace až k regulaci, AML události (alerty) z výsledků běhu (issue #13), návrh triáže `FP` / `REVIEW`, priorita 0–100 a odůvodnění alertu (issue #14). Model zpřesňuje [sekce 3 a 5 specifikace](spec.md#3-doménový-model).
+- **Mimo rozsah:** eskalace, odpovědná osoba, lidské rozhodnutí o alertu a audit log v databázi (audit jde zatím jen do CloudWatch logů, #5, viz [architecture.md](../architecture.md#audit-log-srcbackend)). MVP končí zobrazením výsledku běhu.
 - **Cíl:** MVP pro demo na hackathonu. Model je záměrně jednoduchý. Co chybí kvůli reálnému nasazení, uvádí [sekce Compliance poznámky](#compliance-poznámky).
 
 ## Konvence
@@ -44,6 +44,14 @@ erDiagram
     TRANSACTION_EVALUATION ||--|{ RULE_EVALUATION : "obsahuje"
     RULE_VERSION ||--o{ RULE_EVALUATION : "je spuštěna v"
     FX_RATE }o--o{ RULE_EVALUATION : "kurz je v features"
+    EVALUATION_RUN ||--o{ AML_EVENT : "vytváří"
+    RULE_VERSION ||--o{ AML_EVENT : "zásahy verze"
+    CLIENT ||--o{ AML_EVENT : "týká se"
+    TRANSACTION |o--o{ AML_EVENT : "alert na transakci"
+    AML_EVENT ||--|{ AML_EVENT_HIT : "vznikl ze zásahů"
+    AML_EVENT ||--o{ AML_EVENT_TRIAGE : "návrhy triáže"
+    ALERT_TRIAGE_LLM_CALL ||--|{ AML_EVENT_TRIAGE : "jedno volání na klienta"
+    RULE_EVALUATION ||--o| AML_EVENT_HIT : "patří do alertu"
 
     REGULATION {
         uuid id PK
@@ -87,6 +95,7 @@ erDiagram
         uuid policy_id FK "nullable"
         string code "A, B-a, C"
         string alert_type
+        enum alert_granularity "transaction, client_month"
         enum kind "deterministic, agentic"
         bool enabled
         uuid active_version_id FK
@@ -197,6 +206,50 @@ erDiagram
         string llm_model_id "agentní"
         text error_message
     }
+    AML_EVENT {
+        uuid id PK
+        uuid run_id FK
+        string alert_id "R-01-K000123-2026-07, unikátní v běhu"
+        uuid rule_id FK
+        uuid rule_version_id FK
+        string alert_type "snapshot z pravidla"
+        enum alert_granularity "snapshot z pravidla"
+        string client_id FK
+        string transaction_id FK "jen u transaction"
+        string period_month "YYYY-MM, jen u client_month"
+        int max_score "max adjusted_score zásahů"
+        int hit_count
+        timestamp created_at
+    }
+    AML_EVENT_HIT {
+        uuid aml_event_id FK
+        uuid rule_evaluation_id FK "unikátní"
+    }
+    AML_EVENT_TRIAGE {
+        uuid id PK
+        uuid aml_event_id FK
+        enum source "rules, llm"
+        enum triage "FP, REVIEW"
+        int priority "0–100"
+        jsonb priority_factors "rozpad podle tabulky P"
+        text reason
+        jsonb log "záznam rozhodnutí do CSV"
+        uuid llm_call_id FK "jen u llm"
+        timestamp created_at
+    }
+    ALERT_TRIAGE_LLM_CALL {
+        uuid id PK
+        uuid run_id FK
+        string client_id FK
+        string model_id
+        text system_prompt
+        text user_prompt
+        jsonb response "odpověď Bedrocku beze změny"
+        int input_tokens
+        int output_tokens
+        int duration_ms
+        timestamp created_at
+    }
     FX_RATE {
         string currency PK
         date rate_date PK
@@ -219,32 +272,32 @@ erDiagram
 
 Stav verze (`status`) u předpisu i pravidla nabývá hodnot `draft`, `pending_review`, `approved`, `rejected`, `superseded`.
 
-Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVALUATION (transaction_evaluation_id, rule_version_id)`.
+Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVALUATION (transaction_evaluation_id, rule_version_id)`, `AML_EVENT (run_id, alert_id)`, `AML_EVENT_HIT (rule_evaluation_id)`, `AML_EVENT_TRIAGE (aml_event_id, source)`.
 
 ## Část A: pravidla
 
 ### Rozhodnutí: pravidla
 
-| # | Rozhodnutí | Důvod |
-| --- | --- | --- |
-| M1 | Regulace má **znění** (`REGULATION_VERSION`). Nové znění je nový řádek s vloženým textem. | Tlačítko „zkontrolovat aktualizace“ potřebuje poznat, která pravidla stojí na starém znění. |
-| M2 | Ustanovení (paragrafy) **nejsou** samostatná entita. Odkaz na paragraf je text v poli `ref`. | Jednoduchost MVP. |
-| M3 | Předpis a regulace mají vazbu **M:N** přes `POLICY_LEGAL_BASIS`. Vazba je nepovinná. | Jeden předpis vychází z více regulací. Existuje i čistě interní předpis. Mění D1. |
-| M4 | Pravidlo **může** patřit pod předpis (`policy_id` je nullable). | Ruční pravidlo nemusí mít předpis. |
-| M5 | Každá verze pravidla má vlastní právní základ (`RULE_LEGAL_BASIS`) s odkazem na znění regulace. Odkazy se nedědí z předpisu. | Pravidlo stojí obvykle na 1–3 paragrafech, ne na všech regulacích předpisu. |
-| M6 | Pravidlo drží `enabled` a `active_version_id`. Verze drží `status`. Dokud nová verze čeká na schválení, spouští se `active_version_id`. | Řeší otázku 4 ve spec. Stavy z D10 se v UI odvodí: `update_for_review` = pravidlo má aktivní verzi a novější verzi v `pending_review`. |
-| M7 | `sensitivity`, `risk_profiles` a `base_score` jsou ve verzi. Jejich změna vytvoří novou verzi. Zapnutí a vypnutí verzi nevytváří. | Změna citlivosti mění detekci, proto musí projít schválením. |
-| M8 | Interní předpis je **jeden markdown text** na verzi, bez článků. | Jednoduchost MVP. |
-| M9 | Referenční seznamy (HRTC EU, FATF black list, interní rizikové země) mají verze. Seznamy **nemají** schvalování. Vyhodnocení použije **poslední verzi**. | Pravidlo B na seznamech závisí. Jednoduchost MVP. |
-| M10 | Katalog featur je **jen v kódu**. Z něj se generuje JSON schema pro Bedrock a slovník pro český přepis. | Featury píše vývojář a reviewují se v PR. |
-| M11 | Schválení jsou **pole na verzi** předpisu a pravidla (`reviewed_by`, `reviewed_at`, `review_comment`). Jiné entity schválení nemají. | Jednoduchost MVP. |
-| M12 | Uživatel má **jednu nebo více rolí**: `compliance_analyst`, `compliance_officer`, `lawyer`, `contact_person` (AML zákon § 22), `designated_person` (§ 22a). Backend role nekontroluje, aktivní roli volí web. Systém nekontroluje 4-eyes. | Issue #6. Přihlášení je mimo rozsah hackathonu. |
-| M13 | Verze agentního pravidla drží `agent_prompt` a `agent_model_id`. Vstup, výstup a vyrenderovaný prompt LLM ukládá **vyhodnocení pravidla**. | Vyhodnocení musí jít zpětně rekonstruovat. |
-| M14 | `definition` obsahuje jen logiku pravidla: `match`, `features` a `conditions`. Skóre a citlivost jsou sloupce. | Sloupce jdou filtrovat a zobrazit v UI bez parsování JSON. |
-| M15 | Risk profily jsou `low`, `medium`, `high` podle sloupce `AML risk score` v datech klientů. | Data neobsahují neznámý profil. Mění D12. |
-| M16 | Whitelist je dvojice pravidlo × klient s povinným `reason`. Odebrání záznam smaže a zapíše do audit logu. `whitelist_allowed = false` whitelist u pravidla zakáže. | Jednoduchost MVP. Pravidla B jsou regulatorně povinná. |
+| #   | Rozhodnutí                                                                                                                                                                                                                                                                                           | Důvod                                                                                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | Regulace má **znění** (`REGULATION_VERSION`). Nové znění je nový řádek s vloženým textem.                                                                                                                                                                                                            | Tlačítko „zkontrolovat aktualizace“ potřebuje poznat, která pravidla stojí na starém znění.                                                 |
+| M2  | Ustanovení (paragrafy) **nejsou** samostatná entita. Odkaz na paragraf je text v poli `ref`.                                                                                                                                                                                                         | Jednoduchost MVP.                                                                                                                           |
+| M3  | Předpis a regulace mají vazbu **M:N** přes `POLICY_LEGAL_BASIS`. Vazba je nepovinná.                                                                                                                                                                                                                 | Jeden předpis vychází z více regulací. Existuje i čistě interní předpis. Mění D1.                                                           |
+| M4  | Pravidlo **může** patřit pod předpis (`policy_id` je nullable).                                                                                                                                                                                                                                      | Ruční pravidlo nemusí mít předpis.                                                                                                          |
+| M5  | Každá verze pravidla má vlastní právní základ (`RULE_LEGAL_BASIS`) s odkazem na znění regulace. Odkazy se nedědí z předpisu.                                                                                                                                                                         | Pravidlo stojí obvykle na 1–3 paragrafech, ne na všech regulacích předpisu.                                                                 |
+| M6  | Pravidlo drží `enabled` a `active_version_id`. Verze drží `status`. Dokud nová verze čeká na schválení, spouští se `active_version_id`.                                                                                                                                                              | Řeší otázku 4 ve spec. Stavy z D10 se v UI odvodí: `update_for_review` = pravidlo má aktivní verzi a novější verzi v `pending_review`.      |
+| M7  | `sensitivity`, `risk_profiles` a `base_score` jsou ve verzi. Jejich změna vytvoří novou verzi. Zapnutí a vypnutí verzi nevytváří.                                                                                                                                                                    | Změna citlivosti mění detekci, proto musí projít schválením.                                                                                |
+| M8  | Interní předpis je **jeden markdown text** na verzi, bez článků.                                                                                                                                                                                                                                     | Jednoduchost MVP.                                                                                                                           |
+| M9  | Referenční seznamy (HRTC EU, FATF black list, interní rizikové země) mají verze. Seznamy **nemají** schvalování. Vyhodnocení použije **poslední verzi**.                                                                                                                                             | Pravidlo B na seznamech závisí. Jednoduchost MVP.                                                                                           |
+| M10 | Katalog featur je **jen v kódu**. Z něj se generuje JSON schema pro Bedrock a slovník pro český přepis.                                                                                                                                                                                              | Featury píše vývojář a reviewují se v PR.                                                                                                   |
+| M11 | Schválení jsou **pole na verzi** předpisu a pravidla (`reviewed_by`, `reviewed_at`, `review_comment`). Jiné entity schválení nemají.                                                                                                                                                                 | Jednoduchost MVP.                                                                                                                           |
+| M12 | Uživatel má **jednu nebo více rolí**: `compliance_analyst`, `compliance_officer`, `lawyer`, `contact_person` (AML zákon § 22), `designated_person` (§ 22a). Backend role nekontroluje, aktivní roli volí web. Systém nekontroluje 4-eyes.                                                            | Issue #6. Přihlášení je mimo rozsah hackathonu.                                                                                             |
+| M13 | Verze agentního pravidla drží `agent_prompt` a `agent_model_id`. Vstup, výstup a vyrenderovaný prompt LLM ukládá **vyhodnocení pravidla**.                                                                                                                                                           | Vyhodnocení musí jít zpětně rekonstruovat.                                                                                                  |
+| M14 | `definition` obsahuje jen logiku pravidla: `match`, `features` a `conditions`. Skóre a citlivost jsou sloupce.                                                                                                                                                                                       | Sloupce jdou filtrovat a zobrazit v UI bez parsování JSON.                                                                                  |
+| M15 | Risk profily jsou `low`, `medium`, `high` podle sloupce `AML risk score` v datech klientů.                                                                                                                                                                                                           | Data neobsahují neznámý profil. Mění D12.                                                                                                   |
+| M16 | Whitelist je dvojice pravidlo × klient s povinným `reason`. Odebrání záznam smaže a zapíše do audit logu. `whitelist_allowed = false` whitelist u pravidla zakáže.                                                                                                                                   | Jednoduchost MVP. Pravidla B jsou regulatorně povinná.                                                                                      |
 | M17 | Verze předpisu a pravidla jsou neměnné. Systém je nemaže. **Návrh změny (2026-10-19, čeká na potvrzení týmu):** verze pravidla ve stavu `draft` jde upravit na místě (`PATCH`). Od `pending_review` je neměnná. Každá úprava draftu se zapíše do audit logu a původní návrh AI zůstane dohledatelný. | Rekonstruovatelnost rozhodnutí (vyhláška 67/2018 § 18). Draft ještě nikdo nereviewoval a nespouští se, takže jeho úprava rozhodnutí nemění. |
-| M18 | Role, na kterou se eskalují zásahy pravidla (`escalation_role`), je **na verzi pravidla**, výchozí `contact_person`. Mění se novou verzí nebo při review; je to jediné pole verze, které review smí změnit. Výsledky běhu se filtrují podle role verze pravidla, která je v běhu. | Issue #6. Eskalace mění, kdo zásah uvidí, proto prochází review jako citlivost (M7) a starý běh zůstává rekonstruovatelný. |
+| M18 | Role, na kterou se eskalují zásahy pravidla (`escalation_role`), je **na verzi pravidla**, výchozí `contact_person`. Mění se novou verzí nebo při review; je to jediné pole verze, které review smí změnit. Výsledky běhu se filtrují podle role verze pravidla, která je v běhu.                    | Issue #6. Eskalace mění, kdo zásah uvidí, proto prochází review jako citlivost (M7) a starý běh zůstává rekonstruovatelný.                  |
 
 ### Aktualizace regulace
 
@@ -265,22 +318,22 @@ Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVA
 
 ### Výsledek pravidla a transakce
 
-| `outcome` | Význam | Skóre |
-| --- | --- | --- |
-| `pass` | Pravidlo prošlo. `adjusted_score < hit_threshold`. | vyplněné |
-| `hit` | Pravidlo neprošlo. `adjusted_score >= hit_threshold`. | vyplněné |
-| `not_applicable` | Pravidlo se nespustilo. Důvod je v `skip_reason`. | prázdné |
-| `error` | Vyhodnocení selhalo. Důvod je v `error_message`. | prázdné |
+| `outcome`        | Význam                                                | Skóre    |
+| ---------------- | ----------------------------------------------------- | -------- |
+| `pass`           | Pravidlo prošlo. `adjusted_score < hit_threshold`.    | vyplněné |
+| `hit`            | Pravidlo neprošlo. `adjusted_score >= hit_threshold`. | vyplněné |
+| `not_applicable` | Pravidlo se nespustilo. Důvod je v `skip_reason`.     | prázdné  |
+| `error`          | Vyhodnocení selhalo. Důvod je v `error_message`.      | prázdné  |
 
 - `adjusted_score = raw_score × sensitivity / 100`. Hodnota `sensitivity` je ve verzi pravidla.
 - Deterministické pravidlo vrátí `raw_score = base_score`, když platí podmínky z `definition`. Jinak vrátí 0.
 - Agentní pravidlo vrátí `raw_score` z výstupu LLM.
 
-| `verdict` | Podmínka |
-| --- | --- |
-| `flagged` | Aspoň jedno pravidlo má `outcome = hit`. |
-| `error` | Žádné pravidlo nemá `hit` a aspoň jedno má `error`. |
-| `pass` | Ostatní případy. |
+| `verdict` | Podmínka                                            |
+| --------- | --------------------------------------------------- |
+| `flagged` | Aspoň jedno pravidlo má `outcome = hit`.            |
+| `error`   | Žádné pravidlo nemá `hit` a aspoň jedno má `error`. |
+| `pass`    | Ostatní případy.                                    |
 
 `max_score` je maximum `adjusted_score` přes pravidla transakce.
 
@@ -293,8 +346,12 @@ Příklad pro pravidlo A, podmínka (c):
 ```json
 {
   "features": {
-    "amount_czk": 74250.00,
-    "fx": { "currency": "EUR", "rate_date": "2026-07-01", "czk_per_unit": 24.75 },
+    "amount_czk": 74250.0,
+    "fx": {
+      "currency": "EUR",
+      "rate_date": "2026-07-01",
+      "czk_per_unit": 24.75
+    },
     "q2_max_tx_czk": 30356.79
   },
   "trace": {
@@ -303,7 +360,7 @@ Příklad pro pravidlo A, podmínka (c):
       {
         "id": "c",
         "label": "Jednotlivá transakce > 2× maximální transakce za 2Q2026",
-        "left": { "feature": "amount_czk", "value": 74250.00 },
+        "left": { "feature": "amount_czk", "value": 74250.0 },
         "op": ">",
         "right": { "expr": "2 × q2_max_tx_czk", "value": 60713.58 },
         "result": true
@@ -345,34 +402,44 @@ Cesta pokračuje přes `rule_versions.derived_from_policy_version_id` na verzi i
 
 ### Rozhodnutí: vyhodnocení
 
-| # | Rozhodnutí | Důvod |
-| --- | --- | --- |
-| V1 | Uživatel nahrává jen **transakce**. Klienti už jsou v databázi. Řádek s neznámým klientem systém odmítne. | Klienti jsou v `golden`. Jednoduchost MVP. |
-| V2 | Řádky CSV jdou do tabulky `transactions`. Existující `transaction_id` se stejným obsahem systém znovu použije. Existující `transaction_id` s jiným obsahem systém odmítne. | Transakce jsou neměnné. Stejné CSV jde vyhodnotit znovu s jinými pravidly. |
-| V3 | Samotný soubor CSV systém neukládá. Běh drží `file_name`, `file_sha256` a `source_row_no`. | Data zůstávají v databázi. Hash prokáže, který soubor se vyhodnotil. |
-| V4 | Běh vyhodnotí **jen transakce z nahraného CSV**. Kontext (historie klienta) tvoří všechny transakce klienta v databázi v okamžiku běhu. | Odpovídá D6. |
-| V5 | Běh **fixuje** verze pravidel (`RUN_RULE_VERSION`) a referenčních seznamů (`RUN_REFERENCE_LIST_VERSION`) při startu. Změna pravidla během běhu výsledek neovlivní. | Rekonstruovatelnost. M9 říká „poslední verze“, běh ale musí vědět, kterou použil. |
-| V6 | `RULE_EVALUATION` vzniká pro **každou** dvojici transakce × verze pravidla, i pro `not_applicable`. Zúženo ve [V16](#rozhodnutí-vyhodnocení): `pass` se neukládá. | UI ukáže u každé transakce všechna pravidla. Whitelist se při odebrání maže (M16), důvod přeskočení proto musí být v záznamu. |
-| V7 | Hranice `hit` je **`hit_threshold` na běhu**, výchozí 50. Skóre transakce je **maximum** skóre pravidel. | Řeší otázky 7 a 8 ve spec pro MVP. Maximum je vysvětlitelné jedním pravidlem. |
-| V8 | `features` ukládá vstupní hodnoty včetně použitého kurzu. `context_refs` ukládá ID transakcí, ze kterých pravidlo počítalo. U `pass` může být `context_refs` prázdné. | Trace je čitelný bez přepočtu. Plný seznam u `pass` by zbytečně zvětšil data (~400 000 transakcí × počet pravidel). |
-| V9 | `client_risk_profile` je snapshot na `TRANSACTION_EVALUATION`. | Risk profil rozhoduje o `not_applicable`. |
-| V10 | `engine_version` (git commit) je na běhu. | Výpočet featur je v kódu (M10). Bez verze kódu nejde výsledek reprodukovat. |
-| V11 | Převod do CZK používá `FX_RATE`: kurz ČNB k datu transakce. Tabulku plní migrace. | Dataset obsahuje 23 měn. Řeší FX část otázky 13 ve spec. |
-| V12 | Souhrnné počty (`tx_passed`, `tx_flagged`, `tx_error`) a `tx_processed` jsou sloupce běhu. Počty per pravidlo UI počítá dotazem. | Dashboard ukazuje průběh bez agregace 400 000 řádků. |
-| V13 | AML událost **nevzniká**. Výsledek běhu je `TRANSACTION_EVALUATION.verdict`. | Lidské review je mimo rozsah. Agregaci do událostí per klient (pravidla A, C) řeší otázka 5 ve spec. |
-| V14 | Běh a jeho výsledky jsou neměnné. Systém je nemaže. | Záznam vyhodnocení slouží jako audit log vyhodnocení (spec 7.7). |
-| V15 | Běh může místo CSV vyhodnotit **transakce, které už jsou v databázi**. Rozsah určuje `scope` na běhu (`from`, `to`, `clientIds`, `limit`; prázdný = všechny). `file_name` popisuje rozsah, `file_sha256` je hash seřazených ID vyhodnocených transakcí, `source_row_no` je pořadí transakce v běhu. | Data jsou v DB, upload CSV zatím není (#3). Hash prokáže, které transakce se vyhodnotily. |
-| V16 | `RULE_EVALUATION` se ukládá jen pro výsledek **jiný než `pass`** (`hit`, `error`, `not_applicable`). `TRANSACTION_EVALUATION` se ukládá pro každou transakci. Zužuje V6. | Celý dataset × 17 pravidel = ~7 mil. řádků. R-01 sám zasáhne ~55 % transakcí. Zajímá nás hlavně, co neprošlo. |
-| V17 | Běh se spouští asynchronně: `POST /api/evaluation-runs` vrátí `202` s během ve stavu `running`, výpočet běží mimo request. Lokálně v procesu API, v AWS v samostatné Lambda funkci (`EVALUATION_WORKER_FUNCTION`). | Lambda Web Function může prostředí po odpovědi kdykoli zrušit. Celý dataset trvá lokálně ~45 s, na Auroře déle. |
+| #   | Rozhodnutí                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Důvod                                                                                                                                                                                                                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V1  | Uživatel nahrává jen **transakce**. Klienti už jsou v databázi. Řádek s neznámým klientem systém odmítne.                                                                                                                                                                                                                                                                                                                                                                                                                    | Klienti jsou v `golden`. Jednoduchost MVP.                                                                                                                                                                                                                                                                                                      |
+| V2  | Řádky CSV jdou do tabulky `transactions`. Existující `transaction_id` se stejným obsahem systém znovu použije. Existující `transaction_id` s jiným obsahem systém odmítne.                                                                                                                                                                                                                                                                                                                                                   | Transakce jsou neměnné. Stejné CSV jde vyhodnotit znovu s jinými pravidly.                                                                                                                                                                                                                                                                      |
+| V3  | Samotný soubor CSV systém neukládá. Běh drží `file_name`, `file_sha256` a `source_row_no`.                                                                                                                                                                                                                                                                                                                                                                                                                                   | Data zůstávají v databázi. Hash prokáže, který soubor se vyhodnotil.                                                                                                                                                                                                                                                                            |
+| V4  | Běh vyhodnotí **jen transakce z nahraného CSV**. Kontext (historie klienta) tvoří všechny transakce klienta v databázi v okamžiku běhu.                                                                                                                                                                                                                                                                                                                                                                                      | Odpovídá D6.                                                                                                                                                                                                                                                                                                                                    |
+| V5  | Běh **fixuje** verze pravidel (`RUN_RULE_VERSION`) a referenčních seznamů (`RUN_REFERENCE_LIST_VERSION`) při startu. Změna pravidla během běhu výsledek neovlivní.                                                                                                                                                                                                                                                                                                                                                           | Rekonstruovatelnost. M9 říká „poslední verze“, běh ale musí vědět, kterou použil.                                                                                                                                                                                                                                                               |
+| V6  | `RULE_EVALUATION` vzniká pro **každou** dvojici transakce × verze pravidla, i pro `not_applicable`. Zúženo ve [V16](#rozhodnutí-vyhodnocení): `pass` se neukládá.                                                                                                                                                                                                                                                                                                                                                            | UI ukáže u každé transakce všechna pravidla. Whitelist se při odebrání maže (M16), důvod přeskočení proto musí být v záznamu.                                                                                                                                                                                                                   |
+| V7  | Hranice `hit` je **`hit_threshold` na běhu**, výchozí 50. Skóre transakce je **maximum** skóre pravidel.                                                                                                                                                                                                                                                                                                                                                                                                                     | Řeší otázky 7 a 8 ve spec pro MVP. Maximum je vysvětlitelné jedním pravidlem.                                                                                                                                                                                                                                                                   |
+| V8  | `features` ukládá vstupní hodnoty včetně použitého kurzu. `context_refs` ukládá ID transakcí, ze kterých pravidlo počítalo. U `pass` může být `context_refs` prázdné.                                                                                                                                                                                                                                                                                                                                                        | Trace je čitelný bez přepočtu. Plný seznam u `pass` by zbytečně zvětšil data (~400 000 transakcí × počet pravidel).                                                                                                                                                                                                                             |
+| V9  | `client_risk_profile` je snapshot na `TRANSACTION_EVALUATION`.                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Risk profil rozhoduje o `not_applicable`.                                                                                                                                                                                                                                                                                                       |
+| V10 | `engine_version` (git commit) je na běhu.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Výpočet featur je v kódu (M10). Bez verze kódu nejde výsledek reprodukovat.                                                                                                                                                                                                                                                                     |
+| V11 | Převod do CZK používá `FX_RATE`: kurz ČNB k datu transakce. Tabulku plní migrace.                                                                                                                                                                                                                                                                                                                                                                                                                                            | Dataset obsahuje 23 měn. Řeší FX část otázky 13 ve spec.                                                                                                                                                                                                                                                                                        |
+| V12 | Souhrnné počty (`tx_passed`, `tx_flagged`, `tx_error`) a `tx_processed` jsou sloupce běhu. Počty per pravidlo UI počítá dotazem.                                                                                                                                                                                                                                                                                                                                                                                             | Dashboard ukazuje průběh bez agregace 400 000 řádků.                                                                                                                                                                                                                                                                                            |
+| V13 | ~~AML událost nevzniká.~~ Nahrazeno V18.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |                                                                                                                                                                                                                                                                                                                                                 |
+| V14 | Běh a jeho výsledky jsou neměnné. Systém je nemaže.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Záznam vyhodnocení slouží jako audit log vyhodnocení (spec 7.7).                                                                                                                                                                                                                                                                                |
+| V15 | Běh může místo CSV vyhodnotit **transakce, které už jsou v databázi**. Rozsah určuje `scope` na běhu (`from`, `to`, `clientIds`, `limit`; prázdný = všechny). `file_name` popisuje rozsah, `file_sha256` je hash seřazených ID vyhodnocených transakcí, `source_row_no` je pořadí transakce v běhu.                                                                                                                                                                                                                          | Data jsou v DB, upload CSV zatím není (#3). Hash prokáže, které transakce se vyhodnotily.                                                                                                                                                                                                                                                       |
+| V16 | `RULE_EVALUATION` se ukládá jen pro výsledek **jiný než `pass`** (`hit`, `error`, `not_applicable`). `TRANSACTION_EVALUATION` se ukládá pro každou transakci. Zužuje V6.                                                                                                                                                                                                                                                                                                                                                     | Celý dataset × 17 pravidel = ~7 mil. řádků. R-01 sám zasáhne ~55 % transakcí. Zajímá nás hlavně, co neprošlo.                                                                                                                                                                                                                                   |
+| V17 | Běh se spouští asynchronně: `POST /api/evaluation-runs` vrátí `202` s během ve stavu `running`, výpočet běží mimo request. Lokálně v procesu API, v AWS v samostatné Lambda funkci (`EVALUATION_WORKER_FUNCTION`).                                                                                                                                                                                                                                                                                                           | Lambda Web Function může prostředí po odpovědi kdykoli zrušit. Celý dataset trvá lokálně ~45 s, na Auroře déle.                                                                                                                                                                                                                                 |
+| V18 | Po vyhodnocení všech transakcí běh seskupí své zásahy (`outcome = hit`) do **AML událostí** (`AML_EVENT`) podle `rules.alert_granularity`: `transaction` = jedna událost na transakci, `client_month` = jedna na klienta a kalendářní měsíc (`ts` bez převodu pásma, F2). Každý zásah patří právě do jedné události (`AML_EVENT_HIT`). Běh je `completed` až po uložení událostí; selhání událostí běh ukončí jako `failed`.                                                                                                 | Issue #13, otázka 5 ve spec. Zadání FINREG hodnotí alerty, ne zásahy. Měsíc odpovídá SVZ-03 čl. 6.1 a nemění nic na datech za červenec 2026.                                                                                                                                                                                                    |
+| V19 | Granularita je **na pravidle**, ne na verzi, a do události se kopíruje spolu s `alert_type`. Výchozí je `transaction`, drafty z wizardu ji dědí. Ukázková pravidla: `client_month` R-01, R-04 až R-14; `transaction` R-02, R-03, R-15 až R-17. R-07 (klient × příjemce × měsíc) a R-09 (účet příjemce × den) se seskupují per klient a měsíc.                                                                                                                                                                                | Granularita nemění detekci, jen seskupení. Snapshot v události drží běh rekonstruovatelný (V14). Událost patří vždy jednomu klientovi, kterého jde prověřit; všechny příjemce vidí v zásazích.                                                                                                                                                  |
+| V20 | `alert_id` je čitelné a unikátní v běhu: `<kód pravidla>-<transaction_id>` nebo `<kód pravidla>-<client_id>-<YYYY-MM>`. Události z více pravidel u stejného klienta zůstávají samostatné; detail události je propojí (`otherClientAmlEvents`, SVZ-03 čl. 6.3).                                                                                                                                                                                                                                                               | ID jde do povinného CSV a je z něj vidět pravidlo, klient i období. Spojení do jednoho „příběhu klienta“ patří do triáže (#14).                                                                                                                                                                                                                 |
+| V21 | Každý alert dostane po vyhodnocení běhu **deterministický návrh** (`AML_EVENT_TRIAGE.source = rules`): prioritu podle tabulky P (SVZ-03 Příloha 1, základy pravidel z SVZ-06) s rozpadem po faktorech, triáž a odůvodnění. Při více alertech klienta v měsíci se bere nejvyšší základ a +10 za každý další scénář. `REVIEW`, když platí pojistka (V23) nebo objem měsíce přesáhne 2× očekávaný měsíc (max z projekce a průměru Q2 2026); jinak `FP`. Priorita triáž nerozhoduje.                                             | Issue #14. Povinné CSV má vždy všechny řádky, i bez LLM. Váhy jsou v kódu (`domain/alertTriage.ts`), vysvětlitelné a stejné pro každý běh.                                                                                                                                                                                                      |
+| V22 | **LLM návrh** (`source = llm`, Claude na Bedrocku, výchozí Haiku 4.5 v EU profilu) vzniká na vyžádání, jedno volání na klienta se všemi jeho alerty v běhu. Model vidí profil klienta, Q2 a měsíční agregáty, předpočítanou prioritu s faktory, deterministický návrh a nejvýš 5 největších zásahových transakcí na alert, ne celou historii. Rozhoduje `FP` / `REVIEW` a píše `reason`; prioritu nemění. Ukládá se prompt, odpověď, model a tokeny (`ALERT_TRIAGE_LLM_CALL`). Aktuální návrh je LLM, jinak deterministický. | SVZ-03 čl. 8.3, „see the whole story“. Rekonstruovatelnost podle vyhlášky 67/2018 § 18. Celý běh je ~5,5 tis. volání; API proto pustí nejvýš 20 vybraných klientů v requestu nebo 100 klientů s nejvyšší prioritou na pozadí, na pozadí jen jednu triáž běhu najednou; režim „celý běh“ neexistuje. Opakované spuštění přeskočí hotové klienty. |
+| V23 | **Pojistky:** alert pravidel R-02 až R-05, R-09, R-16, alert klienta PEP a alert se zemí z `HRJ` (klient, plátce nebo příjemce zásahu) je vždy `REVIEW`. `FP` od modelu se u nich přepíše na `REVIEW` a `log.overridden_by_guardrail` to zaznamená.                                                                                                                                                                                                                                                                          | SVZ-03 čl. 8.4 a 8.6, SVZ-06 čl. 17. Model nesmí sám uzavřít alert, který předpis vyhrazuje člověku.                                                                                                                                                                                                                                            |
+| V24 | Návrhy jsou neměnné: alert má nejvýš jeden návrh od každého zdroje, opakovaná triáž stejného zdroje se přeskočí. `log` v CSV je JSON: čas, pravidlo a jeho verze, priorita a faktory, pojistky, model a tokeny, ID volání LLM, `decision_aid_only: true`.                                                                                                                                                                                                                                                                    | Rozhodnutí jde zpětně rekonstruovat. Lidské rozhodnutí a eskalace přijdou s #15 a #17.                                                                                                                                                                                                                                                          |
 
 ### Obrazovky
 
-| Obrazovka | Zdroj dat |
-| --- | --- |
-| Seznam běhů | `EVALUATION_RUN`: stav, soubor, čas, počty `pass` / `flagged` / `error`. |
-| Souhrn běhu | Počty transakcí podle `verdict`. Počet `hit` per pravidlo. Odmítnuté řádky z `import_errors`. Zafixované verze pravidel a seznamů. |
-| Seznam transakcí běhu | `TRANSACTION_EVALUATION` s filtrem podle `verdict` a pravidla, řazení podle `max_score`. |
-| Detail transakce | Transakce, klient, všechna pravidla s `outcome`, skóre, `trace.summary`, podmínkami, právním základem a odkazem na předpis. |
+| Obrazovka                      | Zdroj dat                                                                                                                                                                                                            |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Seznam běhů                    | `EVALUATION_RUN`: stav, soubor, čas, počty `pass` / `flagged` / `error`.                                                                                                                                             |
+| Souhrn běhu                    | Počty transakcí podle `verdict`. Počet `hit` per pravidlo. Odmítnuté řádky z `import_errors`. Zafixované verze pravidel a seznamů.                                                                                   |
+| Seznam transakcí běhu          | `TRANSACTION_EVALUATION` s filtrem podle `verdict` a pravidla, řazení podle `max_score`.                                                                                                                             |
+| Detail transakce               | Transakce, klient, všechna pravidla s `outcome`, skóre, `trace.summary`, podmínkami, právním základem a odkazem na předpis.                                                                                          |
+| Seznam AML událostí běhu (#17) | `AML_EVENT` s aktuálním návrhem triáže, filtr podle `alert_type` a klienta, řazení podle priority, pak `max_score`.                                                                                                  |
+| Detail AML události (#17)      | Událost, pravidlo a jeho verze, klient, spouštějící transakce s výsledkem pravidla, ostatní události klienta v běhu s triáží, všechny návrhy triáže s faktory a logem a volání LLM (prompt, odpověď, model, tokeny). |
+| Export CSV                     | Jeden řádek na alert ve sloupcích FINREG; `executive_role`, `executive_person` a `approver` zatím prázdné (#15).                                                                                                     |
 
 ## Compliance poznámky
 
@@ -388,6 +455,11 @@ Před reálným nasazením je musí zkontrolovat compliance officer nebo právn�
 
 ### Vyhodnocení
 
+- **AML událost i návrh triáže jsou podklad, ne AML rozhodnutí.** Rozhodnutí člověka přijde s #17. Pravidla pro návrh `FP` (V21), pojistky (V23), váhy priority (tabulka P) a prompt i model (V22) musí posoudit compliance officer. Hromadné uzavírání `FP` pod prioritou 40 (SVZ-03 čl. 8.3 bod 5) systém nedělá.
+- **Triáž počítá s CZK po přepočtu kurzem ČNB**, stejně jako pravidla. V PoC datech se `volume` chová jako CZK, proto přepočet nafukuje měsíční objemy a většina alertů R-01 vychází jako `REVIEW`. Rozhodnutí o přepočtu (spec/features.md, sekce 4) mění i triáž.
+- **Faktor „vztah delší než 5 let bez předchozího alertu“ (SVZ-06 čl. 16, −10)** chybí: data nemají historii alertů.
+- **Granularita AML událostí** (V18, V19) určuje, kolik alertů člověk dostane. R-07 a R-09 seskupujeme jinak než v příkladech pravidel (per klient a měsíc místo klient × příjemce, resp. účet příjemce × den). Granularita je na pravidle bez schvalování a změna platí pro další běhy. Obojí musí posoudit compliance.
+- **Transakce s `verdict = error` AML událost nevytváří.** Musí jít k člověku jinou cestou.
 - **`hit_threshold` na běhu** mění výsledek detekce. Uživatel ho může zvýšit a potlačit zásahy. Reálný provoz potřebuje schválenou hodnotu, ne volbu při spuštění.
 - **Citlivost pod 100** sníží `adjusted_score` a může z `hit` udělat `pass`. Viz [compliance poznámky ve spec](spec.md#11-compliance-poznámky).
 - **`verdict = pass` není AML rozhodnutí.** Je to podklad. Transakce s `error` musí jít k člověku.

@@ -12,6 +12,22 @@ describe("parseAppConfig", () => {
       evaluationWorker: { mode: "in_process" },
       draftingWorker: { mode: "in_process" },
       draftGenerator: { mode: "dummy" },
+      alertTriage: { mode: "off" },
+    });
+  });
+
+  it("triages with the triage model on Bedrock when ALERT_TRIAGE=bedrock", () => {
+    expect(
+      parseAppConfig({ DATABASE_URL, ALERT_TRIAGE: "bedrock", BEDROCK_MODEL_ID: "drafting-model" })
+        .alertTriage,
+    ).toEqual({
+      mode: "bedrock",
+      bedrock: {
+        region: "eu-central-1",
+        modelId: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+        auth: { kind: "short_term_api_key" },
+      },
+      concurrency: 8,
     });
   });
 

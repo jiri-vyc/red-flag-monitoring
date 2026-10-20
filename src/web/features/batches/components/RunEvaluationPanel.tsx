@@ -11,11 +11,13 @@ import { Notice } from "@/components/ui/Notice";
 import { ErrorState } from "@/components/ui/StateViews";
 import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
+import { getServiceMode } from "@/config/apiMode";
 import { formatNumber } from "@/lib/format";
 
 import { useBatches, useBatchesMode, useStartEvaluationRun } from "../api/hooks";
-import { batchPath } from "../batchPaths";
+import { findStartedRunPath } from "../batchPaths";
 import { estimateThroughput, findFullDatasetTxCount } from "../domain/runDuration";
+import { MAX_RUN_LIMIT, parseRunLimit } from "../domain/runScope";
 import type { RunScope } from "../types";
 import { RunDurationEstimate } from "./RunDurationEstimate";
 import styles from "./RunEvaluationPanel.module.css";
@@ -23,15 +25,6 @@ import styles from "./RunEvaluationPanel.module.css";
 type ScopeForm = { limit: string; from: string; to: string };
 
 const EMPTY_SCOPE_FORM: ScopeForm = { limit: "", from: "", to: "" };
-
-/** An empty field is left out of the scope; null means the limit is not a positive whole number. */
-function parseLimit(limit: string): number | undefined | null {
-  if (limit.trim() === "") {
-    return undefined;
-  }
-  const parsedLimit = Number(limit);
-  return Number.isInteger(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
-}
 
 function toOptionalDate(date: string): string | undefined {
   return date === "" ? undefined : date;
@@ -41,11 +34,11 @@ export function RunEvaluationPanel() {
   const { t, locale } = useI18n();
   const router = useRouter();
   const batchesMode = useBatchesMode();
-  const batchesQuery = useBatches();
+  const { batchesQuery } = useBatches();
   const startRunMutation = useStartEvaluationRun();
   const [scopeForm, setScopeForm] = useState(EMPTY_SCOPE_FORM);
 
-  const limit = parseLimit(scopeForm.limit);
+  const limit = parseRunLimit(scopeForm.limit);
   // "YYYY-MM-DD" compares correctly as text.
   const isRangeInvalid = scopeForm.from !== "" && scopeForm.to !== "" && scopeForm.from >= scopeForm.to;
   const isScopeEmpty = limit === undefined && scopeForm.from === "" && scopeForm.to === "";
@@ -60,7 +53,7 @@ export function RunEvaluationPanel() {
   const updateField = (field: keyof ScopeForm) => (value: string) =>
     setScopeForm((current) => ({ ...current, [field]: value }));
 
-  // A started run opens on its detail, which polls the progress.
+  // A started run opens on its detail, which polls the progress, unless the data source changed meanwhile.
   const startRun = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) {
@@ -71,8 +64,22 @@ export function RunEvaluationPanel() {
       from: toOptionalDate(scopeForm.from),
       to: toOptionalDate(scopeForm.to),
     };
+    const submittedMode = batchesMode;
     startRunMutation.mutate(scope, {
-      onSuccess: (batch) => router.push(batchPath(batch.id)),
+      onSuccess: (batch) => {
+        // Read at completion, not from the render, which may predate the switch.
+        const startedRunPath = findStartedRunPath({
+          batchId: batch.id,
+          submittedMode,
+          activeMode: getServiceMode("batches"),
+        });
+        if (startedRunPath === null) {
+          // Unlocks the form, which otherwise stays locked until the page navigates away.
+          startRunMutation.reset();
+          return;
+        }
+        router.push(startedRunPath);
+      },
     });
   };
 
@@ -85,7 +92,11 @@ export function RunEvaluationPanel() {
             label={t.batches.scopeLimit}
             htmlFor="run-scope-limit"
             hint={t.batches.scopeLimitHint}
-            error={limit === null ? t.batches.scopeLimitError : null}
+            error={
+              limit === null
+                ? formatMessage(t.batches.scopeLimitError, { max: formatNumber(MAX_RUN_LIMIT, locale) })
+                : null
+            }
           >
             <input
               id="run-scope-limit"
@@ -93,6 +104,7 @@ export function RunEvaluationPanel() {
               type="number"
               inputMode="numeric"
               min={1}
+              max={MAX_RUN_LIMIT}
               step={1}
               value={scopeForm.limit}
               onChange={(event) => updateField("limit")(event.target.value)}

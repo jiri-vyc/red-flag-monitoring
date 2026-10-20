@@ -53,7 +53,7 @@ export const ruleVersionSchema = z.object({
   state: ruleVersionStateSchema,
   content: ruleContentSchema,
   config: ruleConfigSchema,
-  /** Score a matching deterministic rule gets in full; set by the backend, not editable here. Null when unknown. */
+  /** Score a matching deterministic rule gets in full; editable in a draft. Null for agentic rules or when unknown. */
   baseScore: z.number().int().nullable(),
   changeNote: z.string(),
   createdAt: z.string(),
@@ -112,7 +112,16 @@ export type CreateRuleVersionInput = {
   config: RuleConfig;
   changeNote: string;
 };
-export type UpdateDraftContentInput = { ruleId: string; content: RuleContent };
+/**
+ * Edits an unreviewed version in place; without config or base score the version keeps its own (a partial update,
+ * issue #8). The base score belongs to deterministic rules only.
+ */
+export type UpdateDraftContentInput = {
+  ruleId: string;
+  content: RuleContent;
+  config?: RuleConfig;
+  baseScore?: number;
+};
 
 export type AddWhitelistEntryInput = { ruleId: string; clientId: string; reason: string };
 export type RemoveWhitelistEntryInput = { ruleId: string; clientId: string };

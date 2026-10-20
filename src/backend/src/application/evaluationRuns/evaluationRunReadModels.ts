@@ -15,6 +15,7 @@ export type RunRuleVersionSummary = {
   hitCount: number;
   // Distinct clients with a hit; the policies count alerts per client and month (e.g. R-01).
   hitClientCount: number;
+  amlEventCount: number;
 };
 
 export type RunReferenceListVersionSummary = {

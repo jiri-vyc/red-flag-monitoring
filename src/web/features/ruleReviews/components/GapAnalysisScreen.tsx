@@ -119,7 +119,7 @@ export function GapAnalysisScreen({ requestedReviewId }: { requestedReviewId: st
         }
       />
       {!canManageRules ? (
-        <RoleGateNotice requiredRole="compliance_officer" />
+        <RoleGateNotice permission="canManageRules" />
       ) : (
         <div className={styles.stack}>
           <Notice tone="compliance">{t.ruleReviews.notice}</Notice>

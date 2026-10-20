@@ -19,11 +19,18 @@ export const ESCALATION_ROLES = USER_ROLES;
 export type EscalationRole = UserRole;
 export const DEFAULT_ESCALATION_ROLE: EscalationRole = "contact_person";
 
+// Issue #13: how hits of the rule are grouped into AML events. `transaction` gives one event per hit
+// transaction (rule B), `client_month` one event per client and calendar month (rules A and C).
+export const ALERT_GRANULARITIES = ["transaction", "client_month"] as const;
+export type AlertGranularity = (typeof ALERT_GRANULARITIES)[number];
+export const DEFAULT_ALERT_GRANULARITY: AlertGranularity = "transaction";
+
 export type Rule = {
   id: string;
   policyId: string | null;
   code: string;
   alertType: string;
+  alertGranularity: AlertGranularity;
   kind: RuleKind;
   isEnabled: boolean;
   activeVersionId: string | null;

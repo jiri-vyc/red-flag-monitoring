@@ -2,6 +2,7 @@ import { getCurrentUser, formatUserName } from "@/config/currentUser";
 import { formatRuleName } from "@/features/rules/api/dto";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
+import { parseOffsetCursor } from "@/lib/offsetCursor";
 
 import type { Batch, BatchStatus, Bucket, RuleEvaluation, RunScope, SkipReason, TraceStep } from "../types";
 import type { BatchesService } from "./contract";
@@ -189,7 +190,7 @@ export const liveBatchesService: BatchesService = {
   },
 
   async loadBatchTransactions({ batchId, bucket, cursor, role }) {
-    const offset = Number(cursor ?? 0);
+    const offset = parseOffsetCursor(cursor);
     const searchParams = new URLSearchParams({
       verdict: VERDICT_BY_BUCKET[bucket],
       role,

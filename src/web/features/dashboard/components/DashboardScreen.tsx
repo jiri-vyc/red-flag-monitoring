@@ -18,7 +18,7 @@ import { findRuleLegalBases } from "@/features/rules/domain/ruleLifecycle";
 import { useWizardCapabilities } from "@/features/wizard/api/hooks";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
-import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGatedButtonLink } from "@/features/users/components/RoleGatedButton";
 
 import { useDashboardSummary } from "../api/hooks";
 import type { DashboardSummary } from "../types";
@@ -58,9 +58,14 @@ function WizardCallToAction() {
         <h2>{t.dashboard.ctaTitle}</h2>
         <p>{t.dashboard.ctaBody}</p>
       </div>
-      <ButtonLink href="/wizard" size="lg" icon={<Sparkles aria-hidden="true" />}>
+      <RoleGatedButtonLink
+        permission="canCreateRegulation"
+        href="/wizard"
+        size="lg"
+        icon={<Sparkles aria-hidden="true" />}
+      >
         {t.dashboard.ctaButton}
-      </ButtonLink>
+      </RoleGatedButtonLink>
     </section>
   );
 }
@@ -178,7 +183,6 @@ export function DashboardScreen() {
   const summaryQuery = useDashboardSummary();
   const { canUploadBatch } = useBatchesCapabilities();
   const { isAvailable: isWizardAvailable } = useWizardCapabilities();
-  const { canCreateRegulation } = useRolePermissions();
   return (
     <>
       <PageHeader
@@ -192,7 +196,7 @@ export function DashboardScreen() {
           )
         }
       />
-      {isWizardAvailable && canCreateRegulation && <WizardCallToAction />}
+      {isWizardAvailable && <WizardCallToAction />}
       <QueryView query={summaryQuery}>{(summary) => <DashboardContent summary={summary} />}</QueryView>
     </>
   );

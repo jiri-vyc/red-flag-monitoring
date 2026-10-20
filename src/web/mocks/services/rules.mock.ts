@@ -3,6 +3,7 @@ import {
   activateRule,
   addRuleVersion,
   approveRule,
+  canDeleteRule,
   deactivateRule,
   rejectRule,
   RuleTransitionError,
@@ -115,6 +116,7 @@ export const mockRulesService: RulesService = {
     canCreateDeterministicRule: true,
     canCreateAgenticRule: true,
     canSuggestWhitelistClients: true,
+    canDeleteRule: true,
   },
 
   async loadRules() {
@@ -187,8 +189,27 @@ export const mockRulesService: RulesService = {
   deactivateRule: (ruleId) => transitionRule(ruleId, deactivateRule),
   createRuleVersion: ({ ruleId, content, config, changeNote, author }) =>
     transitionRule(ruleId, (rule, now) => addRuleVersion(rule, { content, config, changeNote, author, now })),
-  updateDraftContent: ({ ruleId, content }) =>
-    transitionRule(ruleId, (rule, now) => updateDraftContent(rule, { content, now })),
+  updateDraftContent: ({ ruleId, content, config, baseScore }) =>
+    transitionRule(ruleId, (rule, now) => updateDraftContent(rule, { content, config, baseScore, now })),
+
+  // The UI only offers deletion for a rule that never had an approved version; this check is the safety net.
+  async deleteRule({ ruleId }) {
+    await simulateLatency();
+    if (!canDeleteRule(findRule(ruleId))) {
+      throwValidation(`Rule "${ruleId}" had an approved version and can only be switched off.`);
+    }
+    const database = readMockDatabase();
+    // The rule's versions live inside the rule record, so dropping it removes them too.
+    const ruleCheckKinds = Object.fromEntries(
+      Object.entries(database.ruleCheckKinds).filter(([checkedRuleId]) => checkedRuleId !== ruleId),
+    );
+    writeMockDatabase({
+      ...database,
+      rules: database.rules.filter((rule) => rule.id !== ruleId),
+      ruleCheckKinds,
+      whitelistEntries: database.whitelistEntries.filter((entry) => entry.ruleId !== ruleId),
+    });
+  },
 
   async getWhitelist(ruleId) {
     await simulateLatency();

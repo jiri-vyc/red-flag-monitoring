@@ -4,7 +4,7 @@ import type { DraftingJobFilter } from "../types";
 import type { DraftingJobsService } from "./contract";
 import { draftingJobDtoSchema, draftingJobPageDtoSchema, draftingJobPath, toDraftingJob } from "./dto";
 
-const LIVE_POLL_INTERVAL_MS = 30_000;
+const LIVE_POLL_INTERVAL_MS = 5_000;
 
 function buildListQuery({ statuses, kinds, limit }: DraftingJobFilter): string {
   const params = new URLSearchParams();

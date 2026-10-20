@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Usage: deploy/roles.sh
 # Creates or updates the least-privilege execution roles rfm-api-execution, rfm-web-execution and
-# rfm-drafting-worker-execution and their log groups with 14-day retention.
+# rfm-drafting-worker-execution, their log groups (10 years for the audit log, 14 days for the web) and the
+# saved Logs Insights query rfm/audit.
 source "$(dirname "$0")/common.sh"
 
 cluster_resource_id="$(aws rds describe-db-clusters --db-cluster-identifier "$CLUSTER" \
@@ -108,22 +109,54 @@ ensure_role() {
   echo "role $(role_arn "$role_name") is up to date"
 }
 
+# The API and the drafting worker write the audit log (#5): AML Act § 16 keeps records for 10 years.
+AUDIT_RETENTION_DAYS=3653
+DEFAULT_RETENTION_DAYS=14
+AUDIT_QUERY_NAME="rfm/audit"
+
 ensure_log_group() {
-  local log_group="$1"
+  local log_group="$1" retention_days="$2"
 
   if [ "$(aws logs describe-log-groups --log-group-name-prefix "$log_group" \
     --query "length(logGroups[?logGroupName=='$log_group'])" --output text)" = 0 ]; then
     aws logs create-log-group --log-group-name "$log_group" --tags project=red-flag-monitoring
   fi
 
-  aws logs put-retention-policy --log-group-name "$log_group" --retention-in-days 14
+  aws logs put-retention-policy --log-group-name "$log_group" --retention-in-days "$retention_days"
 }
 
-for function_name in "$API_FUNCTION" "$WEB_FUNCTION"; do
-  ensure_log_group "/aws/lambda/web/$function_name"
-  ensure_log_group "/aws/lambda/web/$function_name.local"
-done
-ensure_log_group "/aws/lambda/$DRAFTING_WORKER_FUNCTION"
+# Audit lines come as a JSON envelope's "message" from the Web Function and as plain text from the classic Lambda;
+# the regex follows formatAuditLine in backend/src/application/audit/auditLog.ts.
+ensure_audit_query() {
+  local query_id
+  local query_string='fields @timestamp, @log, coalesce(message, @message) as line
+| filter line like "[audit] "
+| parse line /\[audit\] action=(?<action>\S+) entity_type=(?<entityType>\S+) entity_id=(?<entityId>\S+) actor_id=(?<actorId>\S+) payload=(?<payload>.*) \[\/audit\]/
+| display @timestamp, action, entityType, entityId, actorId, payload, @log
+| sort @timestamp desc
+| limit 1000'
+
+  query_id="$(aws logs describe-query-definitions --query-definition-name-prefix "$AUDIT_QUERY_NAME" \
+    --query "queryDefinitions[?name=='$AUDIT_QUERY_NAME'].queryDefinitionId | [0]" --output text)"
+
+  if [ "$query_id" = None ]; then
+    aws logs put-query-definition --name "$AUDIT_QUERY_NAME" --query-string "$query_string" \
+      --log-group-names "/aws/lambda/web/$API_FUNCTION" "/aws/lambda/$DRAFTING_WORKER_FUNCTION" >/dev/null
+  else
+    aws logs put-query-definition --name "$AUDIT_QUERY_NAME" --query-string "$query_string" \
+      --log-group-names "/aws/lambda/web/$API_FUNCTION" "/aws/lambda/$DRAFTING_WORKER_FUNCTION" \
+      --query-definition-id "$query_id" >/dev/null
+  fi
+
+  echo "Logs Insights query $AUDIT_QUERY_NAME is up to date"
+}
+
+ensure_log_group "/aws/lambda/web/$API_FUNCTION" "$AUDIT_RETENTION_DAYS"
+ensure_log_group "/aws/lambda/web/$API_FUNCTION.local" "$AUDIT_RETENTION_DAYS"
+ensure_log_group "/aws/lambda/web/$WEB_FUNCTION" "$DEFAULT_RETENTION_DAYS"
+ensure_log_group "/aws/lambda/web/$WEB_FUNCTION.local" "$DEFAULT_RETENTION_DAYS"
+ensure_log_group "/aws/lambda/$DRAFTING_WORKER_FUNCTION" "$AUDIT_RETENTION_DAYS"
+ensure_audit_query
 ensure_role "$API_FUNCTION-execution" "$api_policy" \
   "rfm-api Web Function: logs, Aurora IAM auth, Bedrock EU Anthropic, launching drafting jobs"
 ensure_role "$WEB_FUNCTION-execution" "$web_policy" "rfm-web Web Function: logs only"

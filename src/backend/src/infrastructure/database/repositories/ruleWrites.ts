@@ -12,6 +12,7 @@ export function insertRule(manager: EntityManager, rule: NewRule): Promise<RuleE
       policyId: rule.policyId,
       code: rule.code,
       alertType: rule.alertType,
+      alertGranularity: rule.alertGranularity,
       kind: rule.kind,
       whitelistAllowed: rule.isWhitelistAllowed,
     }),

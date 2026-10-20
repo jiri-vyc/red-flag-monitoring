@@ -1,5 +1,6 @@
 import { type DraftingJob, reportTimedOutJob } from "../../domain/draftingJob";
 import { derivePastedVersionLabel, isAllowedRegulationSourceUrl } from "../../domain/regulationSource";
+import { recordAuditEvent } from "../audit/auditLog";
 import type { Clock } from "../clock";
 import { BusinessRuleViolationError, NotFoundError, toErrorMessage } from "../errors";
 import type { Page, PageRequest } from "../pagination";
@@ -135,7 +136,23 @@ export class DraftingJobUseCases {
   }
 
   private async createAndLaunchJob(job: NewDraftingJob): Promise<DraftingJob> {
-    return this.launchCreatedJob(await this.dependencies.draftingJobRepository.createJob(job));
+    const created = await this.dependencies.draftingJobRepository.createJob(job);
+
+    recordAuditEvent({
+      action: "drafting_job.created",
+      entityType: "drafting_job",
+      entityId: created.id,
+      actorId: job.createdBy,
+      payload: {
+        kind: job.kind,
+        parentJobId: job.parentJobId,
+        sourceKind: job.sourceKind,
+        regulationVersionId: job.regulationVersionId,
+        policyVersionId: job.policyVersionId,
+      },
+    });
+
+    return this.launchCreatedJob(created);
   }
 
   // A job the launcher could not start would stay pending until the timeout, so it is failed right away. The

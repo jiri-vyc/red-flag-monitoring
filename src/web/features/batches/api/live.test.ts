@@ -184,6 +184,21 @@ describe("liveBatchesService", () => {
     expect(page.items[0]).toMatchObject({ failedRuleCount: 1, maxAdjustedScore: 70 });
   });
 
+  it.each(["abc", "-25", "2.5"])("asks for the first page for the invalid cursor %s", async (cursor) => {
+    requestJsonMock.mockResolvedValue({ items: [], limit: 25, offset: 0, total: 0 });
+
+    await liveBatchesService.loadBatchTransactions({
+      batchId: "run-1",
+      bucket: "ok",
+      cursor,
+      role: "compliance_analyst",
+    });
+
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      expect.objectContaining({ path: expect.stringContaining("&offset=0") }),
+    );
+  });
+
   it("flattens nested condition groups and keeps the base score only for scored evaluations", async () => {
     const operand = (feature: string, value: number) => ({ feature, value });
     requestJsonMock.mockResolvedValue({

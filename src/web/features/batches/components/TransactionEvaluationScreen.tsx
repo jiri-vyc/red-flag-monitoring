@@ -19,6 +19,7 @@ import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { findScoreTone, ScoreBar } from "@/components/ui/ScoreBar";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
+import { FauReportAlertAction } from "@/features/fauReports/components/FauReportAlertAction";
 import { rulePath } from "@/features/rules/api/dto";
 import { RuleTypeBadge } from "@/features/rules/components/RuleBadges";
 import { transactionsPath } from "@/features/transactions/transactionsPath";
@@ -234,6 +235,7 @@ function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEv
         title={transaction.transactionId}
         meta={<BucketBadge bucket={evaluation.bucket} />}
         description={t.transactionDetail.title}
+        actions={<FauReportAlertAction evaluation={evaluation} />}
       />
       <div className={styles.facts}>
         <Card title={t.transactionDetail.transaction}>

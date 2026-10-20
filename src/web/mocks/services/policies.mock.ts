@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/config/currentUser";
 import type { PoliciesService } from "@/features/policies/api/contract";
+import { findPolicyDeletionBlocker } from "@/features/policies/domain/policyDeletion";
 import type { PolicyVersion } from "@/features/policies/types";
 import { ApiError } from "@/lib/apiError";
 
@@ -58,6 +59,8 @@ function approveLatestVersion(record: MockPolicyRecord, approvedBy: string, now:
 }
 
 export const mockPoliciesService: PoliciesService = {
+  capabilities: { canDeletePolicy: true },
+
   async loadPolicies() {
     await simulateLatency();
     const database = readMockDatabase();
@@ -114,5 +117,28 @@ export const mockPoliciesService: PoliciesService = {
     });
     writeMockDatabase(enqueued.database);
     return { policy, rulesJob: enqueued.job };
+  },
+
+  // The UI only offers deletion when nothing blocks it; this check is the safety net.
+  async deletePolicy({ policyId }) {
+    await simulateLatency();
+    const database = readMockDatabase();
+    const blocker = findPolicyDeletionBlocker(mapPolicyRecord(findPolicyRecord(policyId), database));
+    if (blocker !== null) {
+      throw new ApiError({
+        kind: "validation",
+        message: `Policy "${policyId}" cannot be deleted (${blocker}).`,
+      });
+    }
+    // The policy's versions live inside its record, so dropping it removes them too. The wizard run that drafted
+    // it no longer lists it, so the run is not offered for resuming once none of its drafts is left.
+    writeMockDatabase({
+      ...database,
+      policies: database.policies.filter((policy) => policy.id !== policyId),
+      draftingJobs: database.draftingJobs.map((record) => ({
+        ...record,
+        job: { ...record.job, policyIds: record.job.policyIds.filter((id) => id !== policyId) },
+      })),
+    });
   },
 };
