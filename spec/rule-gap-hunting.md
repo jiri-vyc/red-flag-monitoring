@@ -545,6 +545,38 @@ In CZK the same split is 13 gaps, 6 recalibrations, 11 noise, 1 no near miss: th
 
 **Go / no-go:** **go** for iteration 1 as built, i.e. local use and a demo. The signal is not empty: 18 gaps, every perturbed hit found again, and the deterministic numbers match the independent Python probe. Detection is provably unchanged. Before anything goes to `main`, the user confirms these results (the gate in 8). Before a deployment, iteration 2 must replace the file store, which does not work on Lambda.
 
+### 6.8 1b integration notes
+
+Step 1b lives in `infrastructure/bedrock/ruleReview/` with the CLI `delivery/cli/ruleReviewLlm.ts`: `npx tsx --env-file-if-exists=.env src/delivery/cli/ruleReviewLlm.ts [report.json] [output.json]`. It runs both adapters on `fixtures/ruleReviewReport.fixture.json` with in-memory fake tools (`fixtures/`, the backtest is a hash) and writes the report with its `llm` section. What 1a wires:
+
+- **Types.** `ruleReview/contract.ts` mirrors 1a's draft (`domain/ruleReview/*`, `application/ruleReviews/ruleReviewPorts.ts`). Swap its imports for 1a's modules and delete it. It adds three fields 1b asked 1a for:
+  - `HypothesisExploration.errors`: a Bedrock failure or a budget stop in the loop;
+  - `RuleHypothesis.kind` (`new_rule` | `coverage_gap`) and `missingFeature`;
+  - `definition` is null for a coverage gap.
+- **Switch.** With `RULE_REVIEW_LLM=bedrock`, `ruleReviewComposition.ts` uses `createBedrockRuleReviewLlm(parseBedrockConfig(env))`. It has the same `BEDROCK_*` variables and `createBedrockClient` as drafting. Without it, the no-op adapters stay.
+- **Executor order.**
+  1. `explain(findings, context)` and `explore(report, tools, params.llm)` can run in parallel.
+  2. Then call `summarize(context)` with the explanations already set on `context.report.llm.explanations`.
+  3. Explainer calls and errors arrive through `context.audit`. Append the explorer's `calls` and `errors` to them.
+  4. None of these throws.
+- **Discard rules.**
+  - 1a's `backtestRule` sets `discardReason` (4 caps from `params.backtest`).
+  - 1b also discards a backtest with a `violation` or zero clients, and anything that fails `buildRuleDefinition` or `findRuleDefinitionViolation` before the backtest runs.
+  - Discarded hypotheses stay in `hypotheses` with `backtest.discardReason` set. Only the ones with `discardReason === null` count toward `maxHypotheses`.
+  - The model gets the reason and may retry within the budget.
+- **What 1a's data must respect.**
+  - `finding.evidence` and the tool results go to the model verbatim, so they hold aggregates only. 1b clamps backtest samples to `maxSampleClientIds`, and only that.
+  - Citations are checked against the document the model was given: `finding.*` (id, kind, rule, proposal, growth, clientCount, evidence), `rule.*` (catalogue entry) and `clients.<i>.*` (1a's `ClientProfile` plus `distinctDays` and `seedLinks` from the finding). An unverified citation carries an extra `reason`.
+- **Audit.**
+  - `inputTokens` includes cache reads and writes.
+  - In the hypothesis loop, `prompt` holds `{ system | null, tools, messages }`, only what that call added. The conversation is the `hypotheses` calls in order.
+- **Budget.** The loop stops gracefully and keeps partial results. The stop reason goes to `errors` as "Hypothesis loop stopped early, …".
+- **Open:**
+  - an npm script for the CLI;
+  - `.rule-reviews/` in `.gitignore`;
+  - the DSL guidance in `hypothesisPrompt.ts` repeats `ruleDraftingPrompt.ts`, so extract a shared module;
+  - a hypothesis' Czech text can claim more than its DSL does (seen in the fixture run). The officer should read the definition, not only the description.
+
 ## 7. Iteration 2: persistence, officer workflow, deployment (only after confirmation)
 
 **Starts only when the user confirms that iteration 1 does not break the app.** Then:

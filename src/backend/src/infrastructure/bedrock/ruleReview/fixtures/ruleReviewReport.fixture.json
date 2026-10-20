@@ -1,0 +1,798 @@
+{
+  "id": "fixture-rule-review-0001",
+  "status": "completed",
+  "startedAt": "2026-10-20T08:00:00.000Z",
+  "finishedAt": "2026-10-20T08:04:12.000Z",
+  "errorMessage": null,
+  "createdBy": "00000000-0000-4000-a000-000000000001",
+  "engineVersion": "fixture",
+  "params": {
+    "caps": {
+      "maxRelativeMove": {
+        "amount": 0.1,
+        "window": 0.25,
+        "ratio": 0.1
+      },
+      "stepSize": {
+        "amount": 0.025,
+        "window": 0.05,
+        "ratio": 0.025
+      },
+      "maxCountUnits": 1,
+      "excludedRuleCodes": ["R-01"],
+      "regulatoryParameters": ["R-07:b"],
+      "repetition": {
+        "minDistinctDays": 2,
+        "minClients": 3
+      }
+    },
+    "growthCap": {
+      "minAddedClients": 5,
+      "maxRelativeGrowth": 0.25,
+      "maxAddedClients": 50
+    },
+    "association": {
+      "seedRuleCodes": ["R-02", "R-03", "R-04", "R-11", "R-12"],
+      "maxClientsPerPrivateAccount": 3,
+      "minDistinctLinks": 2,
+      "maxLinkedClients": 50,
+      "strongFlowWindowHours": 72,
+      "strongFlowMinAmountCzk": 25000
+    },
+    "backtest": {
+      "maxClientShare": 0.01,
+      "maxOverlapWithExistingRule": 0.8
+    },
+    "llm": {
+      "enabled": true,
+      "maxToolCalls": 20,
+      "maxInputTokens": 150000,
+      "maxOutputTokens": 20000,
+      "maxWallClockMs": 300000,
+      "maxHypotheses": 5,
+      "maxConcurrentExplanations": 3,
+      "maxSampleClientIds": 10
+    }
+  },
+  "input": {
+    "ruleVersionIds": [
+      "00000000-0000-4000-9000-000000000004",
+      "00000000-0000-4000-9000-000000000012",
+      "00000000-0000-4000-9000-000000000013",
+      "00000000-0000-4000-9000-000000000006"
+    ],
+    "referenceListVersionIds": [],
+    "transactionSetDigest": "fixture",
+    "evaluationRunId": null
+  },
+  "progress": {
+    "stage": "completed",
+    "done": 1,
+    "total": 1
+  },
+  "coverageMatrix": [
+    {
+      "indicator": "Z1",
+      "label": "Nápadně více operací nebo objemu, než je pro klienta obvyklé",
+      "ruleCodes": ["R-01", "R-13"]
+    },
+    {
+      "indicator": "Z2",
+      "label": "Prostředky neodpovídají deklarovanému rozsahu činnosti",
+      "ruleCodes": ["R-01", "R-05"]
+    },
+    {
+      "indicator": "Z3",
+      "label": "Neobvykle objemná jednotlivá transakce",
+      "ruleCodes": ["R-01"]
+    },
+    {
+      "indicator": "Z4",
+      "label": "Přijaté prostředky bezprostředně posílá dál",
+      "ruleCodes": ["R-04", "R-11"]
+    },
+    {
+      "indicator": "Z5",
+      "label": "Účet využíván v rozporu s účelem (sběrný účet)",
+      "ruleCodes": ["R-06", "R-09"]
+    },
+    {
+      "indicator": "Z6",
+      "label": "Transakce se zemí s nedostatečnými AML opatřeními",
+      "ruleCodes": ["R-02", "R-16"]
+    },
+    {
+      "indicator": "Z7",
+      "label": "Významný odchozí tok PEP",
+      "ruleCodes": ["R-03"]
+    },
+    {
+      "indicator": "Z8",
+      "label": "Účet založený na dálku využit nad rámec",
+      "ruleCodes": ["R-05", "R-15"]
+    },
+    {
+      "indicator": "Z9",
+      "label": "Převody bez ekonomického důvodu, složité řetězce plateb",
+      "ruleCodes": []
+    },
+    {
+      "indicator": "Z10",
+      "label": "Klient odmítá doložit účel nebo zdroj",
+      "ruleCodes": []
+    },
+    {
+      "indicator": "Z11",
+      "label": "Platby za třetí osoby, zastření totožnosti",
+      "ruleCodes": []
+    },
+    {
+      "indicator": "Z12",
+      "label": "Osoba na sankčním seznamu",
+      "ruleCodes": []
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-01",
+      "kind": "rule_adjustment",
+      "rule": {
+        "ruleId": "00000000-0000-4000-8000-000000000004",
+        "ruleVersionId": "00000000-0000-4000-9000-000000000004",
+        "code": "R-04",
+        "label": "Průtokový účet"
+      },
+      "proposal": {
+        "parameter": "R04_MIN_INFLOW_CZK",
+        "parameterType": "amount",
+        "currentValue": 100000,
+        "proposedValue": 95000,
+        "step": 0.05
+      },
+      "growth": {
+        "baseClients": 16,
+        "addedClients": 3,
+        "capExceeded": false
+      },
+      "clients": [
+        {
+          "clientId": "K003487",
+          "transactionIds": ["TX000312605", "TX000327732"],
+          "nearMissCount": 2,
+          "distinctDays": 2,
+          "minDistance": 0.0229,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K003624",
+          "transactionIds": ["TX000151375"],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0001,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K005006",
+          "transactionIds": ["TX000147242"],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0002,
+          "seedLinks": []
+        }
+      ],
+      "evidence": {
+        "parameterLabel": "Minimální příchozí částka za 24 h (CZK)",
+        "parameterSource": "feature_parameter",
+        "parameterCap": 0.1,
+        "growthCapLimit": 5,
+        "sweep": [
+          {
+            "step": 0.05,
+            "addedClients": 3
+          },
+          {
+            "step": 0.1,
+            "addedClients": 12
+          },
+          {
+            "step": 0.2,
+            "addedClients": 30
+          }
+        ],
+        "nearMisses": [
+          {
+            "clientId": "K003487",
+            "transactionId": "TX000312605",
+            "date": "2026-07-25",
+            "inflowCzk": 97472.85
+          },
+          {
+            "clientId": "K003487",
+            "transactionId": "TX000327732",
+            "date": "2026-07-26",
+            "inflowCzk": 97711.59
+          },
+          {
+            "clientId": "K003624",
+            "transactionId": "TX000151375",
+            "date": "2026-07-12",
+            "inflowCzk": 99985.21
+          },
+          {
+            "clientId": "K005006",
+            "transactionId": "TX000147242",
+            "date": "2026-07-12",
+            "inflowCzk": 99976.88
+          }
+        ]
+      }
+    },
+    {
+      "id": "F-02",
+      "kind": "rule_adjustment",
+      "rule": {
+        "ruleId": "00000000-0000-4000-8000-000000000012",
+        "ruleVersionId": "00000000-0000-4000-9000-000000000012",
+        "code": "R-12",
+        "label": "Kruhové platby se stejnou protistranou"
+      },
+      "proposal": {
+        "parameter": "R12_WINDOW_HOURS",
+        "parameterType": "window",
+        "currentValue": 72,
+        "proposedValue": 90,
+        "step": 0.25
+      },
+      "growth": {
+        "baseClients": 33,
+        "addedClients": 4,
+        "capExceeded": false
+      },
+      "clients": [
+        {
+          "clientId": "K004880",
+          "transactionIds": ["TX000106115", "TX000144934"],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0075,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K000909",
+          "transactionIds": ["TX000080447", "TX000127477"],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.1428,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K000956",
+          "transactionIds": ["TX000269176", "TX000317474"],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.2433,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K005134",
+          "transactionIds": ["TX000103554", "TX000153422"],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.2302,
+          "seedLinks": []
+        }
+      ],
+      "evidence": {
+        "parameterLabel": "Okno pro platbu opačným směrem (hodiny)",
+        "parameterSource": "feature_parameter",
+        "parameterCap": 0.25,
+        "growthCapLimit": 8,
+        "sweep": [
+          {
+            "step": 0.1,
+            "addedClients": 1
+          },
+          {
+            "step": 0.25,
+            "addedClients": 4
+          },
+          {
+            "step": 0.5,
+            "addedClients": 11
+          }
+        ],
+        "nearMisses": [
+          {
+            "clientId": "K004880",
+            "firstTransactionId": "TX000106115",
+            "secondTransactionId": "TX000144934",
+            "counterpartyAccount": "ACZ00087",
+            "hoursApart": 72.5,
+            "firstAmountCzk": 123766.11,
+            "secondAmountCzk": 39879.6
+          },
+          {
+            "clientId": "K000909",
+            "firstTransactionId": "TX000080447",
+            "secondTransactionId": "TX000127477",
+            "counterpartyAccount": "ACZ00082",
+            "hoursApart": 82.3,
+            "firstAmountCzk": 200084.57,
+            "secondAmountCzk": 64077.56
+          },
+          {
+            "clientId": "K000956",
+            "firstTransactionId": "TX000269176",
+            "secondTransactionId": "TX000317474",
+            "counterpartyAccount": "ACZ00061",
+            "hoursApart": 89.5,
+            "firstAmountCzk": 66343.08,
+            "secondAmountCzk": 97472.93
+          },
+          {
+            "clientId": "K005134",
+            "firstTransactionId": "TX000103554",
+            "secondTransactionId": "TX000153422",
+            "counterpartyAccount": "ACZ00065",
+            "hoursApart": 88.6,
+            "firstAmountCzk": 48771.98,
+            "secondAmountCzk": 61566.07
+          }
+        ]
+      }
+    },
+    {
+      "id": "F-03",
+      "kind": "rule_adjustment",
+      "rule": {
+        "ruleId": "00000000-0000-4000-8000-000000000013",
+        "ruleVersionId": "00000000-0000-4000-9000-000000000013",
+        "code": "R-13",
+        "label": "Neobvyklý nárůst počtu transakcí"
+      },
+      "proposal": {
+        "parameter": "R13_MULTIPLIER_STANDARD",
+        "parameterType": "ratio",
+        "currentValue": 5,
+        "proposedValue": 4.75,
+        "step": 0.05
+      },
+      "growth": {
+        "baseClients": 280,
+        "addedClients": 23,
+        "capExceeded": false
+      },
+      "clients": [
+        {
+          "clientId": "K003776",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.004,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K004737",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0043,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K002033",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0043,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K002892",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0043,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K005284",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0049,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K000612",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0111,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K001910",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0118,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K002950",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0133,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K003648",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0133,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K004724",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0167,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K003609",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0182,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K004512",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0211,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K003338",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0211,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K003740",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0267,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K000470",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0298,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K001239",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0298,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K004782",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0298,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K005030",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0357,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K004396",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0375,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K004158",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0375,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K002767",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.0377,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K001115",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.04,
+          "seedLinks": []
+        },
+        {
+          "clientId": "K003416",
+          "transactionIds": [],
+          "nearMissCount": 1,
+          "distinctDays": 1,
+          "minDistance": 0.04,
+          "seedLinks": []
+        }
+      ],
+      "evidence": {
+        "parameterLabel": "Násobek průměrného měsíčního počtu transakcí (standardní riziko)",
+        "parameterSource": "dsl_constant",
+        "parameterCap": 0.1,
+        "growthCapLimit": 50,
+        "sweep": [
+          {
+            "step": 0.05,
+            "addedClients": 23
+          },
+          {
+            "step": 0.1,
+            "addedClients": 65
+          }
+        ],
+        "month": "2026-07",
+        "nearMisses": [
+          {
+            "clientId": "K003776",
+            "julyTransactionCount": 83,
+            "ratioToQ2MonthlyAverage": 4.98,
+            "ratioToExpectedMonthly": 76.615
+          },
+          {
+            "clientId": "K004737",
+            "julyTransactionCount": 78,
+            "ratioToQ2MonthlyAverage": 4.979,
+            "ratioToExpectedMonthly": 62.4
+          },
+          {
+            "clientId": "K002033",
+            "julyTransactionCount": 78,
+            "ratioToQ2MonthlyAverage": 4.979,
+            "ratioToExpectedMonthly": 72.0
+          },
+          {
+            "clientId": "K002892",
+            "julyTransactionCount": 78,
+            "ratioToQ2MonthlyAverage": 4.979,
+            "ratioToExpectedMonthly": 62.4
+          },
+          {
+            "clientId": "K005284",
+            "julyTransactionCount": 68,
+            "ratioToQ2MonthlyAverage": 4.976,
+            "ratioToExpectedMonthly": 51.0
+          }
+        ],
+        "note": "monthly count rule; a near miss is one client-month, so distinctDays counts months, not days"
+      }
+    },
+    {
+      "id": "F-04",
+      "kind": "rule_adjustment",
+      "rule": {
+        "ruleId": "00000000-0000-4000-8000-000000000006",
+        "ruleVersionId": "00000000-0000-4000-9000-000000000006",
+        "code": "R-06",
+        "label": "Neobvyklý počet plátců"
+      },
+      "proposal": null,
+      "growth": {
+        "baseClients": 16,
+        "addedClients": 89,
+        "capExceeded": true
+      },
+      "clients": [],
+      "evidence": {
+        "parameterLabel": "Počet různých plátců za den",
+        "parameterType": "count",
+        "currentValue": 7,
+        "smallestStepValue": 6,
+        "growthCapLimit": 5,
+        "note": "growth cap exceeded on the first possible step; recalibration belongs to the annual review (SVZ-03 čl. 11.2)"
+      }
+    },
+    {
+      "id": "F-05",
+      "kind": "association",
+      "rule": null,
+      "proposal": null,
+      "growth": null,
+      "clients": [
+        {
+          "clientId": "K001458",
+          "transactionIds": ["TX000009002", "TX000235371"],
+          "nearMissCount": 0,
+          "distinctDays": 0,
+          "minDistance": null,
+          "seedLinks": [
+            {
+              "seedClientId": "K000722",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["AKR00143"]
+            },
+            {
+              "seedClientId": "K002062",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["AIN00153"]
+            }
+          ]
+        },
+        {
+          "clientId": "K001756",
+          "transactionIds": ["TX000331720", "TX000096061"],
+          "nearMissCount": 0,
+          "distinctDays": 0,
+          "minDistance": null,
+          "seedLinks": [
+            {
+              "seedClientId": "K002766",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["AIE00027"]
+            },
+            {
+              "seedClientId": "K004138",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["ATR00116"]
+            }
+          ]
+        },
+        {
+          "clientId": "K002224",
+          "transactionIds": ["TX000224492", "TX000287152"],
+          "nearMissCount": 0,
+          "distinctDays": 0,
+          "minDistance": null,
+          "seedLinks": [
+            {
+              "seedClientId": "K002273",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["ANO00023"]
+            },
+            {
+              "seedClientId": "K004311",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["ATR00055"]
+            }
+          ]
+        },
+        {
+          "clientId": "K002802",
+          "transactionIds": ["TX000080788", "TX000264926"],
+          "nearMissCount": 0,
+          "distinctDays": 0,
+          "minDistance": null,
+          "seedLinks": [
+            {
+              "seedClientId": "K001215",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["AFI00104"]
+            },
+            {
+              "seedClientId": "K001783",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["ACH00163"]
+            }
+          ]
+        },
+        {
+          "clientId": "K003894",
+          "transactionIds": ["TX000189235", "TX000247935"],
+          "nearMissCount": 0,
+          "distinctDays": 0,
+          "minDistance": null,
+          "seedLinks": [
+            {
+              "seedClientId": "K004177",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["ANO00083"]
+            },
+            {
+              "seedClientId": "K004523",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["ASG00017"]
+            }
+          ]
+        },
+        {
+          "clientId": "K005389",
+          "transactionIds": ["TX000302984", "TX000260419"],
+          "nearMissCount": 0,
+          "distinctDays": 0,
+          "minDistance": null,
+          "seedLinks": [
+            {
+              "seedClientId": "K000624",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["ANO00143"]
+            },
+            {
+              "seedClientId": "K004093",
+              "seedReasons": ["aml_risk_score_high"],
+              "accounts": ["APT00062"]
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "seedCount": 406,
+        "seedDefinition": "aml_risk_score = high or PEP (serious rule hits not included in this fixture)",
+        "privateAccountMaxClients": 3,
+        "minLinks": 2,
+        "externalAccountCount": 5248,
+        "linksPerClient": [
+          {
+            "clientId": "K001458",
+            "sharedPrivateAccounts": 2,
+            "linkedSeeds": 2
+          },
+          {
+            "clientId": "K001756",
+            "sharedPrivateAccounts": 2,
+            "linkedSeeds": 2
+          },
+          {
+            "clientId": "K002224",
+            "sharedPrivateAccounts": 2,
+            "linkedSeeds": 2
+          },
+          {
+            "clientId": "K002802",
+            "sharedPrivateAccounts": 2,
+            "linkedSeeds": 2
+          },
+          {
+            "clientId": "K003894",
+            "sharedPrivateAccounts": 2,
+            "linkedSeeds": 2
+          },
+          {
+            "clientId": "K005389",
+            "sharedPrivateAccounts": 2,
+            "linkedSeeds": 2
+          }
+        ]
+      }
+    }
+  ],
+  "llm": {
+    "summary": null,
+    "explanations": {},
+    "hypotheses": [],
+    "critiques": {},
+    "calls": [],
+    "errors": []
+  }
+}
