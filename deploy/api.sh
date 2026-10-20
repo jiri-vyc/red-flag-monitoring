@@ -17,5 +17,7 @@ aws lambda-web deploy --name "$API_FUNCTION" --create --code "$bundle" --entry-p
   --env "ENGINE_VERSION=$(git -C "$SRC_DIR" rev-parse --short HEAD)" \
   --env "DATABASE_URL=postgres://postgres@$(cluster_endpoint):5432/$database" \
   --env "DRAFTING_WORKER_FUNCTION=$DRAFTING_WORKER_FUNCTION" \
+  --env ALERT_TRIAGE=bedrock \
+  --env BEDROCK_AUTH=iam \
   --tags project=red-flag-monitoring \
   --query endpointUrl --output text

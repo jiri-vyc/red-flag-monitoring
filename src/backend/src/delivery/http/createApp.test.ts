@@ -1,5 +1,6 @@
 import request from "supertest";
 
+import type { AlertTriageUseCases } from "../../application/alertTriage/alertTriageUseCases";
 import { AmlEventQueries } from "../../application/amlEvents/amlEventQueries";
 import type { AmlEventFilter } from "../../application/amlEvents/amlEventReadModels";
 import type { EvaluationRunReadRepository } from "../../application/evaluationRuns/evaluationRunReadRepository";
@@ -337,6 +338,18 @@ describe("HTTP app", () => {
             return { ...page, items: [], total: 0 };
           },
           findAmlEventDetail: async () => null,
+          listRunCsvRows: async () => [
+            {
+              alertId: "R-01-K000001-2026-07",
+              alertType: "profile_mismatch",
+              clientId: "K000001",
+              transactionId: null,
+              triage: "FP",
+              priority: 15,
+              reason: 'Volume in line with Q2, "low" risk',
+              log: { source: "rules" },
+            },
+          ],
         },
         evaluationRunReadRepository: {
           hasRun: async (runId: string) => runId === RUN_ID,
@@ -345,6 +358,40 @@ describe("HTTP app", () => {
 
       return { app: createApp({ amlEvents } as AppUseCases, databaseReady), calls };
     }
+
+    it("starts an LLM triage only for named clients or a client limit, never for the whole run", async () => {
+      const started: unknown[] = [];
+      const alertTriage = {
+        startLlmTriage: async (command: unknown) => {
+          started.push(command);
+        },
+      } as unknown as AlertTriageUseCases;
+      const app = createApp({ alertTriage } as AppUseCases, databaseReady);
+      const triagePath = `/api/evaluation-runs/${RUN_ID}/triage`;
+
+      await request(app).post(triagePath).send({}).expect(400);
+      await request(app).post(triagePath).send({ source: "llm" }).expect(400);
+      await request(app)
+        .post(triagePath)
+        .send({ clientIds: ["K000001"], clientLimit: 5 })
+        .expect(400);
+      await request(app).post(triagePath).send({ clientLimit: 5 }).expect(202);
+
+      expect(started).toEqual([{ runId: RUN_ID, clientLimit: 5 }]);
+    });
+
+    it("exports the run's events as the mandatory CSV", async () => {
+      const { app } = createAmlEventsApp();
+
+      const response = await request(app).get(`/api/evaluation-runs/${RUN_ID}/aml-events.csv`).expect(200);
+
+      expect(response.headers["content-type"]).toMatch(/^text\/csv/);
+      expect(response.text.split("\r\n")).toEqual([
+        "alert_id,alert_type,client_id,transaction_id,triage,priority,executive_role,executive_person,approver,reason,log",
+        'R-01-K000001-2026-07,profile_mismatch,K000001,,FP,15,,,,"Volume in line with Q2, ""low"" risk","{""source"":""rules""}"',
+        "",
+      ]);
+    });
 
     it("lists a run's events with the alert type and client filters", async () => {
       const { app, calls } = createAmlEventsApp();

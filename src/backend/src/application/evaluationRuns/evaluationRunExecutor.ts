@@ -17,7 +17,7 @@ export const EVALUATION_BATCH_SIZE = 1000;
 export class RunScopeChangedError extends Error {}
 
 // Evaluates a started run: loads the dataset once (D18), evaluates the transactions in scope chronologically,
-// stores them in batches and groups the stored hits into AML events (#13). Runs in the API process or in a
+// stores them in batches, groups the stored hits into AML events (#13) and proposes their rule-based triage (#14). Runs in the API process or in a
 // separate worker, see EvaluationRunLauncher.
 export class EvaluationRunExecutor {
   constructor(
@@ -25,6 +25,7 @@ export class EvaluationRunExecutor {
       evaluationInputRepository: EvaluationInputRepository;
       evaluationRunRepository: EvaluationRunRepository;
       amlEventRepository: AmlEventRepository;
+      ruleBasedTriage: { triageRunWithRules(runId: string): Promise<unknown> };
       clock: Clock;
     },
   ) {}
@@ -46,6 +47,7 @@ export class EvaluationRunExecutor {
     try {
       await this.evaluateRunTransactions(run);
       await this.createRunAmlEvents(run.id);
+      await this.dependencies.ruleBasedTriage.triageRunWithRules(run.id);
       await evaluationRunRepository.markRunCompleted({ runId, finishedAt: clock() });
     } catch (error) {
       await evaluationRunRepository.markRunFailed({

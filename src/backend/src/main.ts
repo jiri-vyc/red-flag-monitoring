@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import type { DataSource } from "typeorm";
 
+import { createAlertTriageUseCases } from "./alertTriageComposition";
 import { AmlEventQueries } from "./application/amlEvents/amlEventQueries";
 import { systemClock } from "./application/clock";
 import { DatabaseStatusQueries } from "./application/databaseStatus/databaseStatusQueries";
@@ -71,6 +72,7 @@ function createUseCases(dataSource: DataSource, appConfig: AppConfig): AppUseCas
       amlEventReadRepository: new TypeOrmAmlEventReadRepository(dataSource),
       evaluationRunReadRepository,
     }),
+    alertTriage: createAlertTriageUseCases(dataSource, appConfig.alertTriage),
     databaseStatus: new DatabaseStatusQueries(new TypeOrmDatabaseStatusProbe(dataSource)),
     users: new UserUseCases(new TypeOrmUserRepository(dataSource)),
     transactions: new TransactionQueries(new TypeOrmTransactionRepository(dataSource)),
