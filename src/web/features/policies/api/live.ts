@@ -27,6 +27,10 @@ const versionPath = (policyId: string, versionId: string) =>
 
 type PolicyRelations = { rules: RuleDto[]; regulationIdByVersionId: Map<string, string> };
 
+function throwUnsupported(message: string): never {
+  throw new ApiError({ kind: "unsupported", message });
+}
+
 function throwValidation(message: string): never {
   throw new ApiError({ kind: "validation", message });
 }
@@ -107,6 +111,8 @@ const approvedPolicyVersionDtoSchema = internalPolicyVersionDtoSchema.extend({
 });
 
 export const livePoliciesService: PoliciesService = {
+  capabilities: { canDeletePolicy: false },
+
   async loadPolicies() {
     const [policiesWithVersions, relations] = await Promise.all([
       fetchPoliciesWithVersions(),
@@ -159,4 +165,7 @@ export const livePoliciesService: PoliciesService = {
     });
     return { policy: await loadPolicy(policyId), rulesJob: rulesJob ? toDraftingJob(rulesJob) : null };
   },
+
+  // The backend has no policy deletion endpoint yet (todo-web.md). Hidden in the UI; this is the safety net.
+  deletePolicy: () => throwUnsupported("Deleting an internal policy is not supported by the API yet."),
 };

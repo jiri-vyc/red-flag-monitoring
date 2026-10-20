@@ -344,3 +344,12 @@ describe("livePoliciesService.approvePolicy", () => {
     });
   });
 });
+
+describe("livePoliciesService.deletePolicy", () => {
+  it("is hidden and refused, as the API cannot delete policies yet", () => {
+    expect(livePoliciesService.capabilities).toEqual({ canDeletePolicy: false });
+    expect(() => livePoliciesService.deletePolicy({ policyId: "policy-1", deletedBy: "Demo" })).toThrow(
+      expect.objectContaining({ kind: "unsupported" }),
+    );
+  });
+});

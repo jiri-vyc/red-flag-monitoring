@@ -2,12 +2,15 @@
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
+import { selectServiceImplementation } from "@/config/apiMode";
 import { getCurrentUser } from "@/config/currentUser";
 import { draftingJobQueryKeys } from "@/features/draftingJobs/api/hooks";
+import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
 import type { UpdatePolicyTextInput } from "../types";
-import { policiesService } from "./service";
+import type { PoliciesCapabilities } from "./contract";
+import { policiesImplementations, policiesService } from "./service";
 
 export const policyQueryKeys = {
   all: ["policies"] as const,
@@ -15,6 +18,12 @@ export const policyQueryKeys = {
   // An object segment cannot collide with a policy id; the `all` prefix still invalidates it.
   names: ["policies", { view: "names" }] as const,
 };
+
+/** Follows the data source selected in the sidebar. */
+export function usePoliciesCapabilities(): PoliciesCapabilities {
+  const { apiMode } = useApiMode();
+  return selectServiceImplementation("policies", policiesImplementations, apiMode).capabilities;
+}
 
 export function usePolicies() {
   useServiceUsage("policies");
@@ -58,5 +67,27 @@ export function useApprovePolicy() {
     mutationFn: (policyId: string) =>
       policiesService.approvePolicy({ policyId, approvedBy: getCurrentUser().name }),
     onSuccess: () => invalidatePolicyApprovalQueries(queryClient),
+  });
+}
+
+export function useDeletePolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (policyId: string) =>
+      policiesService.deletePolicy({ policyId, deletedBy: getCurrentUser().name }),
+    // The deleted policy's own query is dropped, not refetched: a refetch would fail while its detail navigates
+    // away, and a cached copy would show the deleted policy again on browser Back.
+    // Regulations list the policies citing them, the dashboard counts policies.
+    onSuccess: (_result, policyId) => {
+      queryClient.removeQueries({ queryKey: policyQueryKeys.detail(policyId) });
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: policyQueryKeys.all,
+          predicate: ({ queryKey }) => queryKey[1] !== policyId,
+        }),
+        queryClient.invalidateQueries({ queryKey: ["regulations"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+      ]);
+    },
   });
 }

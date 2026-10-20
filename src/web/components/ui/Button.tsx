@@ -12,7 +12,7 @@ function buildClassName({ variant = "primary", size = "md" }: StyleProps, extraC
   return [styles.button, styles[variant], styles[size], extraClassName].filter(Boolean).join(" ");
 }
 
-type ButtonProps = StyleProps & ButtonHTMLAttributes<HTMLButtonElement>;
+export type ButtonProps = StyleProps & ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function Button({
   variant,
@@ -31,7 +31,7 @@ export function Button({
   );
 }
 
-type ButtonLinkProps = StyleProps & { href: string; children: ReactNode; className?: string };
+export type ButtonLinkProps = StyleProps & { href: string; children: ReactNode; className?: string };
 
 export function ButtonLink({ variant, size, icon, href, className, children }: ButtonLinkProps) {
   return (

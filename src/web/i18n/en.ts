@@ -9,7 +9,6 @@ export const en = {
     policies: "Internal policies",
     rules: "Rules",
     batches: "Batches",
-    transactions: "Transactions",
     mainNavigation: "Main navigation",
   },
   sidebar: {
@@ -47,6 +46,8 @@ export const en = {
     save: "Save",
     saving: "Saving…",
     cancel: "Cancel",
+    delete: "Delete",
+    deleting: "Deleting…",
     edit: "Edit",
     open: "Open",
     all: "All",
@@ -113,6 +114,34 @@ export const en = {
   },
   roleGate: {
     requires: "Only the {role} role can do this. Switch the role in the sidebar.",
+    requiresShort: "Requires the {role} role",
+  },
+  rolesGuide: {
+    trigger: "What each role can do",
+    title: "Roles in RedFlag",
+    active: "active",
+    legalBasisLabel: "Legal basis",
+    canDoLabel: "Can do in the app",
+    readOnly: "Read only.",
+    escalationLabel: "Escalated to it",
+    defaultEscalationHits: "Default escalation target: hits of every rule not escalated to another role.",
+    escalationHits: "Hits of rules the compliance officer escalated to this role.",
+    escalationTitle: "Escalation",
+    escalationBody:
+      "Each rule version names the role its hits are escalated to. The default is {role}; the compliance officer can change it when creating or reviewing the rule, typically to the designated person. In batch results, every role sees only the hits of rules escalated to it.",
+    legalBasis: {
+      compliance_officer: "Decree 67/2018 § 16(2), AMLR Art. 11, EBA/GL/2022/05",
+      contact_person: "AML Act § 22 (reports suspicious transactions to the FAU)",
+      designated_person: "AML Act § 22a (designated member of the statutory body)",
+    },
+    permissions: {
+      canCreateRegulation: "Upload a regulation",
+      canDraftPolicies: "Create internal policy drafts",
+      canApprovePolicy: "Approve internal policies",
+      canDraftRules: "Create rule drafts from a policy",
+      canManageRules:
+        "Create and edit rule versions, approve or reject them, set the escalation role and manage the whitelist",
+    },
   },
   versionState: {
     draft: "Draft",
@@ -169,6 +198,13 @@ export const en = {
     viewAll: "View all",
   },
   regulations: {
+    deleteRegulation: "Delete regulation",
+    deleteTitle: "Delete regulation?",
+    deleteWarning:
+      "The regulation is deleted permanently, including its versions and texts. This cannot be undone.",
+    deleteBlockedByPolicy:
+      "An internal policy cites this regulation as its legal basis, so it cannot be deleted.",
+    deleteBlockedByRule: "A rule version cites this regulation as its legal basis, so it cannot be deleted.",
     title: "Regulations",
     subtitle: "Regulatory sources the internal policies and rules are derived from.",
     addRegulation: "Add regulation",
@@ -189,6 +225,12 @@ export const en = {
     noRules: "No rules reference this regulation yet.",
   },
   policies: {
+    deletePolicy: "Delete policy",
+    deleteTitle: "Delete policy?",
+    deleteWarning: "The policy is deleted permanently, including all its versions. This cannot be undone.",
+    deleteBlockedApproved:
+      "The policy has already been approved and may have been used to derive rules. It cannot be deleted.",
+    deleteBlockedByRules: "Rules are derived from this policy, so it cannot be deleted.",
     title: "Internal policies",
     subtitle: "Internal rules of the institution. A policy may cite several regulations or none.",
     internalPolicy: "Internal policy (no regulation)",
@@ -281,6 +323,12 @@ export const en = {
     rejectCommentRequired: "Enter the reason for rejection.",
     confirmReject: "Reject",
     rejecting: "Rejecting…",
+    deleteRule: "Delete rule",
+    deleteTitle: "Delete rule?",
+    deleteWarning:
+      "The rule is deleted permanently, including all its versions and whitelist exceptions. This cannot be undone.",
+    deleteNotAllowed:
+      "The rule has already been approved and may have been used in an evaluation. It can only be switched off.",
   },
   ruleForm: {
     title: "New rule",
@@ -603,6 +651,8 @@ export const en = {
     goToRules: "Go to rules",
     goToPolicy: "Open internal policy",
     startAgain: "Start again",
+    runUnavailable:
+      "Nothing is left to continue in this wizard run: its policy drafts or regulation no longer exist. Start a new run.",
     decision: {
       approved: "Approved",
       rejected: "Rejected",

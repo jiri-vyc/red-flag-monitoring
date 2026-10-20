@@ -355,6 +355,7 @@ export const liveRulesService: RulesService = {
     canCreateDeterministicRule: false,
     canCreateAgenticRule: true,
     canSuggestWhitelistClients: false,
+    canDeleteRule: false,
   },
 
   loadRules,
@@ -504,6 +505,9 @@ export const liveRulesService: RulesService = {
     throwUnsupported(
       "Editing a saved rule version is not supported by the API (versions are immutable). Reject it and create a new version.",
     ),
+
+  // The backend has no rule deletion endpoint yet (todo-web.md). Hidden in the UI; this is the safety net.
+  deleteRule: () => throwUnsupported("Deleting a rule is not supported by the API yet."),
 
   getWhitelist: async (ruleId) => {
     const entries = await requestJson({

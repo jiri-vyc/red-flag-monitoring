@@ -13,6 +13,8 @@ import type { UserRole } from "@/features/users/types";
 export type ReviewInput = { ruleId: string; reviewer: string; escalationRole: UserRole | null };
 /** A rejection is an AML decision and must carry its reason; it is stored as the review comment. */
 export type RejectInput = ReviewInput & { comment: string };
+/** The actor is recorded in the audit trail of the deletion. */
+export type DeleteRuleInput = { ruleId: string; deletedBy: string };
 
 /** What the active implementation supports. The UI hides actions that are false instead of letting them fail. */
 export type RulesCapabilities = {
@@ -24,6 +26,8 @@ export type RulesCapabilities = {
   canCreateAgenticRule: boolean;
   /** Offer known client IDs when adding a whitelist entry. */
   canSuggestWhitelistClients: boolean;
+  /** Delete a rule that never had an approved version (see canDeleteRule in the rule lifecycle). */
+  canDeleteRule: boolean;
 };
 
 export interface RulesService {
@@ -39,6 +43,8 @@ export interface RulesService {
   deactivateRule(ruleId: string): Promise<Rule>;
   createRuleVersion(input: CreateRuleVersionInput & { author: string }): Promise<Rule>;
   updateDraftContent(input: UpdateDraftContentInput): Promise<Rule>;
+  /** Removes the rule with its versions and whitelist entries; refused once a version was approved. */
+  deleteRule(input: DeleteRuleInput): Promise<void>;
   /** Whitelist changes take effect immediately: no new version, no review (M16). */
   getWhitelist(ruleId: string): Promise<WhitelistEntry[]>;
   addWhitelistEntry(input: AddWhitelistEntryInput & { author: string }): Promise<WhitelistEntry>;

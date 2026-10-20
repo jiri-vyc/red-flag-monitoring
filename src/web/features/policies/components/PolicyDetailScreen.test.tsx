@@ -20,6 +20,8 @@ jest.mock("../api/hooks", () => {
     usePolicy: jest.fn(),
     useUpdatePolicyText: () => idleMutation,
     useApprovePolicy: () => idleMutation,
+    usePoliciesCapabilities: () => ({ canDeletePolicy: false }),
+    useDeletePolicy: () => idleMutation,
   };
 });
 jest.mock("@/features/rules/api/hooks", () => ({

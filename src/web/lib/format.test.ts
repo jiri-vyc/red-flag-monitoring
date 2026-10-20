@@ -1,4 +1,4 @@
-import { formatApproximateDuration, formatDate, formatDuration } from "./format";
+import { formatAlternatives, formatApproximateDuration, formatDate, formatDuration } from "./format";
 
 describe("formatDuration", () => {
   it.each([
@@ -32,5 +32,15 @@ describe("formatDate", () => {
 
   it("formats a valid ISO date", () => {
     expect(formatDate("2026-03-05T10:00:00Z", "en")).toBe("5 Mar 2026");
+  });
+});
+
+describe("formatAlternatives", () => {
+  it.each([
+    [["A"], "en", "A"],
+    [["A", "B"], "en", "A or B"],
+    [["A", "B"], "cs", "A nebo B"],
+  ] as const)("joins %p in %s", (items, locale, expected) => {
+    expect(formatAlternatives([...items], locale)).toBe(expected);
   });
 });

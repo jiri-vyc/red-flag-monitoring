@@ -11,7 +11,6 @@ export const cs: Dictionary = {
     policies: "Interní předpisy",
     rules: "Pravidla",
     batches: "Dávky",
-    transactions: "Transakce",
     mainNavigation: "Hlavní navigace",
   },
   sidebar: {
@@ -49,6 +48,8 @@ export const cs: Dictionary = {
     save: "Uložit",
     saving: "Ukládám…",
     cancel: "Zrušit",
+    delete: "Smazat",
+    deleting: "Mažu…",
     edit: "Upravit",
     open: "Otevřít",
     all: "Vše",
@@ -115,6 +116,35 @@ export const cs: Dictionary = {
   },
   roleGate: {
     requires: "Tuto akci může provést jen role {role}.",
+    requiresShort: "Vyžaduje roli {role}",
+  },
+  rolesGuide: {
+    trigger: "Co která role smí",
+    title: "Role v aplikaci RedFlag",
+    active: "aktivní",
+    legalBasisLabel: "Právní základ",
+    canDoLabel: "Smí v aplikaci",
+    readOnly: "Jen čtení.",
+    escalationLabel: "Eskaluje se na ni",
+    defaultEscalationHits:
+      "Výchozí cíl eskalace: zásahy všech pravidel, která nejsou eskalovaná na jinou roli.",
+    escalationHits: "Zásahy pravidel, která compliance officer eskaloval na tuto roli.",
+    escalationTitle: "Eskalace",
+    escalationBody:
+      "Každá verze pravidla určuje roli, na kterou se eskalují její zásahy. Výchozí je {role}, compliance officer ji může změnit při vytvoření nebo schvalování pravidla, typicky na pověřenou osobu. Ve výsledcích dávky vidí každá role jen zásahy pravidel eskalovaných na ni.",
+    legalBasis: {
+      compliance_officer: "vyhláška 67/2018 § 16 odst. 2, AMLR čl. 11, EBA/GL/2022/05",
+      contact_person: "AML zákon § 22 (oznamuje podezřelé obchody FAÚ)",
+      designated_person: "AML zákon § 22a (určený člen statutárního orgánu)",
+    },
+    permissions: {
+      canCreateRegulation: "Nahrát regulaci",
+      canDraftPolicies: "Vytvářet koncepty interních předpisů",
+      canApprovePolicy: "Schvalovat interní předpisy",
+      canDraftRules: "Vytvářet návrhy pravidel z předpisu",
+      canManageRules:
+        "Vytvářet a upravovat verze pravidel, schvalovat je nebo zamítat, nastavit roli eskalace a spravovat whitelist",
+    },
   },
   versionState: {
     draft: "Koncept",
@@ -171,6 +201,13 @@ export const cs: Dictionary = {
     viewAll: "Zobrazit vše",
   },
   regulations: {
+    deleteRegulation: "Smazat regulaci",
+    deleteTitle: "Smazat regulaci?",
+    deleteWarning: "Regulace se trvale smaže včetně svých verzí a znění. Tuto akci nelze vrátit.",
+    deleteBlockedByPolicy:
+      "Na regulaci se jako na právní základ odkazuje interní předpis, proto ji nelze smazat.",
+    deleteBlockedByRule:
+      "Na regulaci se jako na právní základ odkazuje verze pravidla, proto ji nelze smazat.",
     title: "Regulace",
     subtitle: "Regulatorní zdroje, ze kterých vycházejí interní předpisy a pravidla.",
     addRegulation: "Přidat regulaci",
@@ -191,6 +228,11 @@ export const cs: Dictionary = {
     noRules: "Na tuto regulaci zatím neodkazuje žádné pravidlo.",
   },
   policies: {
+    deletePolicy: "Smazat předpis",
+    deleteTitle: "Smazat předpis?",
+    deleteWarning: "Předpis se trvale smaže včetně všech verzí. Tuto akci nelze vrátit.",
+    deleteBlockedApproved: "Předpis už byl schválený a mohla se z něj odvodit pravidla. Nelze ho smazat.",
+    deleteBlockedByRules: "Z předpisu jsou odvozená pravidla, proto ho nelze smazat.",
     title: "Interní předpisy",
     subtitle: "Interní pravidla instituce. Předpis může vycházet z více regulací, nebo z žádné.",
     internalPolicy: "Interní předpis (bez regulace)",
@@ -283,6 +325,11 @@ export const cs: Dictionary = {
     rejectCommentRequired: "Zadejte důvod zamítnutí.",
     confirmReject: "Zamítnout",
     rejecting: "Zamítám…",
+    deleteRule: "Smazat pravidlo",
+    deleteTitle: "Smazat pravidlo?",
+    deleteWarning:
+      "Pravidlo se trvale smaže včetně všech verzí a výjimek z whitelistu. Tuto akci nelze vrátit.",
+    deleteNotAllowed: "Pravidlo už bylo schválené a mohlo být použité ve vyhodnocení. Lze ho jen vypnout.",
   },
   ruleForm: {
     title: "Nové pravidlo",
@@ -601,6 +648,8 @@ export const cs: Dictionary = {
     goToRules: "Přejít na pravidla",
     goToPolicy: "Otevřít interní předpis",
     startAgain: "Začít znovu",
+    runUnavailable:
+      "V tomto běhu průvodce už není na co navázat: jeho návrhy předpisů nebo regulace neexistují. Začněte nový běh.",
     decision: {
       approved: "Schváleno",
       rejected: "Zamítnuto",

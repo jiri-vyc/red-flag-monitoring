@@ -162,6 +162,8 @@ export function RuleReviewStep({
         {t.aiNotice.body}
       </Notice>
       <DraftingJobWarnings jobs={rulesJobs} />
+      {/* One notice for the hidden review actions of every rule and the finish button. */}
+      {!canManageRules && <RoleGateNotice permission="canManageRules" />}
       {rules.length === 0 ? (
         <EmptyState message={t.wizard.noRuleDrafts} />
       ) : (
@@ -171,7 +173,7 @@ export function RuleReviewStep({
           ))}
         </div>
       )}
-      {canManageRules ? (
+      {canManageRules && (
         <div>
           <Button
             size="lg"
@@ -182,8 +184,6 @@ export function RuleReviewStep({
             {isFinishing ? t.wizard.finishing : t.wizard.finishReview}
           </Button>
         </div>
-      ) : (
-        <RoleGateNotice requiredRole="compliance_officer" />
       )}
     </Card>
   );
