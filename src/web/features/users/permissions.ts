@@ -10,6 +10,12 @@ export type RolePermissions = {
   canApprovePolicy: boolean;
   canDraftRules: boolean;
   canManageRules: boolean;
+  /** Issue #20, § 38 AML zákona: OPO content is visible to these roles only; others see that a report exists. */
+  canViewFauReports: boolean;
+  /** Create and edit an OPO draft, submit it for approval and record its filing (§ 22). */
+  canPrepareFauReport: boolean;
+  /** Approve or reject an OPO draft; never one the user authored (issue #15). */
+  canApproveFauReport: boolean;
 };
 
 export type RolePermission = keyof RolePermissions;
@@ -20,6 +26,9 @@ const NO_PERMISSIONS: RolePermissions = {
   canApprovePolicy: false,
   canDraftRules: false,
   canManageRules: false,
+  canViewFauReports: false,
+  canPrepareFauReport: false,
+  canApproveFauReport: false,
 };
 
 /** Every permission, in the order the roles tooltip lists them. */
@@ -32,9 +41,11 @@ const PERMISSIONS_BY_ROLE: Record<UserRole, RolePermissions> = {
     canApprovePolicy: true,
     canDraftRules: true,
     canManageRules: true,
+    canViewFauReports: true,
+    canApproveFauReport: true,
   },
   lawyer: NO_PERMISSIONS,
-  contact_person: NO_PERMISSIONS,
+  contact_person: { ...NO_PERMISSIONS, canViewFauReports: true, canPrepareFauReport: true },
   designated_person: NO_PERMISSIONS,
 };
 

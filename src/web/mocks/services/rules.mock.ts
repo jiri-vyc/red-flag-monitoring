@@ -189,8 +189,8 @@ export const mockRulesService: RulesService = {
   deactivateRule: (ruleId) => transitionRule(ruleId, deactivateRule),
   createRuleVersion: ({ ruleId, content, config, changeNote, author }) =>
     transitionRule(ruleId, (rule, now) => addRuleVersion(rule, { content, config, changeNote, author, now })),
-  updateDraftContent: ({ ruleId, content, config }) =>
-    transitionRule(ruleId, (rule, now) => updateDraftContent(rule, { content, config, now })),
+  updateDraftContent: ({ ruleId, content, config, baseScore }) =>
+    transitionRule(ruleId, (rule, now) => updateDraftContent(rule, { content, config, baseScore, now })),
 
   // The UI only offers deletion for a rule that never had an approved version; this check is the safety net.
   async deleteRule({ ruleId }) {

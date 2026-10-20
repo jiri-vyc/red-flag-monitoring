@@ -73,7 +73,7 @@ Schema and data transforms change only through TypeORM migrations in `src/backen
 Every change to the backend or its API (new or changed endpoint, request/response shape, domain rule, data model) updates the docs in the same change:
 
 - [architecture.md](architecture.md): the architecture and data flow.
-- [todo-web.md](todo-web.md): web tasks that follow, the table of UI features intentionally hidden until the API supports them, and the live adapter status.
+- GitHub issues: web and backend tasks that follow. The table of UI features intentionally hidden until the API supports them lives in [architecture.md](architecture.md#hidden-in-live-mode-until-the-api-supports-it).
 - Any other affected docs: [README.md](README.md), [src/README.md](src/README.md), the specs in `spec/` when a decision changes.
 
 A web change that starts using a new endpoint, or hides or unhides a capability, updates the same files.

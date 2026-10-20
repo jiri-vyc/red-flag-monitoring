@@ -166,6 +166,6 @@ export const livePoliciesService: PoliciesService = {
     return { policy: await loadPolicy(policyId), rulesJob: rulesJob ? toDraftingJob(rulesJob) : null };
   },
 
-  // The backend has no policy deletion endpoint yet (todo-web.md). Hidden in the UI; this is the safety net.
+  // The backend has no policy deletion endpoint yet (BE-22, issue #30). Hidden in the UI; this is the safety net.
   deletePolicy: () => throwUnsupported("Deleting an internal policy is not supported by the API yet."),
 };

@@ -70,6 +70,7 @@ export function buildSeedDatabase(): MockSeed {
     whitelistEntries,
     batches,
     draftingJobs: [],
+    fauReports: [],
   };
   return { database, batchRows };
 }
