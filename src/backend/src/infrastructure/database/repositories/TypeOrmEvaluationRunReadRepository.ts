@@ -1,12 +1,6 @@
 import { type DataSource, type FindOptionsSelect, In } from "typeorm";
 
-import type { Client } from "../../../domain/client";
-import {
-  type RuleEvaluation,
-  type TransactionEvaluation,
-  type Verdict,
-  VERDICTS,
-} from "../../../domain/evaluation";
+import { type TransactionEvaluation, type Verdict, VERDICTS } from "../../../domain/evaluation";
 import type { EscalationRole } from "../../../domain/rule";
 import type {
   EvaluationRunListItem,
@@ -22,12 +16,12 @@ import type {
 } from "../../../application/evaluationRuns/evaluationRunReadModels";
 import type { EvaluationRunReadRepository } from "../../../application/evaluationRuns/evaluationRunReadRepository";
 import type { Page, PageRequest } from "../../../application/pagination";
-import type { ClientEntity } from "../entities/ClientEntity";
 import { EvaluationRunEntity } from "../entities/EvaluationRunEntity";
 import { RuleEvaluationEntity } from "../entities/RuleEvaluationEntity";
 import { RuleLegalBasisEntity } from "../entities/RuleLegalBasisEntity";
 import { TransactionEvaluationEntity } from "../entities/TransactionEvaluationEntity";
-import { toEvaluationRun, toEvaluationRunListItem } from "./evaluationRunMapping";
+import { toClient } from "./clientMapping";
+import { toEvaluationRun, toEvaluationRunListItem, toRuleEvaluation } from "./evaluationRunMapping";
 import { toTransaction } from "./transactionMapping";
 
 const COUNT_VERDICTS = `
@@ -39,11 +33,12 @@ const COUNT_VERDICTS = `
 `;
 
 const LIST_RUN_RULE_VERSIONS = `
-  -- Rule versions fixed for the run (V5) with the number of hits each produced
+  -- Rule versions fixed for the run (V5) with the number of hits and AML events each produced
   SELECT rv."id" AS "ruleVersionId", rv."rule_id" AS "ruleId", r."code" AS "ruleCode",
          r."alert_type" AS "alertType", rv."version_no" AS "versionNo",
          coalesce(hits."hitCount", 0)::int AS "hitCount",
-         coalesce(hits."hitClientCount", 0)::int AS "hitClientCount"
+         coalesce(hits."hitClientCount", 0)::int AS "hitClientCount",
+         coalesce(events."amlEventCount", 0)::int AS "amlEventCount"
   FROM "run_rule_versions" rrv
   JOIN "rule_versions" rv ON rv."id" = rrv."rule_version_id"
   JOIN "rules" r ON r."id" = rv."rule_id"
@@ -54,6 +49,12 @@ const LIST_RUN_RULE_VERSIONS = `
     WHERE te."run_id" = $1 AND re."outcome" = 'hit'
     GROUP BY re."rule_version_id"
   ) hits ON hits."rule_version_id" = rv."id"
+  LEFT JOIN (
+    SELECT "rule_version_id", count(*) AS "amlEventCount"
+    FROM "aml_events"
+    WHERE "run_id" = $1
+    GROUP BY "rule_version_id"
+  ) events ON events."rule_version_id" = rv."id"
   WHERE rrv."run_id" = $1
   ORDER BY r."code"
 `;
@@ -348,42 +349,6 @@ function toTransactionEvaluation(entity: TransactionEvaluationEntity): Transacti
     maxScore: entity.maxScore,
     hitCount: entity.hitCount,
     evaluatedAt: entity.evaluatedAt,
-  };
-}
-
-function toClient(entity: ClientEntity): Client {
-  return {
-    clientId: entity.clientId,
-    country: entity.country,
-    contractDate: entity.contractDate,
-    contractChannel: entity.contractChannel,
-    isPep: entity.isPep,
-    clientType: entity.clientType,
-    projectedMonthlyVolumeCzk: entity.projectedMonthlyVolumeCzk,
-    projectedMonthlyTxCount: entity.projectedMonthlyTxCount,
-    q2VolumeCzk: entity.q2VolumeCzk,
-    q2TxCount: entity.q2TxCount,
-    q2MaxTxCzk: entity.q2MaxTxCzk,
-    amlRiskScore: entity.amlRiskScore,
-  };
-}
-
-function toRuleEvaluation(entity: RuleEvaluationEntity): RuleEvaluation {
-  return {
-    id: entity.id,
-    transactionEvaluationId: entity.transactionEvaluationId,
-    ruleVersionId: entity.ruleVersionId,
-    outcome: entity.outcome,
-    skipReason: entity.skipReason,
-    rawScore: entity.rawScore,
-    adjustedScore: entity.adjustedScore,
-    features: entity.features,
-    trace: entity.trace,
-    contextRefs: entity.contextRefs,
-    llmPrompt: entity.llmPrompt,
-    llmResponse: entity.llmResponse,
-    llmModelId: entity.llmModelId,
-    errorMessage: entity.errorMessage,
   };
 }
 

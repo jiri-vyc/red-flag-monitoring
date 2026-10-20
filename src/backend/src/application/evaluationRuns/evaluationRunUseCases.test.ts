@@ -1,7 +1,9 @@
+import type { NewAmlEvent, RuleHit } from "../../domain/amlEvent";
 import type { EvaluationRun, RunScope } from "../../domain/evaluation";
 import type { RunRuleSet } from "../../domain/evaluateTransaction";
 import { buildClient, buildTransaction } from "../../domain/features/testing/featureTestData";
 import type { EvaluationDataset } from "../../domain/transactionEvaluator";
+import type { AmlEventRepository } from "../amlEvents/amlEventRepository";
 import { BusinessRuleViolationError } from "../errors";
 import { ADMIN_ID, fixedClock, REVIEWED_AT } from "../testing/fixtures";
 import { EvaluationRunExecutor } from "./evaluationRunExecutor";
@@ -138,12 +140,48 @@ class InMemoryEvaluationRunRepository implements EvaluationRunRepository {
   }
 }
 
+// Serves the hits of the stored evaluations, as the database would after the batches are written.
+class InMemoryAmlEventRepository implements AmlEventRepository {
+  createdAmlEvents: NewAmlEvent[] = [];
+
+  constructor(private readonly evaluationRunRepository: InMemoryEvaluationRunRepository) {}
+
+  listRunRuleHits(): Promise<RuleHit[]> {
+    const ruleHits = this.evaluationRunRepository.storedEvaluations.flatMap((evaluation) =>
+      evaluation.ruleEvaluations
+        .filter((ruleEvaluation) => ruleEvaluation.outcome === "hit")
+        .map((ruleEvaluation) => ({
+          ruleEvaluationId: `${evaluation.transactionId}/${ruleEvaluation.ruleVersionId}`,
+          ruleId: "rule-large",
+          ruleVersionId: ruleEvaluation.ruleVersionId,
+          ruleCode: "R-LARGE",
+          alertType: "large_payment",
+          alertGranularity: "transaction" as const,
+          clientId: evaluation.clientId,
+          transactionId: evaluation.transactionId,
+          occurredAt: REVIEWED_AT,
+          adjustedScore: ruleEvaluation.adjustedScore ?? 0,
+        })),
+    );
+
+    return Promise.resolve(ruleHits);
+  }
+
+  createAmlEvents(input: { runId: string; amlEvents: NewAmlEvent[] }): Promise<void> {
+    this.createdAmlEvents.push(...input.amlEvents);
+
+    return Promise.resolve();
+  }
+}
+
 function createSubject(launcher?: EvaluationRunLauncher) {
   const evaluationInputRepository = new FakeEvaluationInputRepository();
   const evaluationRunRepository = new InMemoryEvaluationRunRepository();
+  const amlEventRepository = new InMemoryAmlEventRepository(evaluationRunRepository);
   const executor = new EvaluationRunExecutor({
     evaluationInputRepository,
     evaluationRunRepository,
+    amlEventRepository,
     clock: fixedClock,
   });
   const useCases = new EvaluationRunUseCases({
@@ -154,7 +192,7 @@ function createSubject(launcher?: EvaluationRunLauncher) {
     engineVersion: "test",
   });
 
-  return { evaluationInputRepository, evaluationRunRepository, executor, useCases };
+  return { evaluationInputRepository, evaluationRunRepository, amlEventRepository, executor, useCases };
 }
 
 const START_COMMAND = { scope: UNLIMITED_RUN_SCOPE, hitThreshold: 50, createdBy: ADMIN_ID };
@@ -221,6 +259,26 @@ describe("EvaluationRunExecutor.executeRun", () => {
     const [flagged, passed] = evaluationRunRepository.storedEvaluations;
     expect(flagged?.ruleEvaluations).toMatchObject([{ outcome: "hit" }]);
     expect(passed?.ruleEvaluations).toEqual([]);
+  });
+
+  it("groups the stored hits into AML events before completing the run", async () => {
+    const { useCases, executor, amlEventRepository } = createSubject();
+    const run = await useCases.startRun(START_COMMAND);
+
+    await executor.executeRun(run.id);
+
+    expect(amlEventRepository.createdAmlEvents).toMatchObject([
+      { alertId: `R-LARGE-${LARGE_PAYMENT_ID}`, transactionId: LARGE_PAYMENT_ID, maxScore: 80 },
+    ]);
+  });
+
+  it("fails the run when its AML events cannot be stored", async () => {
+    const { useCases, executor, amlEventRepository, evaluationRunRepository } = createSubject();
+    amlEventRepository.createAmlEvents = () => Promise.reject(new Error("deadlock detected"));
+    const run = await useCases.startRun(START_COMMAND);
+
+    await expect(executor.executeRun(run.id)).rejects.toThrow("deadlock detected");
+    expect(evaluationRunRepository.runs.get(run.id)).toMatchObject({ status: "failed" });
   });
 
   it("does not evaluate a run twice", async () => {

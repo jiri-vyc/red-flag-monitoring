@@ -11,7 +11,7 @@ import { ConflictError } from "../errors";
 import type { Page, PageRequest } from "../pagination";
 import type { InMemoryInternalPolicyRepository } from "./InMemoryInternalPolicyRepository";
 import type { InMemoryRuleRepository } from "./InMemoryRuleRepository";
-import { DEFAULT_ESCALATION_ROLE } from "../../domain/rule";
+import { DEFAULT_ALERT_GRANULARITY, DEFAULT_ESCALATION_ROLE } from "../../domain/rule";
 
 // Mirrors the conditional updates of TypeOrmDraftingJobRepository; drafts are written to the given fakes.
 export class InMemoryDraftingJobRepository implements DraftingJobRepository {
@@ -131,6 +131,7 @@ export class InMemoryDraftingJobRepository implements DraftingJobRepository {
         policyId: completion.policyId,
         code,
         alertType,
+        alertGranularity: DEFAULT_ALERT_GRANULARITY,
         kind,
         isWhitelistAllowed,
       });

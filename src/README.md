@@ -81,7 +81,8 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 | `/transactions`      | `GET /?clientId=&from=&to=&limit=&offset=`: transactions newest first; `clientId` must match `K000123`, `from` / `to` are local timestamps (from inclusive, to exclusive), invalid values return 400 (issue #9) |
 | `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                               |
 | `/drafting-jobs`     | `POST /` (start, see below), `GET /?status=&kind=&regulationId=&policyVersionId=&limit=&offset=`, `GET /:jobId`, `POST /:jobId/retry`                                                                 |
-| `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&role=&limit=&offset=`, `GET /:runId/transactions/:transactionId?role=` (detail with trace) |
+| `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&role=&limit=&offset=`, `GET /:runId/transactions/:transactionId?role=` (detail with trace), `GET /:runId/aml-events?alertType=&clientId=&limit=&offset=` (alerts, highest `maxScore` first) |
+| `/aml-events`        | `GET /:id`: an alert with its rule and version, the client, the triggering transactions with their rule result, and the client's other alerts in the run (issue #13)                                   |
 | `/database-status`   | `GET /`: the connected database (`current_database()`, `version()`, `aurora_version()` or `null`, server address and time, latest migration, `clients` count)                                         |
 
 ### Evaluation runs
@@ -102,6 +103,7 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 - `role` (issue #6, optional) keeps only hits of rule versions escalated to that role: the list drops transactions without such a hit and `hitRules` lists only those hits; the detail leaves out other roles' hits (other outcomes stay). Without `role` everything is returned. The summary counts are not filtered.
 - Only rule results other than `pass` are stored ([V16](../spec/datovy-model.md#rozhodnutí-vyhodnocení)). A passed transaction has its verdict and score, but no per-rule rows.
 - Where the run executes: in the API process by default. With `EVALUATION_WORKER_FUNCTION` set, the API invokes that Lambda function asynchronously instead (`backend/src/evaluationWorker.ts`, export `handler`), because a Web Function may remove its environment after the response.
+- When the transactions are evaluated, the run groups its hits into AML events (alerts) by the rule's `alertGranularity` before it turns `completed`: `transaction` makes one alert per hit transaction, `client_month` one per client and calendar month. The summary has `amlEventCount` per rule version. `POST /api/rules` accepts `alertGranularity` (default `transaction`); `SetSampleRuleAlertGranularity` sets `client_month` on R-01 and R-04 to R-14. Runs completed before the `AmlEvents` migration have no alerts; start a new run.
 - The `SeedSampleRules` migration adds the sample rules R-01 to R-17 from `knowledgebase/pravidla-priklady` as active versions.
 
 ### Rule escalation

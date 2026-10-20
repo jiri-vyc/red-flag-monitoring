@@ -10,7 +10,8 @@ export type PolicyDraft = {
   legalBases: PolicyLegalBasis[];
 };
 
-export type RuleDraft = Omit<NewRule, "policyId"> &
+// Drafts take the default alert granularity; a human sets another one on the rule.
+export type RuleDraft = Omit<NewRule, "policyId" | "alertGranularity"> &
   Pick<
     RuleVersion,
     | "definition"

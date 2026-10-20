@@ -1,8 +1,8 @@
 # Datový model
 
 - **Verze:** 0.4, 2026-10-19
-- **Rozsah:** regulace, interní předpisy, pravidla, referenční seznamy, whitelist, nahrání CSV s transakcemi, vyhodnocovací běh, výsledky pravidel a trace až k regulaci. Model zpřesňuje [sekce 3 a 5 specifikace](spec.md#3-doménový-model).
-- **Mimo rozsah:** AML události, triage (`FP` / `REVIEW`), eskalace, lidské review, export povinného CSV a audit log. MVP končí zobrazením výsledku běhu.
+- **Rozsah:** regulace, interní předpisy, pravidla, referenční seznamy, whitelist, nahrání CSV s transakcemi, vyhodnocovací běh, výsledky pravidel a trace až k regulaci, AML události (alerty) z výsledků běhu (issue #13). Model zpřesňuje [sekce 3 a 5 specifikace](spec.md#3-doménový-model).
+- **Mimo rozsah:** triage (`FP` / `REVIEW`), eskalace, lidské review, export povinného CSV a audit log. MVP končí zobrazením výsledku běhu.
 - **Cíl:** MVP pro demo na hackathonu. Model je záměrně jednoduchý. Co chybí kvůli reálnému nasazení, uvádí [sekce Compliance poznámky](#compliance-poznámky).
 
 ## Konvence
@@ -44,6 +44,12 @@ erDiagram
     TRANSACTION_EVALUATION ||--|{ RULE_EVALUATION : "obsahuje"
     RULE_VERSION ||--o{ RULE_EVALUATION : "je spuštěna v"
     FX_RATE }o--o{ RULE_EVALUATION : "kurz je v features"
+    EVALUATION_RUN ||--o{ AML_EVENT : "vytváří"
+    RULE_VERSION ||--o{ AML_EVENT : "zásahy verze"
+    CLIENT ||--o{ AML_EVENT : "týká se"
+    TRANSACTION |o--o{ AML_EVENT : "alert na transakci"
+    AML_EVENT ||--|{ AML_EVENT_HIT : "vznikl ze zásahů"
+    RULE_EVALUATION ||--o| AML_EVENT_HIT : "patří do alertu"
 
     REGULATION {
         uuid id PK
@@ -87,6 +93,7 @@ erDiagram
         uuid policy_id FK "nullable"
         string code "A, B-a, C"
         string alert_type
+        enum alert_granularity "transaction, client_month"
         enum kind "deterministic, agentic"
         bool enabled
         uuid active_version_id FK
@@ -197,6 +204,25 @@ erDiagram
         string llm_model_id "agentní"
         text error_message
     }
+    AML_EVENT {
+        uuid id PK
+        uuid run_id FK
+        string alert_id "R-01-K000123-2026-07, unikátní v běhu"
+        uuid rule_id FK
+        uuid rule_version_id FK
+        string alert_type "snapshot z pravidla"
+        enum alert_granularity "snapshot z pravidla"
+        string client_id FK
+        string transaction_id FK "jen u transaction"
+        string period_month "YYYY-MM, jen u client_month"
+        int max_score "max adjusted_score zásahů"
+        int hit_count
+        timestamp created_at
+    }
+    AML_EVENT_HIT {
+        uuid aml_event_id FK
+        uuid rule_evaluation_id FK "unikátní"
+    }
     FX_RATE {
         string currency PK
         date rate_date PK
@@ -219,7 +245,7 @@ erDiagram
 
 Stav verze (`status`) u předpisu i pravidla nabývá hodnot `draft`, `pending_review`, `approved`, `rejected`, `superseded`.
 
-Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVALUATION (transaction_evaluation_id, rule_version_id)`.
+Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVALUATION (transaction_evaluation_id, rule_version_id)`, `AML_EVENT (run_id, alert_id)`, `AML_EVENT_HIT (rule_evaluation_id)`.
 
 ## Část A: pravidla
 
@@ -359,11 +385,14 @@ Cesta pokračuje přes `rule_versions.derived_from_policy_version_id` na verzi i
 | V10 | `engine_version` (git commit) je na běhu. | Výpočet featur je v kódu (M10). Bez verze kódu nejde výsledek reprodukovat. |
 | V11 | Převod do CZK používá `FX_RATE`: kurz ČNB k datu transakce. Tabulku plní migrace. | Dataset obsahuje 23 měn. Řeší FX část otázky 13 ve spec. |
 | V12 | Souhrnné počty (`tx_passed`, `tx_flagged`, `tx_error`) a `tx_processed` jsou sloupce běhu. Počty per pravidlo UI počítá dotazem. | Dashboard ukazuje průběh bez agregace 400 000 řádků. |
-| V13 | AML událost **nevzniká**. Výsledek běhu je `TRANSACTION_EVALUATION.verdict`. | Lidské review je mimo rozsah. Agregaci do událostí per klient (pravidla A, C) řeší otázka 5 ve spec. |
+| V13 | ~~AML událost nevzniká.~~ Nahrazeno V18. | |
 | V14 | Běh a jeho výsledky jsou neměnné. Systém je nemaže. | Záznam vyhodnocení slouží jako audit log vyhodnocení (spec 7.7). |
 | V15 | Běh může místo CSV vyhodnotit **transakce, které už jsou v databázi**. Rozsah určuje `scope` na běhu (`from`, `to`, `clientIds`, `limit`; prázdný = všechny). `file_name` popisuje rozsah, `file_sha256` je hash seřazených ID vyhodnocených transakcí, `source_row_no` je pořadí transakce v běhu. | Data jsou v DB, upload CSV zatím není (#3). Hash prokáže, které transakce se vyhodnotily. |
 | V16 | `RULE_EVALUATION` se ukládá jen pro výsledek **jiný než `pass`** (`hit`, `error`, `not_applicable`). `TRANSACTION_EVALUATION` se ukládá pro každou transakci. Zužuje V6. | Celý dataset × 17 pravidel = ~7 mil. řádků. R-01 sám zasáhne ~55 % transakcí. Zajímá nás hlavně, co neprošlo. |
 | V17 | Běh se spouští asynchronně: `POST /api/evaluation-runs` vrátí `202` s během ve stavu `running`, výpočet běží mimo request. Lokálně v procesu API, v AWS v samostatné Lambda funkci (`EVALUATION_WORKER_FUNCTION`). | Lambda Web Function může prostředí po odpovědi kdykoli zrušit. Celý dataset trvá lokálně ~45 s, na Auroře déle. |
+| V18 | Po vyhodnocení všech transakcí běh seskupí své zásahy (`outcome = hit`) do **AML událostí** (`AML_EVENT`) podle `rules.alert_granularity`: `transaction` = jedna událost na transakci, `client_month` = jedna na klienta a kalendářní měsíc (`ts` bez převodu pásma, F2). Každý zásah patří právě do jedné události (`AML_EVENT_HIT`). Běh je `completed` až po uložení událostí; selhání událostí běh ukončí jako `failed`. | Issue #13, otázka 5 ve spec. Zadání FINREG hodnotí alerty, ne zásahy. Měsíc odpovídá SVZ-03 čl. 6.1 a nemění nic na datech za červenec 2026. |
+| V19 | Granularita je **na pravidle**, ne na verzi, a do události se kopíruje spolu s `alert_type`. Výchozí je `transaction`, drafty z wizardu ji dědí. Ukázková pravidla: `client_month` R-01, R-04 až R-14; `transaction` R-02, R-03, R-15 až R-17. R-07 (klient × příjemce × měsíc) a R-09 (účet příjemce × den) se seskupují per klient a měsíc. | Granularita nemění detekci, jen seskupení. Snapshot v události drží běh rekonstruovatelný (V14). Událost patří vždy jednomu klientovi, kterého jde prověřit; všechny příjemce vidí v zásazích. |
+| V20 | `alert_id` je čitelné a unikátní v běhu: `<kód pravidla>-<transaction_id>` nebo `<kód pravidla>-<client_id>-<YYYY-MM>`. Události z více pravidel u stejného klienta zůstávají samostatné; detail události je propojí (`otherClientAmlEvents`, SVZ-03 čl. 6.3). | ID jde do povinného CSV a je z něj vidět pravidlo, klient i období. Spojení do jednoho „příběhu klienta“ patří do triáže (#14). |
 
 ### Obrazovky
 
@@ -373,6 +402,8 @@ Cesta pokračuje přes `rule_versions.derived_from_policy_version_id` na verzi i
 | Souhrn běhu | Počty transakcí podle `verdict`. Počet `hit` per pravidlo. Odmítnuté řádky z `import_errors`. Zafixované verze pravidel a seznamů. |
 | Seznam transakcí běhu | `TRANSACTION_EVALUATION` s filtrem podle `verdict` a pravidla, řazení podle `max_score`. |
 | Detail transakce | Transakce, klient, všechna pravidla s `outcome`, skóre, `trace.summary`, podmínkami, právním základem a odkazem na předpis. |
+| Seznam AML událostí běhu (#17) | `AML_EVENT` s filtrem podle `alert_type` a klienta, řazení podle `max_score`. |
+| Detail AML události (#17) | Událost, pravidlo a jeho verze, klient, spouštějící transakce s výsledkem pravidla a ostatní události klienta v běhu. |
 
 ## Compliance poznámky
 
@@ -388,6 +419,9 @@ Před reálným nasazením je musí zkontrolovat compliance officer nebo právn�
 
 ### Vyhodnocení
 
+- **AML událost je podklad, ne AML rozhodnutí.** Triáž, priorita a rozhodnutí člověka přijdou s #14 a #17.
+- **Granularita AML událostí** (V18, V19) určuje, kolik alertů člověk dostane. R-07 a R-09 seskupujeme jinak než v příkladech pravidel (per klient a měsíc místo klient × příjemce, resp. účet příjemce × den). Granularita je na pravidle bez schvalování a změna platí pro další běhy. Obojí musí posoudit compliance.
+- **Transakce s `verdict = error` AML událost nevytváří.** Musí jít k člověku jinou cestou.
 - **`hit_threshold` na běhu** mění výsledek detekce. Uživatel ho může zvýšit a potlačit zásahy. Reálný provoz potřebuje schválenou hodnotu, ne volbu při spuštění.
 - **Citlivost pod 100** sníží `adjusted_score` a může z `hit` udělat `pass`. Viz [compliance poznámky ve spec](spec.md#11-compliance-poznámky).
 - **`verdict = pass` není AML rozhodnutí.** Je to podklad. Transakce s `error` musí jít k člověku.
