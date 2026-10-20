@@ -1,0 +1,24 @@
+.popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  width: 28rem;
+  /* max-height is set to the viewport minus margins; it must include padding and border to keep the bottom visible. */
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  text-align: left;
+}
+
+.popover[hidden] {
+  display: none;
+}

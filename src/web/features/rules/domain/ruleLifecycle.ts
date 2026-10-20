@@ -8,6 +8,7 @@ import {
   type RuleContent,
   type RuleStatus,
   type RuleVersion,
+  type RuleVersionState,
 } from "../types";
 import type { UserRole } from "@/features/users/types";
 
@@ -90,6 +91,20 @@ export function getAvailableRuleActions(rule: Rule): RuleAction[] {
     case "inactive":
       return rule.runningVersionNumber === null ? ["create_version"] : ["activate", "create_version"];
   }
+}
+
+// A superseded version was approved before a newer one replaced it.
+const EVER_APPROVED_VERSION_STATES: readonly RuleVersionState[] = ["approved", "superseded"];
+
+/**
+ * Only a rule that never had an approved version may be deleted: it never ran, so no evaluation run refers to it.
+ * An approved rule keeps its audit trail and can only be switched off.
+ */
+export function canDeleteRule(rule: Rule): boolean {
+  const hadApprovedVersion = rule.versions.some((version) =>
+    EVER_APPROVED_VERSION_STATES.includes(version.state),
+  );
+  return rule.runningVersionNumber === null && !hadApprovedVersion;
 }
 
 function assertActionAllowed(rule: Rule, action: RuleAction): void {

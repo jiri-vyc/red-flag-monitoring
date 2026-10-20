@@ -4,12 +4,14 @@ import { UserRound } from "lucide-react";
 import { useId } from "react";
 
 import { fieldStyles } from "@/components/ui/Field";
+import { Popover } from "@/components/ui/Popover";
 import { setActiveRole, setCurrentUser } from "@/config/currentUser";
 import { useI18n } from "@/i18n/I18nProvider";
 
 import { useCurrentUser, useUsers } from "../api/hooks";
 import type { UserRole } from "../types";
 import styles from "./CurrentUserPicker.module.css";
+import { RolesGuide } from "./RolesGuide";
 
 /**
  * Issue #6: without sign-in, the sidebar picks who the web acts as and in which of the user's roles.
@@ -32,9 +34,13 @@ export function CurrentUserPicker() {
 
   return (
     <div className={styles.picker}>
-      <span className={styles.avatar} aria-hidden="true">
-        <UserRound />
-      </span>
+      <Popover
+        triggerLabel={t.rolesGuide.trigger}
+        triggerClassName={styles.avatar}
+        trigger={<UserRound aria-hidden="true" />}
+      >
+        <RolesGuide activeRole={currentUser.activeRole} />
+      </Popover>
       <div className={styles.fields}>
         <label htmlFor={userSelectId} className={styles.label}>
           {t.sidebar.currentUser}

@@ -207,7 +207,7 @@ export function ManualRuleForm() {
         description={t.ruleForm.subtitle}
       />
       {!canManageRules ? (
-        <RoleGateNotice requiredRole="compliance_officer" />
+        <RoleGateNotice permission="canManageRules" />
       ) : creatableTypes.length === 0 ? (
         <Notice tone="info">{t.ruleForm.unavailable}</Notice>
       ) : (

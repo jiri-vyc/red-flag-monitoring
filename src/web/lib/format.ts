@@ -30,6 +30,11 @@ export function formatNumber(value: number, locale: Locale): string {
   return new Intl.NumberFormat(INTL_LOCALES[locale]).format(value);
 }
 
+/** Joins alternatives the way the locale does: "A or B" / "A nebo B". */
+export function formatAlternatives(items: string[], locale: Locale): string {
+  return new Intl.ListFormat(INTL_LOCALES[locale], { type: "disjunction" }).format(items);
+}
+
 export function formatAmount({
   amount,
   currency,

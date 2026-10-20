@@ -3,6 +3,7 @@ import { toDraftingJob, type DraftingJobDto } from "@/features/draftingJobs/api/
 import type { DraftingJob } from "@/features/draftingJobs/types";
 import type { Policy } from "@/features/policies/types";
 import type { Regulation } from "@/features/regulations/types";
+import { ApiError } from "@/lib/apiError";
 
 import { resumeWizardRun } from "./wizardRun";
 
@@ -105,6 +106,38 @@ describe("resumeWizardRun", () => {
       rulesJobIds: [],
     });
     expect(findRulesJobs).not.toHaveBeenCalled();
+  });
+
+  it("cannot continue a run whose policy drafts were all deleted", async () => {
+    const emptiedPolicyJob = { ...POLICY_JOB, policyIds: [] };
+    const { services } = createServices([emptiedPolicyJob], {});
+
+    await expect(resumeWizardRun("job-policy", services)).resolves.toEqual({
+      step: "unavailable",
+      policyJobId: "job-policy",
+    });
+  });
+
+  it("cannot continue a run whose policy draft or regulation is missing", async () => {
+    const { services } = createServices([POLICY_JOB], {});
+    const loadPolicyDraft = jest.fn(async () => {
+      throw new ApiError({ kind: "not_found", message: "Regulation not found" });
+    });
+
+    await expect(
+      resumeWizardRun("job-policy", { ...services, wizard: { ...services.wizard, loadPolicyDraft } }),
+    ).resolves.toEqual({ step: "unavailable", policyJobId: "job-policy" });
+  });
+
+  it("still fails on other errors while loading the drafts", async () => {
+    const { services } = createServices([POLICY_JOB], {});
+    const loadPolicyDraft = jest.fn(async () => {
+      throw new ApiError({ kind: "network", message: "offline" });
+    });
+
+    await expect(
+      resumeWizardRun("job-policy", { ...services, wizard: { ...services.wizard, loadPolicyDraft } }),
+    ).rejects.toMatchObject({ kind: "network" });
   });
 
   it("rejects a rules job that no wizard run started", async () => {

@@ -28,12 +28,14 @@ const ALL_CAPABILITIES: RulesCapabilities = {
   canCreateDeterministicRule: true,
   canCreateAgenticRule: true,
   canSuggestWhitelistClients: true,
+  canDeleteRule: true,
 };
 const LIVE_CAPABILITIES: RulesCapabilities = {
   canEditDraftContent: false,
   canCreateDeterministicRule: false,
   canCreateAgenticRule: true,
   canSuggestWhitelistClients: false,
+  canDeleteRule: false,
 };
 
 const POLICY: Policy = {

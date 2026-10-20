@@ -1,0 +1,13 @@
+.gatedAction {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.hint {
+  max-width: 18rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}

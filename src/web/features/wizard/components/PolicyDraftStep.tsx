@@ -113,7 +113,7 @@ export function PolicyDraftStep({
           </Button>
         </div>
       ) : (
-        <RoleGateNotice requiredRole="compliance_officer" />
+        <RoleGateNotice permission="canApprovePolicy" />
       )}
     </Card>
   );

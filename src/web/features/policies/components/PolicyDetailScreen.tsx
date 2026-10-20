@@ -4,7 +4,6 @@ import { FileText, ListChecks, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/ui/KeyValueList";
 import { MarkdownText } from "@/components/ui/MarkdownText";
@@ -28,10 +27,12 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { assertUnreachable } from "@/lib/assertUnreachable";
 import { formatDateTime } from "@/lib/format";
 import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGatedButton } from "@/features/users/components/RoleGatedButton";
 import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import { usePolicy } from "../api/hooks";
 import { findCurrentPolicyVersion, type Policy, type PolicyVersion } from "../types";
+import { DeletePolicyAction } from "./DeletePolicyAction";
 import { PolicyOriginBadge, PolicyStatusBadge } from "./PolicyBadges";
 import styles from "./PolicyDetailScreen.module.css";
 import { PolicyTextEditor } from "./PolicyTextEditor";
@@ -99,7 +100,6 @@ function RulesJobStatus({ job }: { job: DraftingJob }) {
 }
 
 function RulesJobNotice({ jobId, onRetried }: { jobId: string; onRetried: (jobId: string) => void }) {
-  const { canDraftRules } = useRolePermissions();
   const { t } = useI18n();
   const jobQuery = useDraftingJob(jobId);
   const retryMutation = useRetryDraftingJob();
@@ -112,8 +112,9 @@ function RulesJobNotice({ jobId, onRetried }: { jobId: string; onRetried: (jobId
       </Notice>
       <div className={styles.rulesJobActions}>
         {job && <DraftingJobStatusBadge status={job.status} />}
-        {job?.status === "failed" && canDraftRules && (
-          <Button
+        {job?.status === "failed" && (
+          <RoleGatedButton
+            permission="canDraftRules"
             variant="secondary"
             icon={<RotateCcw aria-hidden="true" />}
             disabled={retryMutation.isPending}
@@ -122,7 +123,7 @@ function RulesJobNotice({ jobId, onRetried }: { jobId: string; onRetried: (jobId
             }
           >
             {retryMutation.isPending ? t.draftingJobs.retrying : t.draftingJobs.retry}
-          </Button>
+          </RoleGatedButton>
         )}
         <RefreshButton
           label={t.draftingJobs.refresh}
@@ -160,7 +161,7 @@ function CurrentPolicyText({
         showApprove={canApprovePolicy}
         onApproved={({ rulesJob }) => onApproved(rulesJob?.id ?? null)}
       />
-      {!canApprovePolicy && <RoleGateNotice requiredRole="compliance_officer" />}
+      {!canApprovePolicy && <RoleGateNotice permission="canApprovePolicy" />}
     </>
   );
 }
@@ -228,6 +229,7 @@ function PolicyDetail({ policy }: { policy: Policy }) {
             {t.aiNotice.body}
           </Notice>
         )}
+        <DeletePolicyAction policy={policy} />
       </Card>
       <Card
         title={

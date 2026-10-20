@@ -14,6 +14,7 @@ import { formatDateTime } from "@/lib/format";
 // Demo client IDs, offered only when the rules service can suggest clients (the mock).
 import { SEED_CLIENTS } from "@/mocks/seed/clients";
 import { useRolePermissions } from "@/features/users/api/hooks";
+import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import {
   useAddWhitelistEntry,
@@ -199,7 +200,11 @@ export function RuleWhitelistCard({ rule }: { rule: Rule }) {
           <QueryView query={whitelistQuery}>
             {(entries) => <WhitelistTable ruleId={rule.id} entries={entries} canEdit={canManageRules} />}
           </QueryView>
-          {canManageRules && <AddWhitelistEntryForm ruleId={rule.id} />}
+          {canManageRules ? (
+            <AddWhitelistEntryForm ruleId={rule.id} />
+          ) : (
+            <RoleGateNotice permission="canManageRules" />
+          )}
         </>
       ) : (
         <Notice tone="info" title={t.whitelist.notAllowedTitle}>

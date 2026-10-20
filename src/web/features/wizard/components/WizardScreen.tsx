@@ -106,6 +106,7 @@ function findStepperStep(state: WizardState, isApprovingPolicies: boolean): Wiza
   switch (state.step) {
     case "source":
     case "resuming":
+    case "unavailable":
       return "source";
     case "drafting":
       return "policy";
@@ -140,6 +141,20 @@ function ResumingStep({ jobId, onResumed }: { jobId: string; onResumed: (run: Wi
     return <ErrorState error={runQuery.error} onRetry={() => void runQuery.refetch()} />;
   }
   return <LoadingRing label={t.wizard.resuming} />;
+}
+
+function UnavailableRunStep({ onRestart }: { onRestart: () => void }) {
+  const { t } = useI18n();
+  return (
+    <Card>
+      <Notice tone="info">{t.wizard.runUnavailable}</Notice>
+      <div>
+        <Button variant="secondary" icon={<RotateCcw aria-hidden="true" />} onClick={onRestart}>
+          {t.wizard.startAgain}
+        </Button>
+      </div>
+    </Card>
+  );
 }
 
 function PolicyDraftingStep({ policyJobId, onSucceeded }: { policyJobId: string; onSucceeded: () => void }) {
@@ -366,13 +381,15 @@ function WizardFlow({
                 onSubmit={startDrafting}
               />
             ) : (
-              <RoleGateNotice requiredRole="compliance_analyst" />
+              <RoleGateNotice permission="canDraftPolicies" />
             )}
             <DraftingJobsPanel />
           </>
         ))}
 
       {state.step === "resuming" && <ResumingStep jobId={state.jobId} onResumed={resume} />}
+
+      {state.step === "unavailable" && <UnavailableRunStep onRestart={restart} />}
 
       {state.step === "drafting" && (
         <PolicyDraftingStep policyJobId={state.policyJobId} onSucceeded={reloadRun} />

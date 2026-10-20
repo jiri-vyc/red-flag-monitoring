@@ -278,6 +278,7 @@ describe("liveRulesService mutations", () => {
       canCreateDeterministicRule: false,
       canCreateAgenticRule: true,
       canSuggestWhitelistClients: false,
+      canDeleteRule: false,
     });
   });
 

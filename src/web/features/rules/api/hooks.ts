@@ -31,12 +31,18 @@ export const ruleQueryKeys = {
 export type RuleTransitionAction = Exclude<RuleAction, "create_version" | "reject">;
 
 // Rule changes affect counters and relations shown on other screens too.
-function invalidateRuleRelatedQueries(queryClient: QueryClient) {
+function invalidateRuleDependentQueries(queryClient: QueryClient) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: ruleQueryKeys.all }),
     queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
     queryClient.invalidateQueries({ queryKey: ["policies"] }),
     queryClient.invalidateQueries({ queryKey: ["regulations"] }),
+  ]);
+}
+
+function invalidateRuleRelatedQueries(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ruleQueryKeys.all }),
+    invalidateRuleDependentQueries(queryClient),
   ]);
 }
 
@@ -127,6 +133,25 @@ export function useUpdateDraftContent() {
   return useMutation({
     mutationFn: (input: UpdateDraftContentInput) => rulesService.updateDraftContent(input),
     onSuccess: () => invalidateRuleRelatedQueries(queryClient),
+  });
+}
+
+export function useDeleteRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ruleId: string) => rulesService.deleteRule({ ruleId, deletedBy: getCurrentUser().name }),
+    // The deleted rule's own queries (detail, whitelist) are dropped, not refetched: a refetch would fail while
+    // its detail navigates away, and a cached copy would show the deleted rule again on browser Back.
+    onSuccess: (_result, ruleId) => {
+      queryClient.removeQueries({ queryKey: ruleQueryKeys.detail(ruleId) });
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ruleQueryKeys.all,
+          predicate: ({ queryKey }) => queryKey[1] !== ruleId,
+        }),
+        invalidateRuleDependentQueries(queryClient),
+      ]);
+    },
   });
 }
 

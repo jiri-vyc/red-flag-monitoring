@@ -50,6 +50,7 @@ import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 import { DEFAULT_ESCALATION_ROLE, type UserRole } from "@/features/users/types";
 
 import type { Rule, RuleContent } from "../types";
+import { DeleteRuleAction } from "./DeleteRuleAction";
 import { RuleStatusBadge, RuleTypeBadge } from "./RuleBadges";
 import { EscalationRoleSelect } from "./EscalationRoleSelect";
 import configStyles from "./RuleConfig.module.css";
@@ -93,7 +94,7 @@ function RuleActions({ rule, onOpenEditor }: { rule: Rule; onOpenEditor: (mode: 
   const isReviewable = availableActions.includes("approve") || availableActions.includes("reject");
 
   if (!canManageRules) {
-    return <RoleGateNotice requiredRole="compliance_officer" />;
+    return <RoleGateNotice permission="canManageRules" />;
   }
 
   return (
@@ -153,6 +154,7 @@ function RuleActions({ rule, onOpenEditor }: { rule: Rule; onOpenEditor: (mode: 
           </Button>
         )}
       </div>
+      <DeleteRuleAction rule={rule} />
       {isRejecting && (
         <RejectRulePanel
           ruleId={rule.id}

@@ -1,6 +1,8 @@
 import { getCurrentUser } from "@/config/currentUser";
 
-import { readMockDatabase, resetMockDatabase } from "../store/mockDatabase";
+import { ApiError } from "@/lib/apiError";
+
+import { readMockDatabase, resetMockDatabase, writeMockDatabase } from "../store/mockDatabase";
 import { mockPoliciesService } from "./policies.mock";
 
 jest.mock("../latency", () => ({ simulateLatency: () => Promise.resolve() }));
@@ -52,5 +54,47 @@ describe("mock policies version history", () => {
       reviewedBy: "Petr Svoboda",
       reviewedAt: approved.approvedAt,
     });
+  });
+});
+
+describe("mock policies deletion", () => {
+  const deletedBy = getCurrentUser().name;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetMockDatabase();
+  });
+
+  it("deletes a never-approved policy no rule derives from", async () => {
+    const database = readMockDatabase();
+    const draftPolicy = database.policies.find((policy) => policy.status === "draft")!;
+    // A fresh id, so no seeded rule derives from it.
+    const freshPolicy = { ...draftPolicy, id: "policy-fresh-draft" };
+    writeMockDatabase({ ...database, policies: [...database.policies, freshPolicy] });
+
+    await mockPoliciesService.deletePolicy({ policyId: freshPolicy.id, deletedBy });
+
+    expect(readMockDatabase().policies.some((policy) => policy.id === freshPolicy.id)).toBe(false);
+    expect(mockPoliciesService.capabilities.canDeletePolicy).toBe(true);
+  });
+
+  it("refuses an approved policy and keeps it", async () => {
+    const approvedPolicy = readMockDatabase().policies.find((policy) => policy.status === "approved")!;
+
+    await expect(
+      mockPoliciesService.deletePolicy({ policyId: approvedPolicy.id, deletedBy }),
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(readMockDatabase().policies.some((policy) => policy.id === approvedPolicy.id)).toBe(true);
+  });
+
+  it("refuses a draft policy that a rule derives from", async () => {
+    const database = readMockDatabase();
+    const draftPolicy = database.policies.find((policy) => policy.status === "draft")!;
+    const [firstRule, ...otherRules] = database.rules;
+    writeMockDatabase({ ...database, rules: [{ ...firstRule!, policyId: draftPolicy.id }, ...otherRules] });
+
+    await expect(
+      mockPoliciesService.deletePolicy({ policyId: draftPolicy.id, deletedBy }),
+    ).rejects.toMatchObject({ kind: "validation", message: expect.stringContaining("derived_rules") });
   });
 });
