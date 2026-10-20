@@ -31,6 +31,8 @@ You prepare the triage of transaction-monitoring alerts under internal policy SV
 - Alerts marked with guardrails must be REVIEW. Priority ${INDIVIDUAL_REVIEW_PRIORITY}+ does not forbid FP,
   but a human will confirm such an FP individually.
 - The priority is computed deterministically from table P; do not recompute it, you may refer to it.
+- Never do arithmetic. Every ratio you need is precomputed (fields ending in "_multiple"); quote those values.
+  A multiple above 1 means the value exceeds the reference, it is never "within" it.
 - Amounts are in CZK. Write each reason in English, 2 to 4 sentences, starting with the decisive grounds.
 - client_assessment: one or two sentences on the client's whole story.`;
 
@@ -85,6 +87,8 @@ function describeAlert(
   proposal: TriageProposal | undefined,
 ) {
   const totalHitCzk = alert.hits.reduce((sum, hit) => sum + hit.amountCzk, 0);
+  const profile = describeProfileConsistency(triageCase, alert.periodMonth);
+  const q2MaxTxCzk = Number(triageCase.client.q2MaxTxCzk);
   const sampleHits = alert.hits
     .toSorted((left, right) => right.amountCzk - left.amountCzk)
     .slice(0, SAMPLE_HITS_PER_ALERT);
@@ -97,9 +101,12 @@ function describeAlert(
     period_month: alert.periodMonth,
     hit_count: alert.hits.length,
     hit_volume_czk: formatCzk(totalHitCzk),
-    profile_check: describeProfileConsistency(triageCase, alert.periodMonth).description,
+    profile_check: profile.description,
     priority: proposal?.priority.priority,
     priority_factors: proposal?.priority.factors.map(({ label, points }) => `${label}: ${points}`),
+    month_volume_multiple_of_expected: roundMultiple(
+      profile.expectedMonthVolumeCzk > 0 ? profile.monthVolumeCzk / profile.expectedMonthVolumeCzk : null,
+    ),
     rule_based_proposal: proposal?.triage,
     guardrails: proposal && proposal.guardrails.length > 0 ? describeGuardrails(proposal.guardrails) : null,
     largest_hit_transactions: sampleHits.map((hit) => ({
@@ -107,11 +114,16 @@ function describeAlert(
       at: hit.occurredAt.toISOString(),
       type: hit.transactionType,
       amount_czk: Math.round(hit.amountCzk),
+      amount_multiple_of_q2_max_tx: roundMultiple(q2MaxTxCzk > 0 ? hit.amountCzk / q2MaxTxCzk : null),
       payer_country: hit.payerCountry,
       payee_country: hit.payeeCountry,
       rule_trace: hit.traceSummary,
     })),
   };
+}
+
+function roundMultiple(multiple: number | null): number | null {
+  return multiple === null ? null : Math.round(multiple * 10) / 10;
 }
 
 export const alertTriageJsonSchema = {
