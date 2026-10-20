@@ -1,3 +1,4 @@
+import { recordAuditEvent } from "../audit/auditLog";
 import type { ReferenceList, ReferenceListVersion } from "../../domain/referenceList";
 import { NotFoundError } from "../errors";
 import type {
@@ -10,8 +11,18 @@ import type {
 export class ReferenceListUseCases {
   constructor(private readonly referenceListRepository: ReferenceListRepository) {}
 
-  createList(list: NewReferenceList): Promise<ReferenceList> {
-    return this.referenceListRepository.createList(list);
+  async createList(list: NewReferenceList): Promise<ReferenceList> {
+    const created = await this.referenceListRepository.createList(list);
+
+    recordAuditEvent({
+      action: "reference_list.created",
+      entityType: "reference_list",
+      entityId: created.id,
+      actorId: null,
+      payload: { code: created.code },
+    });
+
+    return created;
   }
 
   listLists(): Promise<ReferenceList[]> {
@@ -30,8 +41,17 @@ export class ReferenceListUseCases {
 
   async createVersion(version: NewReferenceListVersion): Promise<ReferenceListVersion> {
     await this.getList(version.listId);
+    const created = await this.referenceListRepository.createVersion(version);
 
-    return this.referenceListRepository.createVersion(version);
+    recordAuditEvent({
+      action: "reference_list.version_created",
+      entityType: "reference_list",
+      entityId: version.listId,
+      actorId: null,
+      payload: { versionId: created.id, itemCount: version.items.length, sourceNote: version.sourceNote },
+    });
+
+    return created;
   }
 
   async listVersions(listId: string): Promise<ReferenceListVersion[]> {

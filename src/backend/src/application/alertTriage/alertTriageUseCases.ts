@@ -14,6 +14,7 @@ import {
   type PricedTransaction,
   priceTransactionsChronologically,
 } from "../../domain/features/pricedTransaction";
+import { recordAuditEvent } from "../audit/auditLog";
 import type { Clock } from "../clock";
 import { BusinessRuleViolationError, ConflictError, NotFoundError, toErrorMessage } from "../errors";
 import type { EvaluationRunReadRepository } from "../evaluationRuns/evaluationRunReadRepository";
@@ -61,6 +62,17 @@ export class AlertTriageUseCases {
     );
 
     await alertTriageRepository.saveRuleTriages(triages);
+    recordAuditEvent({
+      action: "aml_event.rule_triage_proposed",
+      entityType: "evaluation_run",
+      entityId: runId,
+      actorId: null,
+      payload: {
+        alertCount: triages.length,
+        fpCount: triages.filter(({ triage }) => triage === "FP").length,
+        reviewCount: triages.filter(({ triage }) => triage === "REVIEW").length,
+      },
+    });
 
     return triages.length;
   }
@@ -189,6 +201,16 @@ export class AlertTriageUseCases {
       call: { ...result.call, runId, clientId: triageCase.client.clientId },
       triages,
     });
+
+    for (const triage of triages) {
+      recordAuditEvent({
+        action: "aml_event.llm_triage_proposed",
+        entityType: "aml_event",
+        entityId: triage.amlEventId,
+        actorId: null,
+        payload: { runId, clientId: triageCase.client.clientId, triage: triage.triage, log: triage.log },
+      });
+    }
   }
 
   private requireLlm(): { model: AlertTriageModel; launcher: AlertTriageLauncher } {

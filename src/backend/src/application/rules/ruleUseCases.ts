@@ -6,6 +6,7 @@ import {
   type Rule,
   type RuleVersion,
 } from "../../domain/rule";
+import { recordAuditEvent } from "../audit/auditLog";
 import type { Clock } from "../clock";
 import { BusinessRuleViolationError, NotFoundError } from "../errors";
 import { createReviewSubmission, createVersionReview, type ReviewInput } from "../versionReview";
@@ -21,8 +22,18 @@ export class RuleUseCases {
   ) {}
 
   // New rules start disabled: there is no approved version to run yet (M6).
-  createRule(rule: NewRule): Promise<Rule> {
-    return this.ruleRepository.createRule(rule);
+  async createRule(rule: NewRule): Promise<Rule> {
+    const created = await this.ruleRepository.createRule(rule);
+
+    recordAuditEvent({
+      action: "rule.created",
+      entityType: "rule",
+      entityId: created.id,
+      actorId: null,
+      payload: { code: created.code, kind: created.kind },
+    });
+
+    return created;
   }
 
   listRules(): Promise<Rule[]> {
@@ -39,9 +50,9 @@ export class RuleUseCases {
     return rule;
   }
 
-  // COMPLIANCE REVIEW: enabling, disabling and activating a version keep only the current state on `rules`, with no
-  // actor and no timestamp, so who switched a rule on or off is not reconstructable yet (spec 8, audit log #5).
-  // What a run evaluated is reconstructable: each run fixes its rule versions (V5).
+  // COMPLIANCE REVIEW: enabling, disabling and activating a version are audited in the logs with a timestamp but no
+  // actor, because the API takes none yet (#5). What a run evaluated is reconstructable: each run fixes its rule
+  // versions (V5).
   async enableRule(ruleId: string): Promise<Rule> {
     const rule = await this.getRule(ruleId);
 
@@ -50,6 +61,7 @@ export class RuleUseCases {
     }
 
     await this.ruleRepository.updateRuleEnabled(ruleId, true);
+    recordAuditEvent({ action: "rule.enabled", entityType: "rule", entityId: ruleId, actorId: null });
 
     return this.getRule(ruleId);
   }
@@ -57,6 +69,7 @@ export class RuleUseCases {
   async disableRule(ruleId: string): Promise<Rule> {
     await this.getRule(ruleId);
     await this.ruleRepository.updateRuleEnabled(ruleId, false);
+    recordAuditEvent({ action: "rule.disabled", entityType: "rule", entityId: ruleId, actorId: null });
 
     return this.getRule(ruleId);
   }
@@ -81,6 +94,13 @@ export class RuleUseCases {
       versionId,
       previousActiveVersionId: rule.activeVersionId,
     });
+    recordAuditEvent({
+      action: "rule.active_version_set",
+      entityType: "rule",
+      entityId: ruleId,
+      actorId: null,
+      payload: { versionId, previousActiveVersionId: rule.activeVersionId },
+    });
 
     return this.getRule(ruleId);
   }
@@ -98,7 +118,17 @@ export class RuleUseCases {
       throw new BusinessRuleViolationError("A rule version needs at least one legal basis");
     }
 
-    return this.ruleRepository.createVersion(version);
+    const created = await this.ruleRepository.createVersion(version);
+
+    recordAuditEvent({
+      action: "rule.version_created",
+      entityType: "rule",
+      entityId: version.ruleId,
+      actorId: created.createdBy,
+      payload: { versionId: created.id, versionNo: created.versionNo, createdVia: created.createdVia },
+    });
+
+    return created;
   }
 
   async listVersions(ruleId: string): Promise<RuleVersion[]> {
@@ -121,6 +151,13 @@ export class RuleUseCases {
     const version = await this.getVersion(ruleId, versionId);
 
     await this.ruleRepository.updateVersionStatus(createReviewSubmission(version));
+    recordAuditEvent({
+      action: "rule.version_submitted",
+      entityType: "rule",
+      entityId: ruleId,
+      actorId: null,
+      payload: { versionId },
+    });
 
     return this.getVersion(ruleId, versionId);
   }
@@ -131,6 +168,18 @@ export class RuleUseCases {
     const review = createVersionReview(version, input, this.clock);
 
     await this.ruleRepository.recordReview(versionId, { ...review, escalationRole: input.escalationRole });
+    recordAuditEvent({
+      action: "rule.version_reviewed",
+      entityType: "rule",
+      entityId: ruleId,
+      actorId: input.reviewedBy,
+      payload: {
+        versionId,
+        decision: input.decision,
+        reviewComment: input.reviewComment,
+        escalationRole: input.escalationRole,
+      },
+    });
 
     return this.getVersion(ruleId, versionId);
   }

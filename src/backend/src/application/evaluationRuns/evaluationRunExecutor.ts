@@ -2,6 +2,7 @@ import { groupRuleHitsIntoAmlEvents } from "../../domain/amlEvent";
 import type { EvaluationRun } from "../../domain/evaluation";
 import { createTransactionEvaluator, type EvaluatedTransaction } from "../../domain/transactionEvaluator";
 import type { AmlEventRepository } from "../amlEvents/amlEventRepository";
+import { recordAuditEvent } from "../audit/auditLog";
 import type { Clock } from "../clock";
 import { BusinessRuleViolationError, NotFoundError, toErrorMessage } from "../errors";
 import type {
@@ -49,7 +50,21 @@ export class EvaluationRunExecutor {
       await this.createRunAmlEvents(run.id);
       await this.dependencies.ruleBasedTriage.triageRunWithRules(run.id);
       await evaluationRunRepository.markRunCompleted({ runId, finishedAt: clock() });
+      recordAuditEvent({
+        action: "evaluation_run.completed",
+        entityType: "evaluation_run",
+        entityId: runId,
+        actorId: run.createdBy,
+        payload: { engineVersion: run.engineVersion },
+      });
     } catch (error) {
+      recordAuditEvent({
+        action: "evaluation_run.failed",
+        entityType: "evaluation_run",
+        entityId: runId,
+        actorId: run.createdBy,
+        payload: { error: toErrorMessage(error) },
+      });
       await evaluationRunRepository.markRunFailed({
         runId,
         errorMessage: toErrorMessage(error),

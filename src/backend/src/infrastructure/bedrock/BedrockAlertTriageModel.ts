@@ -9,7 +9,7 @@ import {
   alertTriageJsonSchema,
   createAlertTriageUserPrompt,
 } from "./alertTriagePrompt";
-import { logTokenUsage, MalformedModelResponseError, readCompleteText } from "./modelResponse";
+import { logTokenUsage, MalformedModelResponseError, readCompleteText, recordLlmCall } from "./modelResponse";
 
 const MAX_OUTPUT_TOKENS = 4_000;
 
@@ -47,6 +47,14 @@ export class BedrockAlertTriageModel implements AlertTriageModel {
     const durationMs = Date.now() - startedAt;
 
     logTokenUsage("triageClient", modelId, message.usage);
+    recordLlmCall({
+      operation: "triageClient",
+      modelId,
+      system: ALERT_TRIAGE_SYSTEM_PROMPT,
+      userPrompt,
+      message,
+      durationMs,
+    });
 
     const parsed = triageResponseSchema.safeParse(JSON.parse(readCompleteText(message)));
 

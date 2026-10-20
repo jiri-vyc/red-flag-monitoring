@@ -17,7 +17,7 @@ import {
   findUnverifiedQuotes,
 } from "../../domain/policyDraftReview";
 import type { PolicyLegalBasis, Regulation, RegulationVersion } from "../../domain/regulation";
-import { logTokenUsage, readCompleteText } from "./modelResponse";
+import { logTokenUsage, readCompleteText, recordLlmCall } from "./modelResponse";
 import { createPolicyDraftingUserPrompt, POLICY_DRAFTING_SYSTEM_PROMPT } from "./policyDraftingPrompt";
 import { createRuleDraftingUserPrompt, RULE_DRAFTING_SYSTEM_PROMPT } from "./ruleDraftingPrompt";
 import {
@@ -171,6 +171,14 @@ export class BedrockDraftGenerator implements DraftGenerator {
         `stop_reason=${message.stop_reason}`,
     );
     logTokenUsage(request.operation, this.dependencies.modelId, message.usage);
+    recordLlmCall({
+      operation: request.operation,
+      modelId: this.dependencies.modelId,
+      system: request.system,
+      userPrompt: request.userPrompt,
+      message,
+      durationMs: Date.now() - startedAt,
+    });
 
     try {
       return readCompleteText(message).trim();

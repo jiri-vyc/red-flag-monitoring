@@ -1,4 +1,5 @@
 import type { EvaluationRun, RunScope } from "../../domain/evaluation";
+import { recordAuditEvent } from "../audit/auditLog";
 import type { Clock } from "../clock";
 import { BusinessRuleViolationError, toErrorMessage } from "../errors";
 import type {
@@ -47,6 +48,19 @@ export class EvaluationRunUseCases {
       createdBy: command.createdBy,
       ruleVersionIds,
       referenceListVersionIds: await evaluationInputRepository.listLatestReferenceListVersionIds(),
+    });
+    recordAuditEvent({
+      action: "evaluation_run.started",
+      entityType: "evaluation_run",
+      entityId: run.id,
+      actorId: command.createdBy,
+      payload: {
+        scope: command.scope,
+        hitThreshold: command.hitThreshold,
+        transactionCount: transactionIds.length,
+        ruleVersionIds,
+        transactionSetSha256: run.fileSha256,
+      },
     });
 
     await this.launchCreatedRun(run.id);
