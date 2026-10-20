@@ -86,3 +86,13 @@ describe("TransactionEvaluationScreen score calculation", () => {
     ).toBe("64");
   });
 });
+
+describe("TransactionEvaluationScreen client transactions", () => {
+  it("links a failed rule to the client's transactions with this transaction highlighted", () => {
+    const ruleCard = renderScreen([RULE_EVALUATION]);
+
+    const link = within(ruleCard).getByRole("link", { name: en.transactionDetail.showClientTransactions });
+
+    expect(link.getAttribute("href")).toMatch(/^\/transactions\?clientId=K000001&highlight=TX000000001/);
+  });
+});

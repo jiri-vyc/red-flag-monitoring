@@ -33,6 +33,13 @@ Průvodce v live režimu (`features/wizard/api/live.ts`) jde přes asynchronní 
 - **Dávky podle role:** seznam i detail transakce posílají `?role=<aktivní role>` a role je součást query key. Seznam ukazuje jen transakce se zásahem eskalovaným na aktivní roli a počet nesplněných pravidel bere z `hitRules`. Mock filtruje stejně. Souhrn dávky (počty v kartách) filtrovaný není.
 - [ ] **4-eyes** zůstává otevřené (viz Minor nálezy).
 
+## Transakce uživatele (issue #9, hotovo)
+
+- **Stránka `/transactions`** (`features/transactions`, služba `transactions`, `GET /api/transactions`, v mocku seed `mocks/seed/transactions.ts`). Není v sidebaru. Tabulka transakcí od nejnovější s nekonečným scrollováním, filtr podle ID klienta (formát `K000123`, prázdný filtr ukáže vše). Filtr je v URL (`/transactions?clientId=K000123`), takže jde sdílet. Bez filtru má tabulka sloupec Klient.
+- **Odkaz z detailu alertu:** karta nesplněného pravidla má odkaz „Kontext: zobrazit transakce klienta“ na `/transactions?clientId=…&highlight=…&from=…`. Vyhodnocovaná transakce je zvýrazněná. Seznam donačítá stránky, dokud se neobjeví (nejvýš 20 stránek), a posune se na ni. „Zpět na vyhodnocení transakce“ vede zpět na detail.
+- [ ] **Časové okno pravidla** v odkazu (`from` / `to`): API ho umí, web ho neposílá. Rozdíl v časové zóně: `occurredAt` přichází jako UTC z lokálního `ts` podle zóny procesu backendu, převod zpět na lokální čas v prohlížeči by nebyl spolehlivý. Navíc okna se liší podle pravidla.
+- [ ] Typ transakce se ukazuje surově (`incoming` v live, `incoming payment` v mocku), stejně jako v detailu transakce.
+
 ## Asynchronní schválení a polling (rozhodnutí 2026-10-19, hotovo)
 
 Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obojí přes polling v UI (varianta 1). Schválení předpisu běží přes drafting jobs ([spec/drafting-jobs.md](spec/drafting-jobs.md)), na webu to napojil commit `ad03408`.
@@ -91,7 +98,7 @@ Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obo
 
 - [ ] **Audit log** (BE-13): sekce se všemi akcemi (vytvoření, úprava, schválení a zamítnutí pravidla, nová verze, vyhodnocení dávky, rozhodnutí o AML události). U každé akce kdo, kdy, co, proč a verze pravidla. Podle spec je povinný (sekce 7.7 a 8).
 - [ ] **AML události** (BE-14): seznam a detail (triage FP/REVIEW, priorita 0-100, odpovědná osoba, schvalovatel, stav) a export do povinného CSV podle spec sekce 6. Zpracování událostí je ve spec nice-to-have.
-- [ ] **Klienti** (BE-15): detail klienta s risk profilem, PEP, AML risk score, projektovanými a historickými objemy a historií transakcí. Proklik z detailu transakce.
+- [ ] **Klienti** (BE-15): detail klienta s risk profilem, PEP, AML risk score a projektovanými a historickými objemy. Historii transakcí už pokrývá stránka „Transakce uživatele“ (issue #9, viz níže).
 - [ ] **Zkontrolovat aktualizace regulací** (BE-16): tlačítko na dashboardu a u regulací. Pro dotčená pravidla navrhne nové verze ve stavu `update_for_review`. Mock to jen simuluje, scraping je mimo MVP.
 - [ ] **Mazání dávek**: hlavně kvůli limitu localStorage v mocku (dnes se při zaplnění musí udělat reset demo dat).
 - [ ] **Prahy a konfigurace vyhodnocení z API** (BE-17): prahy (fail ≥ 40, alert ≥ 75), seznam vysoce rizikových zemí a kurzy jsou zatím demo hodnoty v mocku. Až je bude dodávat API, převzít je odtud.

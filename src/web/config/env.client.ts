@@ -14,6 +14,7 @@ const clientEnvSchema = z.object({
   NEXT_PUBLIC_API_MODE_WIZARD: optionalApiModeSchema,
   NEXT_PUBLIC_API_MODE_DASHBOARD: optionalApiModeSchema,
   NEXT_PUBLIC_API_MODE_USERS: optionalApiModeSchema,
+  NEXT_PUBLIC_API_MODE_TRANSACTIONS: optionalApiModeSchema,
 });
 
 // Next.js inlines NEXT_PUBLIC_* only for literal `process.env.X` references, so each one is listed explicitly.
@@ -26,6 +27,7 @@ const rawClientEnv = {
   NEXT_PUBLIC_API_MODE_WIZARD: process.env.NEXT_PUBLIC_API_MODE_WIZARD,
   NEXT_PUBLIC_API_MODE_DASHBOARD: process.env.NEXT_PUBLIC_API_MODE_DASHBOARD,
   NEXT_PUBLIC_API_MODE_USERS: process.env.NEXT_PUBLIC_API_MODE_USERS,
+  NEXT_PUBLIC_API_MODE_TRANSACTIONS: process.env.NEXT_PUBLIC_API_MODE_TRANSACTIONS,
 };
 
 function parseClientEnv() {

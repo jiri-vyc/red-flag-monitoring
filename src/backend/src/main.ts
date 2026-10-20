@@ -9,6 +9,7 @@ import { InternalPolicyUseCases } from "./application/internalPolicies/internalP
 import { ReferenceListUseCases } from "./application/referenceLists/referenceListUseCases";
 import { RegulationUseCases } from "./application/regulations/regulationUseCases";
 import { RuleUseCases } from "./application/rules/ruleUseCases";
+import { TransactionQueries } from "./application/transactions/transactionQueries";
 import { UserUseCases } from "./application/users/userUseCases";
 import { WhitelistUseCases } from "./application/whitelist/whitelistUseCases";
 import { type AppConfig, parseAppConfig } from "./config";
@@ -23,6 +24,7 @@ import { TypeOrmInternalPolicyRepository } from "./infrastructure/database/repos
 import { TypeOrmReferenceListRepository } from "./infrastructure/database/repositories/TypeOrmReferenceListRepository";
 import { TypeOrmRegulationRepository } from "./infrastructure/database/repositories/TypeOrmRegulationRepository";
 import { TypeOrmRuleRepository } from "./infrastructure/database/repositories/TypeOrmRuleRepository";
+import { TypeOrmTransactionRepository } from "./infrastructure/database/repositories/TypeOrmTransactionRepository";
 import { TypeOrmUserRepository } from "./infrastructure/database/repositories/TypeOrmUserRepository";
 import { TypeOrmWhitelistRepository } from "./infrastructure/database/repositories/TypeOrmWhitelistRepository";
 
@@ -64,6 +66,7 @@ function createUseCases(dataSource: DataSource, appConfig: AppConfig): AppUseCas
     evaluationRunUseCases: createEvaluationRunUseCases(dataSource, appConfig),
     databaseStatus: new DatabaseStatusQueries(new TypeOrmDatabaseStatusProbe(dataSource)),
     users: new UserUseCases(new TypeOrmUserRepository(dataSource)),
+    transactions: new TransactionQueries(new TypeOrmTransactionRepository(dataSource)),
   };
 }
 

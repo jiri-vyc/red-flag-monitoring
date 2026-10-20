@@ -165,6 +165,20 @@
   height: 1em;
 }
 
+.contextLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--hit-target);
+  margin-top: var(--space-3);
+  font-weight: 600;
+}
+
+.contextLink svg {
+  width: 1em;
+  height: 1em;
+}
+
 .traceTitle {
   margin-bottom: var(--space-3);
   color: var(--color-text-muted);

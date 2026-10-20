@@ -2,7 +2,6 @@
 
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/Button";
 import tableStyles from "@/components/ui/DataTable.module.css";
@@ -10,29 +9,11 @@ import { LoadingRing } from "@/components/ui/LoadingRing";
 import { EmptyState, ErrorState } from "@/components/ui/StateViews";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatAmount, formatDateTime } from "@/lib/format";
+import { useInfiniteScroll } from "@/lib/useInfiniteScroll";
 
 import { useBatchTransactions } from "../api/hooks";
 import type { Bucket } from "../types";
 import styles from "./BatchDetail.module.css";
-
-/** Loads the next page when the sentinel below the table scrolls into view; the button is the fallback. */
-function useInfiniteScroll({ canLoadMore, loadMore }: { canLoadMore: boolean; loadMore: () => void }) {
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || !canLoadMore) {
-      return;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        loadMore();
-      }
-    });
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [canLoadMore, loadMore]);
-  return sentinelRef;
-}
 
 export function BatchTransactionList({ batchId, bucket }: { batchId: string; bucket: Bucket }) {
   const { t, locale } = useI18n();

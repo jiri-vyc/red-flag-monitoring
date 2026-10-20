@@ -7,25 +7,11 @@ import { MAX_SCORE, MIN_SCORE } from "../../domain/score";
 import { DEMO_ADMIN_USER_ID } from "../../domain/user";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
 import type { EvaluationRunUseCases } from "../../application/evaluationRuns/evaluationRunUseCases";
-import { pageQuerySchema } from "./schemas";
+import { CLIENT_ID_PATTERN, localTimestampSchema, pageQuerySchema } from "./schemas";
 import { parseRequest } from "./validation";
 
 const runParamsSchema = z.object({ runId: z.uuid() });
 const transactionParamsSchema = runParamsSchema.extend({ transactionId: z.string().regex(/^TX[0-9]{9}$/) });
-
-const CLIENT_ID_PATTERN = /^K[0-9]{6}$/;
-
-// transactions.ts is a local timestamp, so the bounds are local too: "2026-07-01", "2026-07-01T10:00" or
-// "2026-07-01T10:00:00", no offset. They are normalized to "YYYY-MM-DDTHH:MM:SS", which compares as text.
-const LOCAL_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/;
-
-const localTimestampSchema = z
-  .string()
-  .regex(LOCAL_TIMESTAMP_PATTERN)
-  .transform(normalizeLocalTimestamp)
-  .refine((value) => !Number.isNaN(new Date(value).getTime()), { message: "Invalid date" })
-  .nullish()
-  .transform((value) => value ?? null);
 
 const runScopeSchema = z
   .object({
@@ -123,10 +109,4 @@ export function createEvaluationRunsRouter(
   });
 
   return router;
-}
-
-function normalizeLocalTimestamp(value: string): string {
-  const [date = "", time = "00:00"] = value.split("T");
-
-  return `${date}T${time.length === 5 ? `${time}:00` : time}`;
 }

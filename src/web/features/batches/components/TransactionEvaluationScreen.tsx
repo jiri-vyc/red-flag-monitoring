@@ -1,6 +1,15 @@
 "use client";
 
-import { ArrowRight, Check, ChevronRight, Circle, CircleSlash, ListChecks, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Circle,
+  CircleSlash,
+  History,
+  ListChecks,
+  ShieldCheck,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -12,6 +21,7 @@ import { findScoreTone, ScoreBar } from "@/components/ui/ScoreBar";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
 import { rulePath } from "@/features/rules/api/dto";
 import { RuleTypeBadge } from "@/features/rules/components/RuleBadges";
+import { transactionsPath } from "@/features/transactions/transactionsPath";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { withReturnPath } from "@/lib/returnPath";
@@ -94,7 +104,30 @@ const SCORE_TILE_CLASS = {
   high: styles.scoreTileHigh,
 };
 
-function FailedRuleCard({ evaluation }: { evaluation: RuleEvaluation }) {
+/** Issue #9: the client's transactions are the data behind the trace values, with this transaction highlighted. */
+function ClientTransactionsLink({ clientId, transactionId }: { clientId: string; transactionId: string }) {
+  const { t } = useI18n();
+  const pathname = usePathname();
+  return (
+    <Link
+      href={transactionsPath({ clientId, highlightedTransactionId: transactionId, returnPath: pathname })}
+      className={styles.contextLink}
+    >
+      <History aria-hidden="true" />
+      {t.transactionDetail.showClientTransactions}
+    </Link>
+  );
+}
+
+function FailedRuleCard({
+  evaluation,
+  clientId,
+  transactionId,
+}: {
+  evaluation: RuleEvaluation;
+  clientId: string;
+  transactionId: string;
+}) {
   const { t } = useI18n();
   const ruleDetailHref = useRuleDetailHref();
   const scoreTileClass = SCORE_TILE_CLASS[findScoreTone(evaluation.adjustedScore)];
@@ -127,6 +160,7 @@ function FailedRuleCard({ evaluation }: { evaluation: RuleEvaluation }) {
         <div>
           <h4 className={styles.traceTitle}>{t.transactionDetail.trace}</h4>
           <TraceTimeline evaluation={evaluation} />
+          <ClientTransactionsLink clientId={clientId} transactionId={transactionId} />
         </div>
         <aside className={styles.scorePanel}>
           <ScoreCalculation evaluation={evaluation} />
@@ -252,7 +286,12 @@ function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEv
         ) : (
           <div className={styles.ruleList}>
             {evaluation.failedRules.map((ruleEvaluation) => (
-              <FailedRuleCard key={ruleEvaluation.ruleId} evaluation={ruleEvaluation} />
+              <FailedRuleCard
+                key={ruleEvaluation.ruleId}
+                evaluation={ruleEvaluation}
+                clientId={client.id}
+                transactionId={transaction.transactionId}
+              />
             ))}
           </div>
         )}

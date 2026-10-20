@@ -3,16 +3,7 @@ import { formatRuleName } from "@/features/rules/api/dto";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
 
-import type {
-  Batch,
-  BatchStatus,
-  Bucket,
-  RuleEvaluation,
-  RunScope,
-  SkipReason,
-  TraceStep,
-  TransactionView,
-} from "../types";
+import type { Batch, BatchStatus, Bucket, RuleEvaluation, RunScope, SkipReason, TraceStep } from "../types";
 import type { BatchesService } from "./contract";
 import {
   evaluationRunPageDtoSchema,
@@ -28,6 +19,7 @@ import {
   type StartRunBodyDto,
   type TransactionDto,
   type VerdictDto,
+  toTransactionView,
 } from "./dto";
 
 // A batch is an evaluation run. The run list endpoint allows at most 500 items per page.
@@ -83,22 +75,6 @@ function toStartRunBody(scope: RunScope): StartRunBodyDto {
   return {
     createdBy: getCurrentUser().id,
     ...(setScopeEntries.length > 0 && { scope: Object.fromEntries(setScopeEntries) }),
-  };
-}
-
-function toTransaction(transaction: TransactionDto, amountCzk: number | null): TransactionView {
-  return {
-    transactionId: transaction.transactionId,
-    clientId: transaction.clientId,
-    bookedAt: transaction.occurredAt,
-    amount: Number(transaction.amount),
-    currency: transaction.currency,
-    amountCzk,
-    payerCountry: transaction.payerCountry,
-    payeeCountry: transaction.payeeCountry,
-    payerAccount: transaction.payerAccount ?? "",
-    payeeAccount: transaction.payeeAccount,
-    transactionType: transaction.transactionType,
   };
 }
 
@@ -228,7 +204,7 @@ export const liveBatchesService: BatchesService = {
     return {
       items: page.items.map((item) => ({
         // The list has no rule results, so no CZK amount; only the transaction detail shows it.
-        transaction: toTransaction(item.transaction, null),
+        transaction: toTransactionView(item.transaction, null),
         bucket: BUCKET_BY_VERDICT[item.verdict],
         // hitRules holds only the role's hits, so the count and score match what the detail shows.
         failedRuleCount: item.hitRules.length,
@@ -247,7 +223,7 @@ export const liveBatchesService: BatchesService = {
     const { ruleEvaluations } = detail;
     return {
       batchId: detail.evaluation.runId,
-      transaction: toTransaction(detail.transaction, findAmountCzk(detail.transaction, ruleEvaluations)),
+      transaction: toTransactionView(detail.transaction, findAmountCzk(detail.transaction, ruleEvaluations)),
       client: {
         id: detail.client.clientId,
         riskProfile: detail.client.amlRiskScore,

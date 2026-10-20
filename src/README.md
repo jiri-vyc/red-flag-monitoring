@@ -78,6 +78,7 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 | `/internal-policies` | as regulations, plus `POST /:id/versions/:versionId/submit` and `POST /:id/versions/:versionId/review`                                                                                                |
 | `/rules`             | as internal policies, plus `POST /:id/enable`, `POST /:id/disable`, `PUT /:id/active-version`, `GET` / `POST /:id/whitelist`, `DELETE /:id/whitelist/:clientId`                                       |
 | `/users`             | `GET /`: users with their `roles`, sorted by name                                                                                                                                                       |
+| `/transactions`      | `GET /?clientId=&from=&to=&limit=&offset=`: transactions newest first; `clientId` must match `K000123`, `from` / `to` are local timestamps (from inclusive, to exclusive), invalid values return 400 (issue #9) |
 | `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                               |
 | `/drafting-jobs`     | `POST /` (start, see below), `GET /?status=&kind=&regulationId=&policyVersionId=&limit=&offset=`, `GET /:jobId`, `POST /:jobId/retry`                                                                 |
 | `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&role=&limit=&offset=`, `GET /:runId/transactions/:transactionId?role=` (detail with trace) |
@@ -159,7 +160,7 @@ Copy `.env.example` to `.env` in each package if you need to override defaults. 
 | backend | `DRAFTING_WORKER_FUNCTION`   | (unset)                 | Lambda function that executes drafting jobs; unset = in the API process. Needs `AWS_REGION`             |
 | web     | `BACKEND_URL`                | `http://localhost:4000` | Server-only. Backend base URL for the `/api/*` proxy; baked into the rewrite at build time              |
 | web     | `NEXT_PUBLIC_API_MODE`       | `mock`                  | Default data source (`mock` or `live`); the sidebar switch overrides it per browser                     |
-| web     | `NEXT_PUBLIC_API_MODE_<SVC>` | (unset)                 | Per-service override, `<SVC>` is `REGULATIONS`, `POLICIES`, `RULES`, `BATCHES`, `WIZARD` or `DASHBOARD` |
+| web     | `NEXT_PUBLIC_API_MODE_<SVC>` | (unset)                 | Per-service override, `<SVC>` is `REGULATIONS`, `POLICIES`, `RULES`, `BATCHES`, `WIZARD`, `DASHBOARD`, `USERS` or `TRANSACTIONS` |
 
 Web env is validated with Zod in `web/config/env.client.ts` (`NEXT_PUBLIC_*` only, inlined at build time) and `web/config/env.server.ts` (`server-only`). Future secrets (API keys) must never use the `NEXT_PUBLIC_` prefix; on AWS pass them to the Web Function with `--env` in `deploy/web.sh` (or keep them in Secrets Manager).
 

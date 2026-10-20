@@ -14,6 +14,20 @@ export const pageQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+export const CLIENT_ID_PATTERN = /^K[0-9]{6}$/;
+
+// transactions.ts is a local timestamp, so the bounds are local too: "2026-07-01", "2026-07-01T10:00" or
+// "2026-07-01T10:00:00", no offset. They are normalized to "YYYY-MM-DDTHH:MM:SS", which compares as text.
+const LOCAL_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/;
+
+export const localTimestampSchema = z
+  .string()
+  .regex(LOCAL_TIMESTAMP_PATTERN)
+  .transform(normalizeLocalTimestamp)
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), { message: "Invalid date" })
+  .nullish()
+  .transform((value) => value ?? null);
+
 export const newRegulationSchema = z.object({
   code: requiredText,
   title: requiredText,
@@ -42,4 +56,10 @@ export const reviewBodySchema = z.object({
 
 export function uniqueBy<Item>(items: Item[], toKey: (item: Item) => string): boolean {
   return new Set(items.map(toKey)).size === items.length;
+}
+
+function normalizeLocalTimestamp(value: string): string {
+  const [date = "", time = "00:00"] = value.split("T");
+
+  return `${date}T${time.length === 5 ? `${time}:00` : time}`;
 }

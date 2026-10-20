@@ -8,7 +8,6 @@ import {
   VERDICTS,
 } from "../../../domain/evaluation";
 import type { EscalationRole } from "../../../domain/rule";
-import type { Transaction } from "../../../domain/transaction";
 import type {
   EvaluationRunListItem,
   EvaluationRunSummary,
@@ -27,9 +26,9 @@ import type { ClientEntity } from "../entities/ClientEntity";
 import { EvaluationRunEntity } from "../entities/EvaluationRunEntity";
 import { RuleEvaluationEntity } from "../entities/RuleEvaluationEntity";
 import { RuleLegalBasisEntity } from "../entities/RuleLegalBasisEntity";
-import type { TransactionEntity } from "../entities/TransactionEntity";
 import { TransactionEvaluationEntity } from "../entities/TransactionEvaluationEntity";
 import { toEvaluationRun, toEvaluationRunListItem } from "./evaluationRunMapping";
+import { toTransaction } from "./transactionMapping";
 
 const COUNT_VERDICTS = `
   -- Number of evaluated transactions per verdict in one run
@@ -349,23 +348,6 @@ function toTransactionEvaluation(entity: TransactionEvaluationEntity): Transacti
     maxScore: entity.maxScore,
     hitCount: entity.hitCount,
     evaluatedAt: entity.evaluatedAt,
-  };
-}
-
-function toTransaction(entity: TransactionEntity): Transaction {
-  return {
-    transactionId: entity.transactionId,
-    clientId: entity.clientId,
-    occurredAt: entity.occurredAt,
-    amount: entity.amount,
-    currency: entity.currency,
-    payerCountry: entity.payerCountry,
-    payeeCountry: entity.payeeCountry,
-    payerAccount: entity.payerAccount,
-    payeeAccount: entity.payeeAccount,
-    transactionType: entity.transactionType,
-    counterpartyAccount: entity.counterpartyAccount,
-    counterpartyCountry: entity.counterpartyCountry,
   };
 }
 

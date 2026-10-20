@@ -4,13 +4,17 @@ import { DatabaseStatusQueries } from "../../application/databaseStatus/database
 import type { DatabaseStatus } from "../../application/databaseStatus/databaseStatusProbe";
 import { DraftingJobUseCases } from "../../application/drafting/draftingJobUseCases";
 import { RegulationUseCases } from "../../application/regulations/regulationUseCases";
+import type { PageRequest } from "../../application/pagination";
 import { RuleUseCases } from "../../application/rules/ruleUseCases";
 import { InMemoryDraftingJobRepository } from "../../application/testing/InMemoryDraftingJobRepository";
 import { InMemoryInternalPolicyRepository } from "../../application/testing/InMemoryInternalPolicyRepository";
 import { InMemoryRegulationRepository } from "../../application/testing/InMemoryRegulationRepository";
 import { InMemoryRuleRepository } from "../../application/testing/InMemoryRuleRepository";
 import { ADMIN_ID, fixedClock, REVIEWED_AT } from "../../application/testing/fixtures";
+import { TransactionQueries } from "../../application/transactions/transactionQueries";
+import type { TransactionFilter } from "../../application/transactions/transactionRepository";
 import { UserUseCases } from "../../application/users/userUseCases";
+import type { Transaction } from "../../domain/transaction";
 import type { User } from "../../domain/user";
 import { type AppUseCases, createApp } from "./createApp";
 
@@ -239,6 +243,81 @@ describe("HTTP app", () => {
       const response = await request(createDraftingJobsApp()).get("/api/drafting-jobs?status=done");
 
       expect(response.status).toBe(400);
+    });
+  });
+  describe("transactions", () => {
+    const TRANSACTION: Transaction = {
+      transactionId: "TX000000583",
+      clientId: "K002989",
+      occurredAt: new Date("2026-07-01T04:11:48Z"),
+      amount: "7384.21",
+      currency: "EUR",
+      payerCountry: "SK",
+      payeeCountry: "DK",
+      payerAccount: "ASK00090",
+      payeeAccount: "K002989",
+      transactionType: "incoming",
+      counterpartyAccount: "ASK00090",
+      counterpartyCountry: "SK",
+    };
+
+    function createTransactionsApp() {
+      const calls: { filter: TransactionFilter; page: PageRequest }[] = [];
+      const transactions = new TransactionQueries({
+        listTransactions: async (filter, page) => {
+          calls.push({ filter, page });
+          return { ...page, items: [TRANSACTION], total: 1 };
+        },
+      });
+
+      return { app: createApp({ transactions } as AppUseCases, databaseReady), calls };
+    }
+
+    it("lists all transactions with the default page when no filter is given", async () => {
+      const { app, calls } = createTransactionsApp();
+
+      const response = await request(app).get("/api/transactions");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        items: [{ ...TRANSACTION, occurredAt: "2026-07-01T04:11:48.000Z" }],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      });
+      expect(calls).toEqual([
+        { filter: { clientId: null, from: null, to: null }, page: { limit: 50, offset: 0 } },
+      ]);
+    });
+
+    it("passes the client filter, the time window and the page", async () => {
+      const { app, calls } = createTransactionsApp();
+
+      const response = await request(app).get(
+        "/api/transactions?clientId=K002989&from=2026-07-01&to=2026-07-08T12:00&limit=20&offset=40",
+      );
+
+      expect(response.status).toBe(200);
+      expect(calls).toEqual([
+        {
+          filter: { clientId: "K002989", from: "2026-07-01T00:00:00", to: "2026-07-08T12:00:00" },
+          page: { limit: 20, offset: 40 },
+        },
+      ]);
+    });
+
+    it.each([
+      ["a malformed client ID", "clientId=K12"],
+      ["a timestamp with an offset", "from=2026-07-01T00:00:00Z"],
+      ["from after to", "from=2026-07-08&to=2026-07-01"],
+      ["a limit over the maximum", "limit=501"],
+    ])("rejects %s with 400", async (_case, query) => {
+      const { app, calls } = createTransactionsApp();
+
+      const response = await request(app).get(`/api/transactions?${query}`);
+
+      expect(response.status).toBe(400);
+      expect(calls).toEqual([]);
     });
   });
 });

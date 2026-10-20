@@ -1,0 +1,32 @@
+.filter {
+  max-width: 32rem;
+}
+
+.filterRow {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.filterRow input {
+  flex: 1;
+  min-width: 0;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.listFooter {
+  display: flex;
+  justify-content: center;
+  min-height: var(--hit-target);
+}
+
+.highlighted td {
+  background: var(--color-primary-soft);
+}
+
+.party {
+  display: grid;
+}

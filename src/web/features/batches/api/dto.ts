@@ -3,6 +3,8 @@ import { z } from "zod";
 import { BACKEND_RISK_PROFILES } from "@/features/rules/api/dto";
 import { userRoleSchema } from "@/features/users/types";
 
+import type { TransactionView } from "../types";
+
 // Response DTOs of /api/evaluation-runs (src/backend/src/delivery/http/evaluationRunsRouter.ts and
 // application/evaluationRuns/evaluationRunReadModels.ts).
 
@@ -69,6 +71,22 @@ export const transactionDtoSchema = z.object({
   transactionType: z.string(),
 });
 export type TransactionDto = z.infer<typeof transactionDtoSchema>;
+
+export function toTransactionView(transaction: TransactionDto, amountCzk: number | null): TransactionView {
+  return {
+    transactionId: transaction.transactionId,
+    clientId: transaction.clientId,
+    bookedAt: transaction.occurredAt,
+    amount: Number(transaction.amount),
+    currency: transaction.currency,
+    amountCzk,
+    payerCountry: transaction.payerCountry,
+    payeeCountry: transaction.payeeCountry,
+    payerAccount: transaction.payerAccount ?? "",
+    payeeAccount: transaction.payeeAccount,
+    transactionType: transaction.transactionType,
+  };
+}
 
 export const transactionEvaluationDtoSchema = z.object({
   transactionId: z.string(),

@@ -324,7 +324,7 @@ export const cs: Dictionary = {
     subtitle: "Nahrajte CSV s transakcemi. Vyhodnocení podle všech aktivních pravidel začne okamžitě.",
     subtitleReadOnly: "Vyhodnocovací běhy transakcí podle aktivních pravidel.",
     readOnlyNote:
-      "Běhy vytváří vyhodnocovací engine na backendu. Nahrání CSV není při připojení k API dostupné.",
+      "Běhy vytváří vyhodnocovací engine na backendu.",
     uploadTitle: "Nahrát CSV s transakcemi",
     uploadHint: "Oddělovač středník, UTF-8, stejné sloupce jako datasets/transactions.csv.",
     chooseFile: "Vybrat soubor",
@@ -388,7 +388,7 @@ export const cs: Dictionary = {
     rulesOfBatch: "Použitá pravidla",
     uploadedBy: "Nahrál(a)",
     decisionAid:
-      "Výsledky jsou podkladem pro AML analytiky, nejsou to finální AML určení. Prahy jsou demo hodnoty, které musí posoudit compliance.",
+      "Výsledky jsou podkladem pro AML analytiky, nejsou to finální AML určení.",
   },
   transactionDetail: {
     noHitsForRole: "Žádné nesplněné pravidlo této transakce není eskalované na roli {role}.",
@@ -415,12 +415,30 @@ export const cs: Dictionary = {
     notMatchedScore: "Bez shody → skóre",
     trace: "Trace",
     openRule: "Otevřít detail pravidla",
+    showClientTransactions: "Kontext: zobrazit transakce klienta",
     passedRules: "Splněná pravidla",
     skippedRules: "Přeskočená pravidla",
     skipReason: {
       whitelisted: "Klient je na whitelistu",
       risk_profile_not_applicable: "Pravidlo neplatí pro tento risk profil",
     },
+  },
+  transactions: {
+    title: "Transakce uživatele",
+    titleForClient: "Transakce klienta {clientId}",
+    description:
+      "Transakce, ze kterých vychází trace pravidla, od nejnovější. Slouží k ověření a zdůvodnění alertu.",
+    backToEvaluation: "Zpět na vyhodnocení transakce",
+    clientFilter: "ID klienta",
+    clientFilterHint: "Formát K000123. Bez vyplnění se zobrazí všechny transakce.",
+    clientFilterError: "Zadejte ID klienta ve formátu K000123.",
+    applyFilter: "Zobrazit",
+    totalCount: "Transakcí: {count}",
+    payer: "Plátce (účet, země)",
+    payee: "Příjemce (účet, země)",
+    evaluatedTransaction: "vyhodnocovaná transakce",
+    empty: "Filtru neodpovídá žádná transakce.",
+    allLoaded: "Načteny všechny transakce.",
   },
   draftingJobs: {
     title: "Úlohy AI",
