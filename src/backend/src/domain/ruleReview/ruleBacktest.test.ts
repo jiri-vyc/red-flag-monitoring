@@ -80,6 +80,14 @@ describe("backtestRuleDefinition", () => {
     expect(result.discardReason).toContain("already hit by R-AMT");
   });
 
+  it("keeps a rule whose only full overlap is with a rule that hits most clients", () => {
+    const result = backtest(100_000, new Map([["R-01", new Set(["K0", "K1"])]]));
+
+    expect(result.overlapByRuleCode).toEqual({ "R-01": 1 });
+    expect(result.maxOverlap).toBeNull();
+    expect(result.discardReason).toBeNull();
+  });
+
   it("discards a rule above the client cap", () => {
     expect(backtest(500).discardReason).toBe("Hits 200 clients, more than the cap of 2");
   });

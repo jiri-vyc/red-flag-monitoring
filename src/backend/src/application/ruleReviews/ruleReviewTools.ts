@@ -45,7 +45,12 @@ export function createRuleReviewTools(context: ToolContext): RuleReviewTools {
     getFeatureCatalogue: () => spend(async () => describeFeatureCatalog()),
     getCoverageMatrix: () => spend(async () => context.analysis.coverageMatrix),
     getGapFindings: () =>
-      spend(async () => context.analysis.findings.map(({ clients: _clients, ...finding }) => finding)),
+      spend(async () =>
+        context.analysis.findings.map(({ clients: _clients, evidence, ...finding }) => ({
+          ...finding,
+          evidence: pickScalarEvidence(evidence),
+        })),
+      ),
     getSegmentProfiles: () =>
       spend(async () =>
         profileSegments({
@@ -80,5 +85,12 @@ export function backtestHypothesis(
       caps: context.params.backtest,
       maxSampleClientIds: context.params.llm.maxSampleClientIds,
     }),
+  );
+}
+
+// Tool results are resent on every turn of the loop, so traces and client lists stay out of them.
+function pickScalarEvidence(evidence: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(evidence).filter(([, value]) => value === null || typeof value !== "object"),
   );
 }

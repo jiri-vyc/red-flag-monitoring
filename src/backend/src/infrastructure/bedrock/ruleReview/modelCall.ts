@@ -11,14 +11,20 @@ export type ModelMessage = {
 
 export type ToolUseBlock = { type: "tool_use"; id: string; name: string; input: unknown };
 type AssistantBlock = { type: "text"; text: string } | ToolUseBlock;
+type CacheControl = { type: "ephemeral" };
+
 export type ToolResultBlock = {
   type: "tool_result";
   tool_use_id: string;
   content: string;
   is_error: boolean;
+  cache_control?: CacheControl;
 };
+
+type UserTextBlock = { type: "text"; text: string; cache_control?: CacheControl };
 export type ModelMessageParam =
-  { role: "user"; content: string | ToolResultBlock[] } | { role: "assistant"; content: AssistantBlock[] };
+  | { role: "user"; content: string | (ToolResultBlock | UserTextBlock)[] }
+  | { role: "assistant"; content: AssistantBlock[] };
 
 export type ModelTool = {
   name: string;
@@ -52,6 +58,9 @@ export type ModelCallRequest = {
   tools: ModelTool[];
   toolChoice: { type: "auto" } | { type: "tool"; name: string };
   maxTokens: number;
+  // A multi-turn loop resends the conversation; a breakpoint on its latest message lets the next turn read it from
+  // the cache.
+  cacheConversation?: boolean;
   signal?: AbortSignal;
 };
 
@@ -85,7 +94,7 @@ export async function callModel(
         model: modelId,
         max_tokens: request.maxTokens,
         system: [{ type: "text", text: request.system, cache_control: { type: "ephemeral" } }],
-        messages: request.messages,
+        messages: request.cacheConversation ? withCacheBreakpoint(request.messages) : request.messages,
         ...(request.tools.length > 0 && { tools: request.tools, tool_choice: request.toolChoice }),
       },
       { signal: request.signal },
@@ -161,4 +170,21 @@ function countInputTokens(usage: TokenUsage): number {
 
 export function toJsonValue(value: unknown): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
+}
+
+// Only the request gets the breakpoint, never the stored conversation: a request allows at most four.
+function withCacheBreakpoint(messages: ModelMessageParam[]): ModelMessageParam[] {
+  const last = messages.at(-1);
+
+  if (!last || last.role !== "user") {
+    return messages;
+  }
+
+  const blocks =
+    typeof last.content === "string" ? [{ type: "text" as const, text: last.content }] : last.content;
+  const cachedBlocks = blocks.map((block, index) =>
+    index === blocks.length - 1 ? { ...block, cache_control: { type: "ephemeral" as const } } : block,
+  );
+
+  return [...messages.slice(0, -1), { role: "user", content: cachedBlocks }];
 }

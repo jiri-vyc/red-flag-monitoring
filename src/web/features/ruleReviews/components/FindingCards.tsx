@@ -14,7 +14,7 @@ import { type Finding, type FindingExplanation, isParameterProposal, type RuleHy
 import { ClientLink, CopyClientIdsButton, FindingClientsTable } from "./FindingClientsTable";
 import styles from "./GapAnalysis.module.css";
 
-type StrongFlow = { account: string; seedClientId: string; hoursBetween: number };
+type StrongFlow = { clientId: string; account: string; seedClientId: string; hoursBetween: number };
 
 function readString(evidence: Record<string, unknown>, key: string): string | null {
   const value = evidence[key];
@@ -192,8 +192,9 @@ function SeedReasonBadge({ reason }: { reason: string }) {
   return <Badge tone="warning">{label}</Badge>;
 }
 
-export function AssociationTable({ findings, returnPath }: { findings: Finding[]; returnPath: string }) {
+function AssociationTable({ finding, returnPath }: { finding: Finding; returnPath: string }) {
   const { t } = useI18n();
+  const strongFlows = readStrongFlows(finding.evidence);
   return (
     <div className={tableStyles.wrapper}>
       <table className={tableStyles.table}>
@@ -205,27 +206,28 @@ export function AssociationTable({ findings, returnPath }: { findings: Finding[]
           </tr>
         </thead>
         <tbody>
-          {findings.flatMap((finding) =>
-            finding.clients.map((client) => (
-              <tr key={finding.id}>
-                <td>
-                  <ClientLink clientId={client.clientId} returnPath={returnPath} />
-                </td>
-                <td>
-                  {client.seedLinks.map((seedLink) => (
-                    <div key={seedLink.seedClientId} className={styles.inlineList}>
-                      <ClientLink clientId={seedLink.seedClientId} returnPath={returnPath} />
-                      {seedLink.seedReasons.map((reason) => (
-                        <SeedReasonBadge key={reason} reason={reason} />
-                      ))}
-                    </div>
-                  ))}
-                </td>
-                <td>
-                  <span className={tableStyles.mono}>
-                    {(finding.evidence.sharedAccounts as string[] | undefined)?.join(", ")}
-                  </span>
-                  {readStrongFlows(finding.evidence).map((flow) => (
+          {finding.clients.map((client) => (
+            <tr key={client.clientId}>
+              <td>
+                <ClientLink clientId={client.clientId} returnPath={returnPath} />
+              </td>
+              <td>
+                {client.seedLinks.map((seedLink) => (
+                  <div key={seedLink.seedClientId} className={styles.inlineList}>
+                    <ClientLink clientId={seedLink.seedClientId} returnPath={returnPath} />
+                    {seedLink.seedReasons.map((reason) => (
+                      <SeedReasonBadge key={reason} reason={reason} />
+                    ))}
+                  </div>
+                ))}
+              </td>
+              <td>
+                <span className={tableStyles.mono}>
+                  {[...new Set(client.seedLinks.flatMap((seedLink) => seedLink.accounts))].join(", ")}
+                </span>
+                {strongFlows
+                  .filter((flow) => flow.clientId === client.clientId)
+                  .map((flow) => (
                     <div key={`${flow.account}-${flow.seedClientId}`} className={tableStyles.secondaryText}>
                       {formatMessage(t.ruleReviews.strongFlow, {
                         account: flow.account,
@@ -233,13 +235,74 @@ export function AssociationTable({ findings, returnPath }: { findings: Finding[]
                       })}
                     </div>
                   ))}
-                </td>
-              </tr>
-            )),
-          )}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+export function AssociationCard({
+  finding,
+  explanation,
+  returnPath,
+}: {
+  finding: Finding;
+  explanation?: FindingExplanation;
+  returnPath: string;
+}) {
+  const { t } = useI18n();
+  const linkType = readString(finding.evidence, "linkType");
+  const title =
+    linkType === "strong_flow" || linkType === "shared_accounts"
+      ? t.ruleReviews.associationLinkTypes[linkType]
+      : finding.id;
+  return (
+    <Card title={title}>
+      <div className={styles.section}>
+        <div className={styles.findingMeta}>
+          <span>
+            {formatMessage(t.ruleReviews.associationGroupMeta, {
+              clients: finding.clients.length,
+              seeds: readNumber(finding.evidence, "seedCount") ?? 0,
+            })}
+          </span>
+        </div>
+        <ExplanationView explanation={explanation} />
+        <AssociationTable finding={finding} returnPath={returnPath} />
+        <CopyClientIdsButton clientIds={finding.clients.map((client) => client.clientId)} />
+      </div>
+    </Card>
+  );
+}
+
+export function CoverageGapCard({ finding }: { finding: Finding }) {
+  const { t } = useI18n();
+  const indicator = readString(finding.evidence, "indicator");
+  const missingFeature = readString(finding.evidence, "missingFeature");
+  const rationale = readString(finding.evidence, "rationale");
+  return (
+    <Card title={readString(finding.evidence, "descriptionCs") ?? finding.id}>
+      <div className={styles.explanation}>
+        <div className={styles.findingMeta}>
+          {indicator && (
+            <Badge tone="ai">{formatMessage(t.ruleReviews.indicatorCovered, { indicator })}</Badge>
+          )}
+        </div>
+        {missingFeature && (
+          <p>
+            <strong>{t.ruleReviews.missingFeature}:</strong> <code>{missingFeature}</code>
+          </p>
+        )}
+        {rationale && (
+          <p>
+            <strong>{t.ruleReviews.rationale}:</strong> {rationale}
+          </p>
+        )}
+      </div>
+    </Card>
   );
 }
 

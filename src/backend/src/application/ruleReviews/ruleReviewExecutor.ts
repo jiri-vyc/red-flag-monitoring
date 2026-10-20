@@ -20,6 +20,7 @@ import type {
   RuleReviewReportStore,
 } from "./ruleReviewPorts";
 import { backtestHypothesis, createRuleReviewTools, type ToolContext } from "./ruleReviewTools";
+import { collectSummaryInputNumbers, findUnverifiedNumbers } from "../../domain/ruleReview/summaryNumbers";
 
 const PROGRESS_SAVE_INTERVAL_MS = 1000;
 const MAX_NEW_RULE_CLIENTS = 50;
@@ -137,7 +138,20 @@ export class RuleReviewExecutor {
         this.createExplanationContext(writer.report, toolContext, calls, errors),
       ),
     );
-    await saveLlm({ summary });
+    await saveLlm({
+      summary,
+      summaryUnverifiedNumbers: summary
+        ? findUnverifiedNumbers(
+            summary,
+            collectSummaryInputNumbers({
+              findings: writer.report.findings,
+              explanationSummaries: Object.values(writer.report.llm.explanations).map(
+                (explanation) => explanation.summary,
+              ),
+            }),
+          )
+        : [],
+    });
 
     await writer.save({ progress: { stage: "hypotheses", done: 0, total: 1 } });
     const exploration = await this.runSafely(errors, () =>

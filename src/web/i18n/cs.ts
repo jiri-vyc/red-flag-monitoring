@@ -327,6 +327,8 @@ export const cs: Dictionary = {
     transactionSet: "Sada transakcí",
     ruleVersions: "Verze pravidel",
     llmSummary: "Shrnutí (Bedrock)",
+    summaryUnverifiedNumbers:
+      "Čísla, která v datech přezkumu nejsou: {numbers}. Před použitím shrnutí je ověřte.",
     llmErrors: "Bedrock nedokončil všechny kroky. Deterministická zjištění jsou úplná.",
     coverageMatrix: "Pokrytí znaků podezřelých obchodů (SVZ-03 čl. 7)",
     indicator: "Znak",
@@ -345,6 +347,11 @@ export const cs: Dictionary = {
     associationsHint:
       "Klienti, kteří sdílejí se seedem soukromé účty protistrany (používají je nejvýše 3 klienti). Podnět k prověření a přehodnocení rizika.",
     noAssociations: "V mezích limitů není žádný klient navázaný na seed.",
+    associationLinkTypes: {
+      strong_flow: "Peníze ze seedu přes soukromý účet",
+      shared_accounts: "Sdílené soukromé účty se seedy",
+    },
+    associationGroupMeta: "{clients} klientů navázaných na {seeds} seedů",
     hypotheses: "Hypotézy pravidel (Bedrock)",
     parameter: "Parametr",
     proposal: "Návrh",
@@ -381,6 +388,7 @@ export const cs: Dictionary = {
     critique: "Komentář Bedrock",
     backtest: "Backtest",
     missingFeature: "Chybějící feature",
+    rationale: "Zdůvodnění",
     backtestValue: "{hits} zásahů, {clients} klientů ({share} % klientů)",
     discarded: "Vyřazeno: {reason}",
     indicatorCovered: "Znak {indicator}",

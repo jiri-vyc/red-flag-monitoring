@@ -128,6 +128,7 @@ export const ruleReviewReportDtoSchema = z.object({
   findings: z.array(findingDtoSchema),
   llm: z.object({
     summary: z.string().nullable(),
+    summaryUnverifiedNumbers: z.array(z.string()).default([]),
     explanations: z.record(z.string(), findingExplanationDtoSchema),
     hypotheses: z.array(ruleHypothesisDtoSchema),
     critiques: z.record(z.string(), z.string()),

@@ -98,6 +98,8 @@ export type LlmCallAudit = {
 
 export type RuleReviewLlmSection = {
   summary: string | null;
+  // Numbers the summary states that are not in its input; the officer checks them before relying on it.
+  summaryUnverifiedNumbers: string[];
   explanations: Record<string, FindingExplanation>;
   hypotheses: RuleHypothesis[];
   critiques: Record<string, string>;
@@ -128,6 +130,7 @@ export type RuleReviewReport = {
 
 export const EMPTY_LLM_SECTION: RuleReviewLlmSection = {
   summary: null,
+  summaryUnverifiedNumbers: [],
   explanations: {},
   hypotheses: [],
   critiques: {},

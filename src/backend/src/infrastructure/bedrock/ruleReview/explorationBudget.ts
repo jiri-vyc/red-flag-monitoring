@@ -2,7 +2,8 @@ import type { LlmBudget } from "../../../domain/ruleReview/ruleReviewParams";
 import type { LlmCallAudit } from "../../../domain/ruleReview/ruleReviewReport";
 
 export class ExplorationBudget {
-  private toolCallCount = 0;
+  private toolCalls = 0;
+  private modelCalls = 0;
   private inputTokenCount = 0;
   private outputTokenCount = 0;
   private lastCallInputTokenCount = 0;
@@ -14,17 +15,26 @@ export class ExplorationBudget {
   ) {}
 
   recordModelCall({ inputTokens, outputTokens }: Pick<LlmCallAudit, "inputTokens" | "outputTokens">): void {
+    this.modelCalls += 1;
     this.inputTokenCount += inputTokens;
     this.outputTokenCount += outputTokens;
     this.lastCallInputTokenCount = inputTokens;
   }
 
   recordToolCall(): void {
-    this.toolCallCount += 1;
+    this.toolCalls += 1;
+  }
+
+  get modelCallCount(): number {
+    return this.modelCalls;
+  }
+
+  get toolCallCount(): number {
+    return this.toolCalls;
   }
 
   get remainingToolCalls(): number {
-    return Math.max(0, this.budget.maxToolCalls - this.toolCallCount);
+    return Math.max(0, this.budget.maxToolCalls - this.toolCalls);
   }
 
   get remainingOutputTokens(): number {

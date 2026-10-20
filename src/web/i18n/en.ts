@@ -325,6 +325,8 @@ export const en = {
     transactionSet: "Transaction set",
     ruleVersions: "Rule versions",
     llmSummary: "Bedrock summary",
+    summaryUnverifiedNumbers:
+      "Numbers not found in the review data: {numbers}. Check them before relying on the summary.",
     llmErrors: "Bedrock could not complete every step. The deterministic findings are complete.",
     coverageMatrix: "Coverage of suspicious-transaction indicators (SVZ-03 čl. 7)",
     indicator: "Indicator",
@@ -343,6 +345,11 @@ export const en = {
     associationsHint:
       "Clients sharing private counterparty accounts (used by at most 3 clients) with a seed. A lead for research and risk re-assessment.",
     noAssociations: "No client is linked to a seed under the caps.",
+    associationLinkTypes: {
+      strong_flow: "Money moved from a seed through a private account",
+      shared_accounts: "Shared private accounts with seeds",
+    },
+    associationGroupMeta: "{clients} clients linked to {seeds} seeds",
     hypotheses: "Rule hypotheses (Bedrock)",
     parameter: "Parameter",
     proposal: "Proposal",
@@ -379,6 +386,7 @@ export const en = {
     critique: "Bedrock comment",
     backtest: "Backtest",
     missingFeature: "Missing feature",
+    rationale: "Rationale",
     backtestValue: "{hits} hits, {clients} clients ({share} % of clients)",
     discarded: "Discarded: {reason}",
     indicatorCovered: "Indicator {indicator}",

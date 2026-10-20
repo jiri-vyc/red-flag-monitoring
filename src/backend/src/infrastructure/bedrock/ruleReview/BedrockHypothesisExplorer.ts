@@ -76,7 +76,7 @@ export class BedrockHypothesisExplorer implements HypothesisExplorer {
       const exhaustion = tracker.findExhaustion();
 
       if (exhaustion !== null) {
-        return { calls, errors: [describeBudgetStop(exhaustion)] };
+        return { calls, errors: [describeBudgetStop(exhaustion, tracker, session)] };
       }
 
       const outcome = await callModel(client, this.dependencies.modelId, {
@@ -89,12 +89,14 @@ export class BedrockHypothesisExplorer implements HypothesisExplorer {
         tools: HYPOTHESIS_TOOLS,
         toolChoice: { type: "auto" },
         maxTokens: Math.min(MAX_TURN_OUTPUT_TOKENS, tracker.remainingOutputTokens),
+        cacheConversation: true,
         signal: AbortSignal.timeout(tracker.remainingMs),
       });
 
       if (!outcome.isSuccess) {
         calls.push(outcome.audit);
-        const stopReason = tracker.remainingMs === 0 ? describeBudgetStop("wall clock limit reached") : null;
+        const stopReason =
+          tracker.remainingMs === 0 ? describeBudgetStop("wall clock limit reached", tracker, session) : null;
 
         return { calls, errors: [stopReason ?? `Hypothesis loop: ${outcome.error}`] };
       }
@@ -107,7 +109,9 @@ export class BedrockHypothesisExplorer implements HypothesisExplorer {
         calls.push(outcome.audit);
         return {
           calls,
-          errors: [describeBudgetStop("the model's answer was cut off by the output token limit")],
+          errors: [
+            describeBudgetStop("the model's answer was cut off by the output token limit", tracker, session),
+          ],
         };
       }
 
@@ -120,7 +124,10 @@ export class BedrockHypothesisExplorer implements HypothesisExplorer {
       calls.push({ ...outcome.audit, toolCalls: executedToolCalls.map(toToolCallAudit) });
 
       if (executedToolCalls.length < toolUses.length) {
-        return { calls, errors: [describeBudgetStop(tracker.findExhaustion() ?? "budget reached")] };
+        return {
+          calls,
+          errors: [describeBudgetStop(tracker.findExhaustion() ?? "budget reached", tracker, session)],
+        };
       }
 
       const toolResultMessage = createToolResultMessage(executedToolCalls);
@@ -166,6 +173,14 @@ function toToolCallAudit({ toolUse, execution }: ExecutedToolCall): LlmCallAudit
   return { name: toolUse.name, input: toJsonValue(toolUse.input ?? null), result: execution.result };
 }
 
-function describeBudgetStop(reason: string): string {
-  return `Hypothesis loop stopped early, partial results kept: ${reason}`;
+function describeBudgetStop(
+  reason: string,
+  tracker: ExplorationBudget,
+  session: HypothesisToolSession,
+): string {
+  return (
+    `Hypothesis loop stopped early, partial results kept: ${reason} ` +
+    `(after ${tracker.modelCallCount} model calls and ${tracker.toolCallCount} tool calls, ` +
+    `${session.countAcceptedHypotheses()} hypotheses accepted)`
+  );
 }

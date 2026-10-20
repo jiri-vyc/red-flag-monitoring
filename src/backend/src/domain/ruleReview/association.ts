@@ -137,6 +137,14 @@ export function countDistinctLinks(linked: LinkedClient): number {
   return new Set([...linked.accountsBySeed.values()].flatMap((accounts) => [...accounts])).size;
 }
 
+export const ASSOCIATION_LINK_TYPES = ["strong_flow", "shared_accounts"] as const;
+export type AssociationLinkType = (typeof ASSOCIATION_LINK_TYPES)[number];
+
+// The evidence goes to the model verbatim (spec 5.3), so it lists at most this many clients or flows.
+const MAX_EVIDENCE_ITEMS = 10;
+
+// One finding per kind of link, not per client: the leads rarely form networks (spec 4.1), so per-client
+// findings would only repeat the same explanation.
 export function buildAssociationFindings(input: {
   dataset: ReviewDataset;
   accountIndex: AccountIndex;
@@ -146,9 +154,7 @@ export function buildAssociationFindings(input: {
   const linkedClients = findLinkedClients({
     ...input,
     maxClientsPerAccount: input.caps.maxClientsPerPrivateAccount,
-  });
-
-  return linkedClients
+  })
     .filter(
       (linked) => countDistinctLinks(linked) >= input.caps.minDistinctLinks || linked.strongFlows.length > 0,
     )
@@ -158,8 +164,18 @@ export function buildAssociationFindings(input: {
         countDistinctLinks(right) - countDistinctLinks(left) ||
         left.clientId.localeCompare(right.clientId),
     )
-    .slice(0, input.caps.maxLinkedClients)
-    .map((linked) => toAssociationFinding(linked, input));
+    .slice(0, input.caps.maxLinkedClients);
+
+  return ASSOCIATION_LINK_TYPES.map((linkType) => ({
+    linkType,
+    clients: linkedClients.filter((linked) => toLinkType(linked) === linkType),
+  }))
+    .filter((group) => group.clients.length > 0)
+    .map((group) => toAssociationFinding(group.linkType, group.clients, input));
+}
+
+function toLinkType(linked: LinkedClient): AssociationLinkType {
+  return linked.strongFlows.length > 0 ? "strong_flow" : "shared_accounts";
 }
 
 export function describeCounterpartyStructure(input: {
@@ -297,9 +313,46 @@ function appendTo(
 }
 
 function toAssociationFinding(
+  linkType: AssociationLinkType,
+  linkedClients: LinkedClient[],
+  input: { dataset: ReviewDataset; seeds: SeedReasons; caps: AssociationCaps },
+): RuleReviewFinding {
+  const clients = linkedClients.map((linked) => toFindingClient(linked, input));
+  const seedIds = new Set(clients.flatMap((client) => client.seedLinks.map((link) => link.seedClientId)));
+  const strongFlows = linkedClients.flatMap((linked) =>
+    linked.strongFlows.map((flow) => ({ clientId: linked.clientId, ...flow })),
+  );
+
+  return {
+    id: `association:${linkType}`,
+    kind: "association",
+    rule: null,
+    proposal: null,
+    growth: null,
+    clients,
+    evidence: {
+      linkType,
+      clientCount: clients.length,
+      seedCount: seedIds.size,
+      seedReasonCounts: countSeedReasons(seedIds, input.seeds),
+      maxClientsPerPrivateAccount: input.caps.maxClientsPerPrivateAccount,
+      minDistinctLinks: input.caps.minDistinctLinks,
+      topClients: linkedClients.slice(0, MAX_EVIDENCE_ITEMS).map((linked) => ({
+        clientId: linked.clientId,
+        distinctLinks: countDistinctLinks(linked),
+        seedCount: linked.accountsBySeed.size,
+        strongFlowCount: linked.strongFlows.length,
+      })),
+      strongFlowCount: strongFlows.length,
+      strongFlows: strongFlows.slice(0, MAX_EVIDENCE_ITEMS),
+    },
+  };
+}
+
+function toFindingClient(
   linked: LinkedClient,
   input: { dataset: ReviewDataset; seeds: SeedReasons },
-): RuleReviewFinding {
+): RuleReviewFinding["clients"][number] {
   const sharedAccounts = new Set([...linked.accountsBySeed.values()].flatMap((accounts) => [...accounts]));
   const flowAccounts = linked.strongFlows.map((flow) => flow.account);
   const linkedSeedIds = new Set([
@@ -315,38 +368,36 @@ function toAssociationFinding(
   );
 
   return {
-    id: `association:${linked.clientId}`,
-    kind: "association",
-    rule: null,
-    proposal: null,
-    growth: null,
-    clients: [
-      {
-        clientId: linked.clientId,
-        transactionIds: clientTransactions.map((transaction) => transaction.transactionId),
-        nearMissCount: 0,
-        distinctDays: new Set(clientTransactions.map((transaction) => transaction.dateKey)).size,
-        minDistance: null,
-        seedLinks: [...linkedSeedIds].sort().map((seedClientId) => ({
-          seedClientId,
-          seedReasons: [...(input.seeds.get(seedClientId) ?? [])],
-          accounts: [
-            ...new Set([
-              ...(linked.accountsBySeed.get(seedClientId) ?? []),
-              ...linked.strongFlows
-                .filter((flow) => flow.seedClientId === seedClientId)
-                .map((flow) => flow.account),
-            ]),
-          ].sort(),
-        })),
-      },
-    ],
-    evidence: {
-      distinctLinks: countDistinctLinks(linked),
-      sharedAccounts: [...sharedAccounts].sort(),
-      strongFlows: linked.strongFlows,
-    },
+    clientId: linked.clientId,
+    transactionIds: clientTransactions.map((transaction) => transaction.transactionId),
+    nearMissCount: 0,
+    distinctDays: new Set(clientTransactions.map((transaction) => transaction.dateKey)).size,
+    minDistance: null,
+    seedLinks: [...linkedSeedIds].sort().map((seedClientId) => ({
+      seedClientId,
+      seedReasons: [...(input.seeds.get(seedClientId) ?? [])],
+      accounts: [
+        ...new Set([
+          ...(linked.accountsBySeed.get(seedClientId) ?? []),
+          ...linked.strongFlows
+            .filter((flow) => flow.seedClientId === seedClientId)
+            .map((flow) => flow.account),
+        ]),
+      ].sort(),
+    })),
   };
+}
+
+function countSeedReasons(seedIds: ReadonlySet<string>, seeds: SeedReasons): Record<string, number> {
+  const counts: Record<string, number> = {};
+
+  for (const seedId of seedIds) {
+    for (const reason of seeds.get(seedId) ?? []) {
+      counts[reason] = (counts[reason] ?? 0) + 1;
+    }
+  }
+
+  return counts;
 }
 
 function percentile(sortedValues: readonly number[], share: number): number {

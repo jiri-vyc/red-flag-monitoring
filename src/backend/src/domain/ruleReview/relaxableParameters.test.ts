@@ -120,6 +120,19 @@ describe("listRelaxationSteps", () => {
     expect(listRelaxationSteps(findConditionParameter("g1"), CAPS)).toEqual([{ step: 0.3333, value: 2 }]);
     expect(countOfOne && listRelaxationSteps(countOfOne, CAPS)).toEqual([]);
   });
+
+  it("moves a tenure in months by one whole month", () => {
+    const tenure = listParameters(
+      buildRuleVersion("R-15", {
+        match: "all",
+        features: ["client_tenure_months_at_tx"],
+        conditions: [compare("d", "client_tenure_months_at_tx", "<", { value: 6 })],
+      }),
+    ).find((parameter) => parameter.key === "condition:d");
+
+    expect(tenure?.parameterType).toBe("count");
+    expect(tenure && listRelaxationSteps(tenure, CAPS)).toEqual([{ step: 0.1667, value: 7 }]);
+  });
 });
 
 describe("relaxDefinition", () => {

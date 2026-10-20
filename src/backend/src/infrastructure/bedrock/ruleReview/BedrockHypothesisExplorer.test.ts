@@ -245,8 +245,34 @@ describe("BedrockHypothesisExplorer", () => {
     expect(result.calls).toHaveLength(2);
     expect(result.calls[1]?.toolCalls).toHaveLength(2);
     expect(result.errors).toEqual([
-      "Hypothesis loop stopped early, partial results kept: tool call limit of 3 reached",
+      "Hypothesis loop stopped early, partial results kept: tool call limit of 3 reached " +
+        "(after 2 model calls and 3 tool calls, 1 hypotheses accepted)",
     ]);
+  });
+
+  it("marks only the latest message of each turn for the prompt cache", async () => {
+    const { explorer, requests } = createExplorer(
+      respondInTurns([
+        toolUseMessage([callTool("matrix", HYPOTHESIS_TOOL_NAMES.getCoverageMatrix)]),
+        textMessage("Hotovo."),
+      ]),
+    );
+
+    await explorer.explore(REPORT, createTools().tools, withBudget({}));
+
+    const cachedBlockCounts = requests.map(
+      (request) =>
+        request.messages.flatMap((message) =>
+          typeof message.content === "string"
+            ? []
+            : message.content.filter((block) => "cache_control" in block && block.cache_control),
+        ).length,
+    );
+    expect(cachedBlockCounts).toEqual([1, 1]);
+    expect(requests[1]?.messages.at(-1)).toMatchObject({
+      role: "user",
+      content: [{ type: "tool_result", cache_control: { type: "ephemeral" } }],
+    });
   });
 
   it("stops before the next call could exceed the input token budget, counting cached tokens", async () => {

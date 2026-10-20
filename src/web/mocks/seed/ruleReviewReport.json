@@ -41,7 +41,8 @@
     },
     "backtest": {
       "maxClientShare": 0.01,
-      "maxOverlapWithExistingRule": 0.8
+      "maxOverlapWithExistingRule": 0.8,
+      "overlapIgnoredRuleCodes": ["R-01"]
     },
     "llm": {
       "enabled": false,

@@ -209,8 +209,22 @@ describe("RuleReviewExecutor", () => {
     });
     expect(report.llm).toMatchObject({
       summary: "Souhrn",
+      summaryUnverifiedNumbers: [],
       explanations: { "R-AMT:condition:a": explanation },
     });
+  });
+
+  it("marks numbers in the summary that are not in its input", async () => {
+    const { report } = await runReview({
+      isLlmAvailable: true,
+      findingExplainer: {
+        explain: async () => ({}),
+        summarize: async (context) =>
+          `Přezkum našel ${context.report.findings.length} nálezů, z toho 67 asociačních.`,
+      },
+    });
+
+    expect(report.llm.summaryUnverifiedNumbers).toEqual(["67"]);
   });
 
   it("enforces the tool call budget whatever the model asks for", async () => {

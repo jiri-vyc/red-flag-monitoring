@@ -137,7 +137,8 @@ const UNIT_PARAMETER_TYPES: Record<string, ParameterType> = {
   CZK: "amount",
   count: "count",
   ratio: "ratio",
-  months: "window",
+  // Tenure features count whole months, so a relative step below one month redraws the same boundary.
+  months: "count",
 };
 const DECREASING_OPERATORS = new Set([">", ">="]);
 const INCREASING_OPERATORS = new Set(["<", "<="]);

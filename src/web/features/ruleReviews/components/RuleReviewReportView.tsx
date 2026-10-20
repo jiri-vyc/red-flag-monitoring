@@ -7,12 +7,19 @@ import { KeyValueList } from "@/components/ui/KeyValueList";
 import { Notice } from "@/components/ui/Notice";
 import { ProgressBar } from "@/components/ui/Progress";
 import { EmptyState } from "@/components/ui/StateViews";
+import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 
 import { groupFindings } from "../domain/findingGroups";
 import type { RuleReviewReport } from "../types";
-import { AssociationTable, HypothesisCard, RecalibrationTable, RuleFindingCard } from "./FindingCards";
+import {
+  AssociationCard,
+  CoverageGapCard,
+  HypothesisCard,
+  RecalibrationTable,
+  RuleFindingCard,
+} from "./FindingCards";
 import styles from "./GapAnalysis.module.css";
 
 const DIGEST_PREFIX_LENGTH = 12;
@@ -128,6 +135,13 @@ export function RuleReviewReportView({ report }: { report: RuleReviewReport }) {
           {report.llm.summary}
         </Notice>
       )}
+      {report.llm.summaryUnverifiedNumbers.length > 0 && (
+        <Badge tone="warning">
+          {formatMessage(t.ruleReviews.summaryUnverifiedNumbers, {
+            numbers: report.llm.summaryUnverifiedNumbers.join(", "),
+          })}
+        </Badge>
+      )}
       {report.llm.errors.length > 0 && <Notice tone="info">{t.ruleReviews.llmErrors}</Notice>}
       <CoverageMatrix report={report} />
       <Section title={t.ruleReviews.gaps} hint={t.ruleReviews.gapsHint}>
@@ -170,7 +184,7 @@ export function RuleReviewReportView({ report }: { report: RuleReviewReport }) {
         <Section title={t.ruleReviews.coverageGaps}>
           <div className={styles.findingGrid}>
             {groups.coverageGaps.map((finding) => (
-              <RuleFindingCard key={finding.id} finding={finding} returnPath={returnPath} />
+              <CoverageGapCard key={finding.id} finding={finding} />
             ))}
           </div>
         </Section>
@@ -179,7 +193,16 @@ export function RuleReviewReportView({ report }: { report: RuleReviewReport }) {
         {groups.associations.length === 0 ? (
           <EmptyState message={t.ruleReviews.noAssociations} />
         ) : (
-          <AssociationTable findings={groups.associations} returnPath={returnPath} />
+          <div className={styles.stack}>
+            {groups.associations.map((finding) => (
+              <AssociationCard
+                key={finding.id}
+                finding={finding}
+                explanation={explanations[finding.id]}
+                returnPath={returnPath}
+              />
+            ))}
+          </div>
         )}
       </Section>
       {report.llm.hypotheses.length > 0 && (

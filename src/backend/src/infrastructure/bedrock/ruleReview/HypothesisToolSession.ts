@@ -177,7 +177,7 @@ export class HypothesisToolSession {
     return succeed({ status: "recorded", findingId });
   }
 
-  private countAcceptedHypotheses(): number {
+  countAcceptedHypotheses(): number {
     return this.hypotheses.filter(
       ({ kind, backtest }) => kind === "new_rule" && backtest?.discardReason === null,
     ).length;

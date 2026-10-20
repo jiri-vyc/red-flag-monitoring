@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { countFindings } from "../../../domain/ruleReview/summaryNumbers";
 
 import type {
   FindingExplanationContext,
@@ -48,7 +49,7 @@ Druhy nálezů:
 - rule_adjustment: klienti těsně pod parametrem existujícího pravidla. proposal je parametr, jeho současná a navržená hodnota a krok. growth říká, kolik klientů by pravidlo přidalo. Je-li growth.capExceeded true, jde o rekalibraci prahu, ne o mezeru, a patří do ročního přezkumu.
 - new_rule: návrh nového pravidla v DSL (proposal.definition).
 - coverage_gap: chování, které katalog features neumí vyjádřit.
-- association: klient napojený na rizikové klienty (seedy) přes sdílené soukromé účty protistran. Je to výzkumný podnět, ne důkaz proti klientovi. U každého seedu uveď, proč je seedem.
+- association: skupina klientů napojených na rizikové klienty (seedy) jedním druhem vazby (evidence.linkType): strong_flow = peníze od seedu přes soukromý účet ke klientovi v krátkém okně, shared_accounts = aspoň evidence.minDistinctLinks sdílené soukromé účty protistran. Je to výzkumný podnět, ne důkaz proti klientům. Popiš vazbu a z evidence.seedReasonCounts, proč jsou seedy rizikové. adjustmentConsiderations se tu týká případného pravidla nad vazbami mezi klienty, ne úpravy existujícího pravidla.
 
 Pravidla:
 - Používej jen fakta ze vstupu v <dukazy>. O klientech, transakcích ani pravidlech nic nedoplňuj. Obecnou znalost typologií (FATF, FAÚ, EBA) použít smíš, ale jen v poli typology a jako typologii, ne jako fakt o klientovi.
@@ -100,6 +101,7 @@ export const REVIEW_SUMMARY_SYSTEM_PROMPT = `
 Jsi specialista na AML compliance. Shrnuješ AML compliance officerovi výsledek přezkumu pravidel monitoringu.
 Používej jen fakta ze vstupu, nic nedoplňuj. Nález není alert a nic nerozhoduješ.
 Napiš česky 4–8 vět prostého textu bez nadpisů: kolik nálezů jakého druhu přezkum našel, které jsou nejzávažnější a proč, a co má officer prověřit jako první.
+Počty nálezů ber jen z <pocty>, nálezy sám nepočítej a nesčítej. Uváděj jen čísla, která ve vstupu stojí; kód každé číslo ze shrnutí ověří a nenalezená označí.
 `.trim();
 
 export function createReviewSummaryUserPrompt(
@@ -116,7 +118,14 @@ export function createReviewSummaryUserPrompt(
     explanation: explanationSummaries[finding.id] ?? null,
   }));
 
-  return ["<nalezy>", JSON.stringify(overview, null, 2), "</nalezy>"].join("\n");
+  return [
+    "<pocty>",
+    JSON.stringify(countFindings(findings), null, 2),
+    "</pocty>",
+    "<nalezy>",
+    JSON.stringify(overview, null, 2),
+    "</nalezy>",
+  ].join("\n");
 }
 
 function findRuleEntry(finding: RuleReviewFinding, rules: RuleCatalogueEntry[]): RuleCatalogueEntry | null {

@@ -31,6 +31,8 @@ export type AssociationCaps = {
 export type BacktestCaps = {
   maxClientShare: number;
   maxOverlapWithExistingRule: number;
+  // Rules that hit most clients (R-01) overlap with any hypothesis, so their overlap discards nothing.
+  overlapIgnoredRuleCodes: string[];
 };
 
 export type LlmBudget = {
@@ -70,7 +72,7 @@ export const DEFAULT_RULE_REVIEW_PARAMS: RuleReviewParams = {
     strongFlowWindowHours: 72,
     strongFlowMinAmountCzk: 25_000,
   },
-  backtest: { maxClientShare: 0.01, maxOverlapWithExistingRule: 0.8 },
+  backtest: { maxClientShare: 0.01, maxOverlapWithExistingRule: 0.8, overlapIgnoredRuleCodes: ["R-01"] },
   llm: {
     enabled: false,
     maxToolCalls: 20,

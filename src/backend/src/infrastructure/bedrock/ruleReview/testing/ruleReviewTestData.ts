@@ -3,11 +3,12 @@ import type {
   LlmAuditLog,
 } from "../../../../application/ruleReviews/ruleReviewPorts";
 import { DEFAULT_RULE_REVIEW_PARAMS } from "../../../../domain/ruleReview/ruleReviewParams";
-import type {
-  LlmCallAudit,
-  RuleBacktest,
-  RuleReviewFinding,
-  RuleReviewReport,
+import {
+  EMPTY_LLM_SECTION,
+  type LlmCallAudit,
+  type RuleBacktest,
+  type RuleReviewFinding,
+  type RuleReviewReport,
 } from "../../../../domain/ruleReview/ruleReviewReport";
 
 export const TOTAL_CLIENT_COUNT = 5493;
@@ -56,7 +57,7 @@ export function createReport(findings: RuleReviewFinding[] = [createFinding("F-0
     progress: { stage: "llm", done: 0, total: 1 },
     coverageMatrix: [{ indicator: "Z11", label: "Platby za třetí osoby", ruleCodes: [] }],
     findings,
-    llm: { summary: null, explanations: {}, hypotheses: [], critiques: {}, calls: [], errors: [] },
+    llm: { ...EMPTY_LLM_SECTION },
   };
 }
 

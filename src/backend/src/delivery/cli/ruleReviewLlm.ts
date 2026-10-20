@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { collectSummaryInputNumbers, findUnverifiedNumbers } from "../../domain/ruleReview/summaryNumbers";
 
 import { parseBedrockConfig } from "../../config";
 import { describeBedrockAuth } from "../../infrastructure/bedrock/createBedrockClient";
@@ -61,6 +62,15 @@ async function runRuleReviewLlm(): Promise<void> {
   const summary = await findingExplainer.summarize({ ...context, report: reportWithExplanations });
   const llm: RuleReviewLlmSection = {
     summary,
+    summaryUnverifiedNumbers: summary
+      ? findUnverifiedNumbers(
+          summary,
+          collectSummaryInputNumbers({
+            findings: report.findings,
+            explanationSummaries: Object.values(explanations).map((explanation) => explanation.summary),
+          }),
+        )
+      : [],
     explanations,
     hypotheses: exploration.hypotheses,
     critiques: exploration.critiques,

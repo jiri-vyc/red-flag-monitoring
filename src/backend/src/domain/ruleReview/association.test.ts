@@ -63,15 +63,27 @@ describe("association", () => {
   it("links clients through two private accounts or one strong flow, never through a hub", () => {
     const findings = buildAssociationFindings({ dataset, accountIndex, seeds, caps });
 
-    expect(findings.map((finding) => finding.id)).toEqual(["association:FLOW", "association:LINKED"]);
-    expect(findings[1]?.clients[0]).toMatchObject({
-      clientId: "LINKED",
-      transactionIds: ["LINKED-1", "LINKED-2"],
-      seedLinks: [{ seedClientId: "SEED", seedReasons: ["risk_score_high"], accounts: ["P1", "P2"] }],
-    });
+    expect(findings.map((finding) => finding.id)).toEqual([
+      "association:strong_flow",
+      "association:shared_accounts",
+    ]);
+    expect(findings[1]?.clients).toEqual([
+      expect.objectContaining({
+        clientId: "LINKED",
+        transactionIds: ["LINKED-1", "LINKED-2"],
+        seedLinks: [{ seedClientId: "SEED", seedReasons: ["risk_score_high"], accounts: ["P1", "P2"] }],
+      }),
+    ]);
+    expect(findings[0]?.clients.map((client) => client.clientId)).toEqual(["FLOW"]);
     expect(findings[0]?.evidence).toMatchObject({
+      linkType: "strong_flow",
+      clientCount: 1,
+      seedCount: 1,
+      seedReasonCounts: { risk_score_high: 1 },
+      strongFlowCount: 1,
       strongFlows: [
         {
+          clientId: "FLOW",
           account: "X",
           seedClientId: "SEED",
           seedTransactionId: "SEED-3",
@@ -79,6 +91,34 @@ describe("association", () => {
           hoursBetween: 24,
         },
       ],
+    });
+  });
+
+  it("groups every linked client into one finding per kind of link", () => {
+    const groupedDataset = buildReviewDataset(
+      [SEED, LINKED, buildClient({ clientId: "LINKED2" })],
+      [
+        forClient("SEED", buildOutgoing({ id: "1", at: "2026-07-01 09:00", amount: 1000, payee: "P1" })),
+        forClient("SEED", buildOutgoing({ id: "2", at: "2026-07-01 10:00", amount: 1000, payee: "P2" })),
+        ...["LINKED", "LINKED2"].flatMap((clientId) => [
+          forClient(clientId, buildOutgoing({ id: "1", at: "2026-07-02 09:00", amount: 1000, payee: "P1" })),
+          forClient(clientId, buildOutgoing({ id: "2", at: "2026-07-02 10:00", amount: 1000, payee: "P2" })),
+        ]),
+      ],
+    );
+    const findings = buildAssociationFindings({
+      dataset: groupedDataset,
+      accountIndex: indexCounterpartyAccounts(groupedDataset),
+      seeds: new Map([["SEED", ["risk_score_high"]]]),
+      caps,
+    });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.clients.map((client) => client.clientId)).toEqual(["LINKED", "LINKED2"]);
+    expect(findings[0]?.evidence).toMatchObject({
+      linkType: "shared_accounts",
+      clientCount: 2,
+      seedCount: 1,
     });
   });
 

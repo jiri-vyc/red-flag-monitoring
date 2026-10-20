@@ -58,7 +58,7 @@ export function* backtestRuleDefinition(input: {
   const hitClientIds = new Set(transactionIdsByClientId.keys());
   const clientCount = hitClientIds.size;
   const overlapByRuleCode = measureOverlap(hitClientIds, input.clientIdsByRuleCode);
-  const maxOverlap = findMaxOverlap(overlapByRuleCode);
+  const maxOverlap = findMaxOverlap(overlapByRuleCode, input.caps.overlapIgnoredRuleCodes);
   const totalClients = input.dataset.clientsById.size;
   const backtest: RuleBacktest = {
     violation: null,
@@ -140,9 +140,14 @@ function measureOverlap(
   );
 }
 
-function findMaxOverlap(overlapByRuleCode: Record<string, number>): RuleBacktest["maxOverlap"] {
+function findMaxOverlap(
+  overlapByRuleCode: Record<string, number>,
+  ignoredRuleCodes: readonly string[],
+): RuleBacktest["maxOverlap"] {
   const [ruleCode, share] =
-    Object.entries(overlapByRuleCode).sort(([, left], [, right]) => right - left)[0] ?? [];
+    Object.entries(overlapByRuleCode)
+      .filter(([candidateRuleCode]) => !ignoredRuleCodes.includes(candidateRuleCode))
+      .sort(([, left], [, right]) => right - left)[0] ?? [];
 
   return ruleCode !== undefined && share !== undefined ? { ruleCode, share } : null;
 }
