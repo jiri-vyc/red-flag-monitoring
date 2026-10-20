@@ -1,6 +1,6 @@
 # Drafting jobs: regulation → policy draft → rule drafts (návrh)
 
-Status: **implemented up to the `DraftGenerator` port**. Jobs, API, worker Lambda and deploy scripts are in place; the drafts still come from `DummyDraftGenerator` until the Bedrock generator is wired in (#1, #2, see [Handover](#handover-to-the-bedrock-generator)). Extends [spec.md §4.2, §7.2](spec.md) and [datovy-model.md](datovy-model.md). Replaces the synchronous BE-02/BE-03 contract in [backend-todo.md](../backend-todo.md).
+Status: **implemented**. Jobs, API, worker Lambda and deploy scripts are in place; the deployed worker drafts with `BedrockDraftGenerator` (#1, #2, see [Handover](#handover-to-the-bedrock-generator)). Extends [spec.md §4.2, §7.2](spec.md) and [datovy-model.md](datovy-model.md).
 
 ## Related issues
 
@@ -222,7 +222,7 @@ The cutoff of this change is the worker. The Bedrock part plugs in behind one po
    - **Answer (web, 2026-10-19):** `GET` polling of the job status is enough. The web polls `GET /api/drafting-jobs/:id` every ~2 s, the same way it polls evaluation runs, and stops on `succeeded` or `failed`. While a job is `pending`/`running` it shows an indeterminate progress ring. On `failed` it shows `error` and a Retry button (`POST /:id/retry`).
    - Step-level progress is optional and can come later. If the worker adds it, a shape the web can map 1:1 to `AiProgress` steps would be `output.progress: [{ step: "extract_obligations" | "draft_policy" | "draft_rules" | "validate_citations", status: "pending" | "running" | "done" }]`. Without it, the web falls back to the indeterminate ring.
    - Two requests to the backend:
-     - Return the created entity IDs in a `succeeded` job (`output.policyVersionIds` / `output.ruleIds`), so the web does not have to diff lists (see BE-20).
+     - Return the created entity IDs in a `succeeded` job (`output.policyVersionIds` / `output.ruleIds`), so the web does not have to diff lists.
      - Keep `rulesJob` in the policy review response, so the web can start polling right away.
    - **Implemented (drafting jobs):** the web polls every 30 s while a job is `pending` or `running`, not every ~2 s, because one step runs for minutes; a refresh button and refetch on window focus cover the rest. The created IDs are in the job as `policyVersions` / `ruleVersions` (with their review status), and the review response keeps `rulesJob`. Step-level progress is not built.
-5. Placeholder metadata for a URL regulation: good enough, or should the worker derive `code`, `title` and `kind` via Bedrock (BE-02)?
+5. Placeholder metadata for a URL regulation: good enough, or should the worker derive `code`, `title` and `kind` via Bedrock?

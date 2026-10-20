@@ -537,9 +537,6 @@ export const cs: Dictionary = {
     urlLabel: "URL regulace",
     urlHint:
       "Text, kód, název a druh regulace se načtou ze stránky. Povolené zdroje: https na eur-lex.europa.eu, e-sbirka.gov.cz, zakonyprolidi.cz, cnb.cz a fatf-gafi.org.",
-    urlUnsupportedTitle: "Načtení z URL zatím není podporované",
-    urlUnsupportedBody:
-      "API zatím neumí načíst regulaci z URL (BE-02). Nahrajte soubor Markdown nebo vložte text.",
     textLabel: "Text regulace",
     generatePolicy: "Vygenerovat interní předpis",
     validationFile: "Vyberte soubor Markdown (.md).",

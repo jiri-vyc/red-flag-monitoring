@@ -10,7 +10,7 @@ const RECENT_BATCH_COUNT = 3;
 const REVIEW_STATUSES: ReadonlySet<RuleStatus> = new Set(["pending_for_review", "update_for_review"]);
 
 /**
- * The backend has no dashboard endpoint (BE-07 is optional), so the summary is composed from the live endpoints.
+ * The backend has no dashboard endpoint, so the summary is composed from the live endpoints.
  * It uses the live adapters directly, never the resolved services, so a live dashboard never mixes in mock data
  * and every link points to a live id. Regulations and policies are only counted, so their versions are not loaded.
  */

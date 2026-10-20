@@ -29,7 +29,7 @@ const RUN = {
 beforeEach(() => requestJsonMock.mockReset());
 
 describe("liveBatchesService", () => {
-  it("hides the CSV upload (BE-01) and keeps throwing unsupported without calling the API", async () => {
+  it("hides the CSV upload and keeps throwing unsupported without calling the API", async () => {
     expect(liveBatchesService.capabilities.canUploadBatch).toBe(false);
     await expect(
       liveBatchesService.uploadBatch({ file: new File(["a;b"], "batch.csv"), uploadedBy: "analyst" }),

@@ -537,9 +537,6 @@ export const en = {
     urlLabel: "Regulation URL",
     urlHint:
       "The text, code, title and type of the regulation are loaded from the page. Allowed: https on eur-lex.europa.eu, e-sbirka.gov.cz, zakonyprolidi.cz, cnb.cz and fatf-gafi.org.",
-    urlUnsupportedTitle: "Loading from a URL is not supported yet",
-    urlUnsupportedBody:
-      "The API cannot load a regulation from a URL yet (BE-02). Upload a Markdown file or paste the text instead.",
     textLabel: "Regulation text",
     generatePolicy: "Generate internal policy",
     validationFile: "Choose a Markdown (.md) file.",

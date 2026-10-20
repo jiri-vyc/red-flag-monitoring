@@ -176,7 +176,7 @@ export async function fetchRulesWithVersions(): Promise<RuleWithVersionsDto[]> {
   return attachRuleVersions(await fetchRuleDtos());
 }
 
-/** GET /rules has no filter, so the rules of one policy are picked on the web (BE-12). */
+/** GET /rules has no filter, so the rules of one policy are picked on the web. */
 export async function fetchPolicyRulesWithVersions(policyId: string): Promise<RuleWithVersionsDto[]> {
   const rules = await fetchRuleDtos();
   return attachRuleVersions(rules.filter((rule) => rule.policyId === policyId));

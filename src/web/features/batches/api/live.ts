@@ -177,7 +177,7 @@ function toRuleEvaluation(ruleEvaluation: RuleEvaluationDetailDto): RuleEvaluati
 
 export const liveBatchesService: BatchesService = {
   capabilities: {
-    canUploadBatch: false, // BE-01
+    canUploadBatch: false,
     canStartRun: true,
   },
 
@@ -204,7 +204,7 @@ export const liveBatchesService: BatchesService = {
     return loadBatch(run.id);
   },
 
-  // V14: runs are created by the evaluation engine, the API has no upload endpoint (BE-01). Hidden in the UI.
+  // V14: runs are created by the evaluation engine, the API has no upload endpoint. Hidden in the UI.
   uploadBatch: async () => {
     throw new ApiError({
       kind: "unsupported",

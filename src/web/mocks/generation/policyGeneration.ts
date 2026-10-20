@@ -43,7 +43,7 @@ function inferRegulationKind(url: string): RegulationKind {
   return "law";
 }
 
-/** Stands in for the backend import (BE-02): the metadata of the regulation follows from its URL. */
+/** Stands in for the backend import: the metadata of the regulation follows from its URL. */
 export function deriveRegulationFromUrl(url: string): NewRegulationTarget {
   const title = describeUrl(url);
   const code = title.length > MAX_CODE_LENGTH ? `${title.slice(0, MAX_CODE_LENGTH - 2)}…` : title;
