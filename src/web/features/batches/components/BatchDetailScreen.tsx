@@ -11,13 +11,14 @@ import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
-import { useBatch } from "../api/hooks";
+import { useBatch, type RunStall } from "../api/hooks";
 import { batchPath } from "../batchPaths";
 import { BUCKETS, type Batch, type Bucket } from "../types";
 import { BatchStatusBadge } from "./BatchesScreen";
 import { BatchProgressView } from "./BatchProgressView";
 import { BatchTransactionList } from "./BatchTransactionList";
 import { BUCKET_ICONS } from "./BucketBadge";
+import { RunStalledNotice } from "./RunStalledNotice";
 import styles from "./BatchDetail.module.css";
 
 function BucketCards({ batch, selectedBucket }: { batch: Batch; selectedBucket: Bucket }) {
@@ -47,7 +48,15 @@ function BucketCards({ batch, selectedBucket }: { batch: Batch; selectedBucket: 
   );
 }
 
-function BatchDetail({ batch, selectedBucket }: { batch: Batch; selectedBucket: Bucket }) {
+type BatchDetailProps = {
+  batch: Batch;
+  selectedBucket: Bucket;
+  /** Client time of the fetch that returned the batch; the ETA measures the rate between fetches. */
+  fetchedAtMs: number;
+  runStall: RunStall;
+};
+
+function BatchDetail({ batch, selectedBucket, fetchedAtMs, runStall }: BatchDetailProps) {
   const { t, locale } = useI18n();
   const isCapped = batch.evaluatedRowCount < batch.fileRowCount;
   return (
@@ -74,7 +83,14 @@ function BatchDetail({ batch, selectedBucket }: { batch: Batch; selectedBucket: 
         </Notice>
       )}
       {batch.status === "processing" ? (
-        <BatchProgressView batch={batch} />
+        <>
+          <RunStalledNotice runStall={runStall} />
+          <BatchProgressView
+            batch={batch}
+            fetchedAtMs={fetchedAtMs}
+            isStalled={runStall.stalledSinceMs !== null}
+          />
+        </>
       ) : (
         <>
           {/* Results evaluated before the failure stay listed below the reason. */}
@@ -102,10 +118,17 @@ function BatchDetail({ batch, selectedBucket }: { batch: Batch; selectedBucket: 
 }
 
 export function BatchDetailScreen({ batchId, selectedBucket }: { batchId: string; selectedBucket: Bucket }) {
-  const batchQuery = useBatch(batchId);
+  const { batchQuery, runStall } = useBatch(batchId);
   return (
     <QueryView query={batchQuery}>
-      {(batch) => <BatchDetail batch={batch} selectedBucket={selectedBucket} />}
+      {(batch) => (
+        <BatchDetail
+          batch={batch}
+          selectedBucket={selectedBucket}
+          fetchedAtMs={batchQuery.dataUpdatedAt}
+          runStall={runStall}
+        />
+      )}
     </QueryView>
   );
 }

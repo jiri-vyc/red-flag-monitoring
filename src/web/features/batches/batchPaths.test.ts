@@ -1,4 +1,4 @@
-import { batchPath, batchTransactionPath, parseBucketParam } from "./batchPaths";
+import { batchPath, batchTransactionPath, findStartedRunPath, parseBucketParam } from "./batchPaths";
 import { DEFAULT_BUCKET } from "./types";
 
 describe("batchPath", () => {
@@ -32,5 +32,17 @@ describe("parseBucketParam", () => {
     expect(parseBucketParam(undefined)).toBe(DEFAULT_BUCKET);
     expect(parseBucketParam("unknown")).toBe(DEFAULT_BUCKET);
     expect(parseBucketParam(["ok", "alert"])).toBe(DEFAULT_BUCKET);
+  });
+});
+
+describe("findStartedRunPath", () => {
+  it("opens the run detail when the data source is unchanged", () => {
+    expect(findStartedRunPath({ batchId: "run-1", submittedMode: "live", activeMode: "live" })).toBe(
+      "/batches/run-1",
+    );
+  });
+
+  it("stays on the list when the data source was switched during the start", () => {
+    expect(findStartedRunPath({ batchId: "run-1", submittedMode: "live", activeMode: "mock" })).toBeNull();
   });
 });

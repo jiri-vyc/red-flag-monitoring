@@ -7,6 +7,7 @@ import { requestJson } from "@/lib/httpClient";
 import { ApiModeProvider } from "@/providers/ApiModeProvider";
 import { MockUsageProvider } from "@/providers/MockUsageProvider";
 
+import { STALLED_RUN_LIMIT_MS } from "../domain/runProgress";
 import type { Batch } from "../types";
 import type { EvaluationRunListItemDto } from "./dto";
 import { findProcessingPollInterval, useBatch, useBatches, useStartEvaluationRun } from "./hooks";
@@ -84,6 +85,10 @@ describe("findProcessingPollInterval", () => {
     expect(findProcessingPollInterval([batch("completed"), batch("failed")], "live")).toBe(false);
     expect(findProcessingPollInterval(undefined, "live")).toBe(false);
   });
+
+  it("stops while the processing runs are stalled", () => {
+    expect(findProcessingPollInterval([batch("processing")], "live", true)).toBe(false);
+  });
 });
 
 describe("live run polling", () => {
@@ -109,7 +114,7 @@ describe("live run polling", () => {
       .mockResolvedValueOnce(runSummary({ status: "running", txProcessed: 3 }))
       .mockResolvedValueOnce(runSummary({ status: "running", txProcessed: 7 }))
       .mockResolvedValue(runSummary({ status: "completed", txProcessed: 10, txPassed: 9, txFlagged: 1 }));
-    const { result } = renderHook(() => useBatch("run-1"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useBatch("run-1").batchQuery, { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.data?.processedRowCount).toBe(3));
     await advancePolling();
@@ -127,7 +132,7 @@ describe("live run polling", () => {
     requestJsonMock
       .mockResolvedValueOnce(runSummary({ status: "importing" }))
       .mockResolvedValue(runSummary({ status: "failed", errorMessage: "Rule engine crashed" }));
-    const { result } = renderHook(() => useBatch("run-1"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useBatch("run-1").batchQuery, { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.data?.status).toBe("processing"));
     await advancePolling();
@@ -142,7 +147,7 @@ describe("live run polling", () => {
     requestJsonMock
       .mockResolvedValueOnce({ items: [{ ...RUN, status: "running" }], total: 1 })
       .mockResolvedValue({ items: [{ ...RUN, status: "completed" }], total: 1 });
-    const { result } = renderHook(useBatches, { wrapper: createWrapper() });
+    const { result } = renderHook(() => useBatches().batchesQuery, { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.data?.[0]?.status).toBe("processing"));
     await advancePolling();
@@ -151,5 +156,68 @@ describe("live run polling", () => {
     const listRequests = requestJsonMock.mock.calls.length;
     await advancePolling();
     expect(requestJsonMock.mock.calls.length).toBe(listRequests);
+  });
+
+  it("stops polling a run without progress and resumes on check again", async () => {
+    requestJsonMock.mockResolvedValue(runSummary({ status: "running", txProcessed: 3 }));
+    const { result } = renderHook(() => useBatch("run-1"), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.batchQuery.data?.processedRowCount).toBe(3));
+    const stalledSinceMs = result.current.batchQuery.dataUpdatedAt;
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(STALLED_RUN_LIMIT_MS);
+    });
+    expect(result.current.runStall.stalledSinceMs).toBe(stalledSinceMs);
+
+    const requestsWhenStalled = countRunDetailRequests();
+    await advancePolling();
+    expect(countRunDetailRequests()).toBe(requestsWhenStalled);
+
+    await act(async () => result.current.runStall.checkAgain());
+    await advancePolling();
+    expect(result.current.runStall.stalledSinceMs).toBeNull();
+    expect(countRunDetailRequests()).toBeGreaterThan(requestsWhenStalled + 1);
+  });
+
+  it("resumes polling for the full limit when checked again long after the last fetch", async () => {
+    requestJsonMock.mockResolvedValue(runSummary({ status: "running", txProcessed: 3 }));
+    const { result } = renderHook(() => useBatch("run-1"), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.batchQuery.data?.processedRowCount).toBe(3));
+    const lastChangeMs = result.current.batchQuery.dataUpdatedAt;
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2 * STALLED_RUN_LIMIT_MS);
+    });
+    expect(result.current.runStall.stalledSinceMs).toBe(lastChangeMs);
+
+    await act(async () => result.current.runStall.checkAgain());
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(STALLED_RUN_LIMIT_MS - LIVE_POLL_INTERVAL_MS);
+    });
+    expect(result.current.runStall.stalledSinceMs).toBeNull();
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2 * LIVE_POLL_INTERVAL_MS);
+    });
+    // Stalled again, still reporting the time of the last change, not of the check.
+    expect(result.current.runStall.stalledSinceMs).toBe(lastChangeMs);
+  });
+
+  it("stops polling a run whose fetches keep failing for the limit", async () => {
+    requestJsonMock
+      .mockResolvedValueOnce(runSummary({ status: "running", txProcessed: 3 }))
+      .mockRejectedValue(new Error("Service unavailable"));
+    const { result } = renderHook(() => useBatch("run-1"), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.batchQuery.data?.processedRowCount).toBe(3));
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(STALLED_RUN_LIMIT_MS);
+    });
+    expect(result.current.batchQuery.isError).toBe(true);
+    expect(result.current.runStall.stalledSinceMs).not.toBeNull();
+
+    const requestsWhenStalled = countRunDetailRequests();
+    await advancePolling();
+    expect(countRunDetailRequests()).toBe(requestsWhenStalled);
   });
 });

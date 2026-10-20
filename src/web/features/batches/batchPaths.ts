@@ -1,3 +1,5 @@
+import type { ApiMode } from "@/config/apiMode";
+
 import { bucketSchema, DEFAULT_BUCKET, type Bucket } from "./types";
 
 // IDs are encoded: CSV transaction IDs can contain `/`, `?` or `#`, which would break the route.
@@ -17,4 +19,20 @@ export function parseBucketParam(bucketParam: unknown): Bucket {
 /** Web route of one evaluated transaction of a batch. Not an API path. */
 export function batchTransactionPath(batchId: string, transactionId: string): string {
   return `${batchPath(batchId)}/transactions/${encodeURIComponent(transactionId)}`;
+}
+
+/**
+ * Where a finished run start goes: the run detail, or null to stay on the batches list when the data source was
+ * switched while the start was in flight (the run ID belongs to the other source and would load as not found).
+ */
+export function findStartedRunPath({
+  batchId,
+  submittedMode,
+  activeMode,
+}: {
+  batchId: string;
+  submittedMode: ApiMode;
+  activeMode: ApiMode;
+}): string | null {
+  return submittedMode === activeMode ? batchPath(batchId) : null;
 }

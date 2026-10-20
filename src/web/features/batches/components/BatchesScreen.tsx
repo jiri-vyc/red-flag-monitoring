@@ -15,6 +15,7 @@ import { batchPath } from "../batchPaths";
 import type { Batch, BatchStatus } from "../types";
 import { BucketCountsInline } from "./BucketCountsInline";
 import { RunEvaluationPanel } from "./RunEvaluationPanel";
+import { RunStalledNotice } from "./RunStalledNotice";
 import { UploadDropzone } from "./UploadDropzone";
 
 const STATUS_TONES: Record<BatchStatus, "primary" | "success" | "danger"> = {
@@ -87,7 +88,7 @@ function BatchHistoryTable({ batches }: { batches: Batch[] }) {
 
 export function BatchesScreen() {
   const { t } = useI18n();
-  const batchesQuery = useBatches();
+  const { batchesQuery, runStall } = useBatches();
   const { canUploadBatch, canStartRun } = useBatchesCapabilities();
   return (
     <>
@@ -98,6 +99,7 @@ export function BatchesScreen() {
       {canStartRun && <RunEvaluationPanel />}
       {canUploadBatch && <UploadDropzone />}
       <Card title={t.batches.history}>
+        <RunStalledNotice runStall={runStall} />
         <QueryView query={batchesQuery}>{(batches) => <BatchHistoryTable batches={batches} />}</QueryView>
       </Card>
     </>

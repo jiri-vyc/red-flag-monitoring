@@ -3,7 +3,6 @@ import {
   APPROX_FULL_DATASET_TX,
   DEFAULT_MS_PER_100K_TX,
   estimateMsPer100kTx,
-  estimateRemainingMs,
   estimateRunDurationMs,
   estimateThroughput,
   RUN_OVERHEAD_MS,
@@ -89,50 +88,6 @@ describe("findFullDatasetTxCount", () => {
         createRun({ evaluatedRowCount: 400_100, isFullDatasetRun: true, status: "processing" }),
       ]),
     ).toBe(397_853);
-  });
-});
-
-describe("estimateRemainingMs", () => {
-  const nowMs = Date.parse(START) + 20_000;
-
-  it("extrapolates the average rate so far to the remaining transactions", () => {
-    expect(estimateRemainingMs({ processedCount: 100, totalCount: 400, startedAt: START, nowMs })).toBe(
-      60_000,
-    );
-    expect(estimateRemainingMs({ processedCount: 400, totalCount: 400, startedAt: START, nowMs })).toBe(0);
-  });
-
-  it("gives no estimate without a total, before any progress or in the first seconds", () => {
-    expect(estimateRemainingMs({ processedCount: 100, totalCount: 0, startedAt: START, nowMs })).toBeNull();
-    expect(estimateRemainingMs({ processedCount: 0, totalCount: 400, startedAt: START, nowMs })).toBeNull();
-    expect(
-      estimateRemainingMs({
-        processedCount: 100,
-        totalCount: 400,
-        startedAt: START,
-        nowMs: Date.parse(START) + 4000,
-      }),
-    ).toBeNull();
-    expect(
-      estimateRemainingMs({ processedCount: 100, totalCount: 400, startedAt: "invalid", nowMs }),
-    ).toBeNull();
-  });
-
-  it("accepts a shorter minimum elapsed time for a short run", () => {
-    const earlyNowMs = Date.parse(START) + 2000;
-
-    expect(
-      estimateRemainingMs({ processedCount: 100, totalCount: 400, startedAt: START, nowMs: earlyNowMs }),
-    ).toBeNull();
-    expect(
-      estimateRemainingMs({
-        processedCount: 100,
-        totalCount: 400,
-        startedAt: START,
-        nowMs: earlyNowMs,
-        minElapsedMs: 1000,
-      }),
-    ).toBe(6000);
   });
 });
 

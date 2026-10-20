@@ -9,8 +9,6 @@ export const DEFAULT_MS_PER_100K_TX = 65_000;
 export const MIN_MEASURED_RUN_TX = 50_000;
 /** Size of a full run when no completed full-dataset run tells the real count. */
 export const APPROX_FULL_DATASET_TX = 400_000;
-/** The rate of a database run is too noisy before this much of it has elapsed. */
-export const MIN_ETA_ELAPSED_MS = 5000;
 /** Fixed start-up cost of a run (Aurora main: 1,000 transactions took 8 s, 2,000 took 5 s), added once per estimate. */
 export const RUN_OVERHEAD_MS = 5000;
 
@@ -75,29 +73,4 @@ export function findFullDatasetTxCount(
     .sort(byNewestFirst)
     .find((run) => run.status === "completed" && run.isFullDatasetRun && run.evaluatedRowCount > 0);
   return fullRun?.evaluatedRowCount ?? APPROX_FULL_DATASET_TX;
-}
-
-/**
- * Remaining time of a processing run at its average rate so far: (total − processed) / (processed / elapsed).
- * Null while the total is unknown, nothing is processed yet or less than minElapsedMs has elapsed.
- */
-export function estimateRemainingMs({
-  processedCount,
-  totalCount,
-  startedAt,
-  nowMs,
-  minElapsedMs = MIN_ETA_ELAPSED_MS,
-}: {
-  processedCount: number;
-  totalCount: number;
-  startedAt: string;
-  nowMs: number;
-  minElapsedMs?: number;
-}): number | null {
-  const elapsedMs = nowMs - Date.parse(startedAt);
-  if (totalCount <= 0 || processedCount <= 0 || !(elapsedMs >= minElapsedMs)) {
-    return null;
-  }
-  const remainingCount = Math.max(0, totalCount - processedCount);
-  return (remainingCount * elapsedMs) / processedCount;
 }

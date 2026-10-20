@@ -1,13 +1,20 @@
 "use client";
 
 import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { getServiceMode, selectServiceImplementation, type ApiMode } from "@/config/apiMode";
 import { getCurrentUser } from "@/config/currentUser";
 import { useApiMode } from "@/providers/ApiModeProvider";
 import { useServiceUsage } from "@/providers/MockUsageProvider";
 
-import { MIN_ETA_ELAPSED_MS } from "../domain/runDuration";
+import {
+  advanceProgressMark,
+  findLastPolledAtMs,
+  findStalledSinceMs,
+  restartProgressWatch,
+  type ProgressMark,
+} from "../domain/runProgress";
 import type { Batch, Bucket, RunScope } from "../types";
 import type { BatchesCapabilities } from "./contract";
 import { batchesImplementations, batchesService } from "./service";
@@ -17,8 +24,6 @@ import { USER_ROLES, type UserRole } from "@/features/users/types";
 // The mock's simulated run lasts a few seconds, so it is polled often for a smooth progress; a live run over
 // the database takes minutes and is polled every 2 s.
 const PROCESSING_POLL_INTERVAL_MS: Record<ApiMode, number> = { mock: 400, live: 2000 };
-// A mock run lasts 3 to 8 s, so it would end before the live 5 s minimum for a remaining-time estimate.
-export const ETA_MIN_ELAPSED_MS: Record<ApiMode, number> = { mock: 1000, live: MIN_ETA_ELAPSED_MS };
 const FIRST_PAGE_CURSOR: string | null = null;
 
 export const batchQueryKeys = {
@@ -44,31 +49,99 @@ export function useBatchesCapabilities(): BatchesCapabilities {
   return selectServiceImplementation("batches", batchesImplementations, apiMode).capabilities;
 }
 
-/** Polls while any of the batches is still processing and stops once all of them are completed or failed. */
-export function findProcessingPollInterval(batches: Batch[] | undefined, apiMode: ApiMode): number | false {
+/**
+ * Polls while any of the batches is still processing and stops once all of them are completed or failed, or
+ * once their progress has stalled (the backend may have interrupted the run; it still owns the status).
+ */
+export function findProcessingPollInterval(
+  batches: Batch[] | undefined,
+  apiMode: ApiMode,
+  isStalled = false,
+): number | false {
   const isAnyProcessing = batches?.some((batch) => batch.status === "processing") ?? false;
-  return isAnyProcessing ? PROCESSING_POLL_INTERVAL_MS[apiMode] : false;
+  return isAnyProcessing && !isStalled ? PROCESSING_POLL_INTERVAL_MS[apiMode] : false;
+}
+
+/** A processing run whose progress has not changed for STALLED_RUN_LIMIT_MS. */
+export type RunStall = {
+  /** When the progress last changed (client time); null while the run progresses or nothing processes. */
+  stalledSinceMs: number | null;
+  /** Refetches and resumes polling for another STALLED_RUN_LIMIT_MS from now. */
+  checkAgain: () => void;
+};
+
+type QueryProgress<TData> = { data: TData | undefined; dataUpdatedAt: number; errorUpdatedAt: number };
+
+/**
+ * Tracks when the processing runs in the query last changed. The state lives in the hook, so the limit
+ * starts again whenever a screen mounts.
+ */
+function useProcessingPolling<TData>({
+  toBatches,
+  apiMode,
+}: {
+  toBatches: (data: TData | undefined) => Batch[] | undefined;
+  apiMode: ApiMode;
+}) {
+  const [progressMark, setProgressMark] = useState<ProgressMark | null>(null);
+
+  // Runs outside render on every query update, so it derives the mark from the query state itself.
+  const refetchInterval = ({ state }: { state: QueryProgress<TData> }) => {
+    const batches = toBatches(state.data);
+    const nextMark = advanceProgressMark(progressMark, batches, state.dataUpdatedAt);
+    return findProcessingPollInterval(
+      batches,
+      apiMode,
+      findStalledSinceMs(nextMark, findLastPolledAtMs(state)) !== null,
+    );
+  };
+
+  const watchProgress = (query: QueryProgress<TData>, refetch: () => Promise<unknown>): RunStall => {
+    const nextMark = advanceProgressMark(progressMark, toBatches(query.data), query.dataUpdatedAt);
+    if (nextMark !== progressMark) {
+      // Adjusting state during render: React re-renders right away with the new mark.
+      setProgressMark(nextMark);
+    }
+    return {
+      stalledSinceMs: findStalledSinceMs(nextMark, findLastPolledAtMs(query)),
+      checkAgain: () => {
+        setProgressMark((mark) => restartProgressWatch(mark, Date.now()));
+        void refetch();
+      },
+    };
+  };
+
+  return { refetchInterval, watchProgress };
 }
 
 export function useBatches() {
   useServiceUsage("batches");
   const batchesMode = useBatchesMode();
-  return useQuery({
+  const { refetchInterval, watchProgress } = useProcessingPolling<Batch[]>({
+    toBatches: (batches) => batches,
+    apiMode: batchesMode,
+  });
+  const batchesQuery = useQuery({
     queryKey: batchQueryKeys.all,
     queryFn: () => batchesService.loadBatches(),
-    refetchInterval: (query) => findProcessingPollInterval(query.state.data, batchesMode),
+    refetchInterval,
   });
+  return { batchesQuery, runStall: watchProgress(batchesQuery, batchesQuery.refetch) };
 }
 
 export function useBatch(batchId: string) {
   useServiceUsage("batches");
   const batchesMode = useBatchesMode();
-  return useQuery({
+  const { refetchInterval, watchProgress } = useProcessingPolling<Batch>({
+    toBatches: (batch) => batch && [batch],
+    apiMode: batchesMode,
+  });
+  const batchQuery = useQuery({
     queryKey: batchQueryKeys.detail(batchId),
     queryFn: () => batchesService.loadBatch(batchId),
-    refetchInterval: (query) =>
-      findProcessingPollInterval(query.state.data && [query.state.data], batchesMode),
+    refetchInterval,
   });
+  return { batchQuery, runStall: watchProgress(batchQuery, batchQuery.refetch) };
 }
 
 export function useUploadBatch() {
