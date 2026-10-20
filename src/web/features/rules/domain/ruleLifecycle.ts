@@ -192,7 +192,7 @@ export function addRuleVersion(
     state: "pending_review",
     content,
     config,
-    // The base score is not edited in the web app, so it carries over from the latest version.
+    // A new version has no base score input, so it carries over from the latest version.
     baseScore: getLatestVersion(rule).baseScore,
     changeNote,
     createdAt: now,
@@ -208,14 +208,24 @@ export function addRuleVersion(
 
 export function updateDraftContent(
   rule: Rule,
-  { content, config, now }: { content: RuleContent; config?: RuleConfig; now: string },
+  {
+    content,
+    config,
+    baseScore,
+    now,
+  }: { content: RuleContent; config?: RuleConfig; baseScore?: number; now: string },
 ): Rule {
   const latestVersion = getLatestVersion(rule);
   const isEditable = REVIEWABLE_STATUSES.includes(rule.status) && latestVersion.state !== "approved";
   if (!isEditable) {
     throw new Error(`Rule ${rule.id} has no unapproved version to edit.`);
   }
-  const editedVersion = { ...latestVersion, content, config: config ?? latestVersion.config };
+  const editedVersion = {
+    ...latestVersion,
+    content,
+    config: config ?? latestVersion.config,
+    baseScore: baseScore ?? latestVersion.baseScore,
+  };
   return { ...rule, versions: replaceLatestVersion(rule, editedVersion), updatedAt: now };
 }
 

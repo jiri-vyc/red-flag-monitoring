@@ -40,6 +40,7 @@ import {
   getLatestVersion,
 } from "../domain/ruleLifecycle";
 import {
+  parseBaseScore,
   toRuleConfigFormValues,
   validateRuleConfigForm,
   type RuleConfigFormErrors,
@@ -47,6 +48,7 @@ import {
 } from "../manualRuleForm";
 import { useRolePermissions } from "@/features/users/api/hooks";
 import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
+import { RoleGatedButton } from "@/features/users/components/RoleGatedButton";
 import type { UserRole } from "@/features/users/types";
 
 import type { Rule, RuleContent } from "../types";
@@ -256,9 +258,21 @@ function RuleReviewCard({ rule, escalationRole }: { rule: Rule; escalationRole: 
   );
 }
 
+/** The edit of a draft's configuration from its card, or why it is missing while the API can't save it (issue #8). */
+function useDraftConfigurationEdit(rule: Rule) {
+  const { canEditDraftContent } = useRulesCapabilities();
+  const { canManageRules } = useRolePermissions();
+  const isDraft = rule.status === "draft";
+  return {
+    canEdit: isDraft && canEditDraftContent,
+    isUnavailableInApi: isDraft && !canEditDraftContent && canManageRules,
+  };
+}
+
 /** Shows the config evaluations run with, and highlights fields a version awaiting review would change. */
-function RuleConfiguration({ rule }: { rule: Rule }) {
+function RuleConfiguration({ rule, onEditDraft }: { rule: Rule; onEditDraft: () => void }) {
   const { t } = useI18n();
+  const draftEdit = useDraftConfigurationEdit(rule);
   const runningVersion = findRunningVersion(rule);
   const pendingVersion = findPendingVersion(rule);
   const hasPendingConfigChange =
@@ -277,10 +291,21 @@ function RuleConfiguration({ rule }: { rule: Rule }) {
         </>
       }
       actions={
-        hasPendingConfigChange &&
-        pendingVersion && (
-          <Badge tone="warning">{`${t.rules.pendingChange}: v${pendingVersion.versionNumber}`}</Badge>
-        )
+        <>
+          {hasPendingConfigChange && pendingVersion && (
+            <Badge tone="warning">{`${t.rules.pendingChange}: v${pendingVersion.versionNumber}`}</Badge>
+          )}
+          {draftEdit.canEdit && (
+            <RoleGatedButton
+              permission="canManageRules"
+              variant="secondary"
+              icon={<Pencil aria-hidden="true" />}
+              onClick={onEditDraft}
+            >
+              {t.common.edit}
+            </RoleGatedButton>
+          )}
+        </>
       }
     >
       {runningVersion ? (
@@ -293,6 +318,7 @@ function RuleConfiguration({ rule }: { rule: Rule }) {
         <RuleConfigView config={getLatestVersion(rule).config} baseScore={getLatestVersion(rule).baseScore} />
       )}
       {hasPendingConfigChange && <Notice tone="info">{t.rules.pendingConfigNote}</Notice>}
+      {draftEdit.isUnavailableInApi && <p className={styles.mutedHint}>{t.rules.editDraftUnavailable}</p>}
       <Notice tone="compliance">{t.compliance.suppressionWarning}</Notice>
     </Card>
   );
@@ -372,27 +398,71 @@ function NewVersionEditor({ rule, onClose }: { rule: Rule; onClose: () => void }
   );
 }
 
-/** Edits the unreviewed version in place: content and config, prefilled from that version. */
+/** Like the backend, only a deterministic rule has a base score; an agentic one has none. */
+function BaseScoreField({
+  value,
+  hasError,
+  onChange,
+}: {
+  value: string;
+  hasError: boolean;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useI18n();
+  const inputId = "rule-draft-base-score";
+  return (
+    <Field
+      label={t.rules.baseScore}
+      htmlFor={inputId}
+      hint={t.rules.baseScoreHint}
+      error={hasError ? t.ruleForm.validationBaseScore : null}
+    >
+      <input
+        id={inputId}
+        type="number"
+        min={0}
+        max={100}
+        step={1}
+        className={fieldStyles.input}
+        value={value}
+        aria-invalid={hasError}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </Field>
+  );
+}
+
+/** Edits the unreviewed version in place: content, config and base score, prefilled from that version. */
 function DraftEditor({ rule, onClose }: { rule: Rule; onClose: () => void }) {
   const { t } = useI18n();
   const updateDraftMutation = useUpdateDraftContent();
   const draftVersion = getLatestVersion(rule);
+  const hasBaseScore = draftVersion.content.type === "deterministic";
   const [configValues, setConfigValues] = useState<RuleConfigFormValues>(() =>
     toRuleConfigFormValues(draftVersion.config),
   );
   const [configErrors, setConfigErrors] = useState<RuleConfigFormErrors>({});
+  const [baseScoreValue, setBaseScoreValue] = useState(() => draftVersion.baseScore?.toString() ?? "");
+  const [hasBaseScoreError, setHasBaseScoreError] = useState(false);
 
   const updateConfigValues = (changes: Partial<RuleConfigFormValues>) =>
     setConfigValues((current) => ({ ...current, ...changes }));
   const saveDraft = (content: RuleContent) => {
     const configResult = validateRuleConfigForm(configValues);
-    if (!configResult.isValid) {
-      setConfigErrors(configResult.errors);
+    const baseScore = hasBaseScore ? parseBaseScore(baseScoreValue) : null;
+    const isBaseScoreInvalid = hasBaseScore && baseScore === null;
+    setConfigErrors(configResult.isValid ? {} : configResult.errors);
+    setHasBaseScoreError(isBaseScoreInvalid);
+    if (!configResult.isValid || isBaseScoreInvalid) {
       return;
     }
-    setConfigErrors({});
     updateDraftMutation.mutate(
-      { ruleId: rule.id, content, config: configResult.input },
+      {
+        ruleId: rule.id,
+        content,
+        config: configResult.input,
+        ...(baseScore !== null && { baseScore }),
+      },
       { onSuccess: onClose },
     );
   };
@@ -413,6 +483,9 @@ function DraftEditor({ rule, onClose }: { rule: Rule; onClose: () => void }) {
           errors={configErrors}
           onChange={updateConfigValues}
         />
+        {hasBaseScore && (
+          <BaseScoreField value={baseScoreValue} hasError={hasBaseScoreError} onChange={setBaseScoreValue} />
+        )}
       </RuleContentEditor>
       {updateDraftMutation.error && <ErrorState error={updateDraftMutation.error} />}
     </Card>
@@ -468,7 +541,7 @@ function RuleDetail({ rule, returnPath }: { rule: Rule; returnPath: string | nul
       <RuleSourceChain rule={rule} />
       {rule.status === "update_for_review" && <Notice tone="info">{t.rules.updateReviewNote}</Notice>}
       {rule.runningVersionNumber === null && <Notice tone="compliance">{t.rules.notExecutableNote}</Notice>}
-      <RuleConfiguration rule={rule} />
+      <RuleConfiguration rule={rule} onEditDraft={() => setEditorMode("edit_draft")} />
       <RuleWhitelistCard rule={rule} />
 
       <RuleActionsCard

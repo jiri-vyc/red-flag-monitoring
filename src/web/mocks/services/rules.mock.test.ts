@@ -76,6 +76,20 @@ describe("mock rules draft edit", () => {
     expect(getLatestVersion(savedRule).config).toEqual(config);
   });
 
+  it("saves the draft version's base score in place", async () => {
+    const draftRule = findDraftRule();
+    const draftVersion = getLatestVersion(draftRule);
+
+    await mockRulesService.updateDraftContent({
+      ruleId: draftRule.id,
+      content: draftVersion.content,
+      baseScore: 73,
+    });
+
+    const savedRule = readMockDatabase().rules.find((rule) => rule.id === draftRule.id)!;
+    expect(getLatestVersion(savedRule).baseScore).toBe(73);
+  });
+
   it("keeps the draft version's config when only the content is sent", async () => {
     const draftRule = findDraftRule();
     const draftVersion = getLatestVersion(draftRule);
@@ -84,5 +98,6 @@ describe("mock rules draft edit", () => {
 
     const savedRule = readMockDatabase().rules.find((rule) => rule.id === draftRule.id)!;
     expect(getLatestVersion(savedRule).config).toEqual(draftVersion.config);
+    expect(getLatestVersion(savedRule).baseScore).toBe(draftVersion.baseScore);
   });
 });

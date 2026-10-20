@@ -6,7 +6,7 @@ import { riskProfileSchema, ruleTypeSchema, type CreateManualRuleInput, type Rul
 
 /** Error messages are dictionary keys under `ruleForm`, so the form can show them in the current language. */
 export type ManualRuleFormErrorKey =
-  "validationDescription" | "validationLegalBases" | "validationRiskProfiles";
+  "validationBaseScore" | "validationDescription" | "validationLegalBases" | "validationRiskProfiles";
 
 /** Config fields as edited in a form. */
 export type RuleConfigFormValues = {
@@ -102,4 +102,17 @@ export function validateRuleConfigForm(values: RuleConfigFormValues): RuleConfig
   }
   const { riskProfiles } = collectErrors(parseResult.error.issues);
   return { isValid: false, errors: { riskProfiles } };
+}
+
+const MAX_BASE_SCORE = 100;
+const WHOLE_NUMBER_PATTERN = /^\d+$/;
+
+/** The base score as typed in a form: a whole number 0..100, else null. */
+export function parseBaseScore(value: string): number | null {
+  const trimmedValue = value.trim();
+  if (!WHOLE_NUMBER_PATTERN.test(trimmedValue)) {
+    return null;
+  }
+  const baseScore = Number(trimmedValue);
+  return baseScore <= MAX_BASE_SCORE ? baseScore : null;
 }

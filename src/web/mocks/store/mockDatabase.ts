@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Batch, BatchTransaction, Transaction } from "@/features/batches/types";
 import type { DraftingJob } from "@/features/draftingJobs/types";
+import type { FauReport } from "@/features/fauReports/types";
 import { policySchema, type Policy } from "@/features/policies/types";
 import { regulationSchema, type Regulation } from "@/features/regulations/types";
 import { ruleSchema, whitelistEntrySchema, type Rule, type WhitelistEntry } from "@/features/rules/types";
@@ -42,6 +43,8 @@ export type MockDatabase = {
   whitelistEntries: WhitelistEntry[];
   batches: MockBatchRecord[];
   draftingJobs: MockDraftingJobRecord[];
+  /** Issue #20. The seed has none; reports are created in the demo. */
+  fauReports: FauReport[];
 };
 
 /** The mock engine re-evaluates stored rows, so it keeps the full transaction with its CZK amount. */
@@ -142,9 +145,25 @@ const storedDatabaseSchema = z.object({
       }),
     )
     .optional(),
+  // Optional for the same reason: data stored before FAÚ reports existed starts with none.
+  fauReports: z
+    .array(
+      z
+        .object({
+          id: z.string(),
+          status: z.string(),
+          alert: z.object({ batchId: z.string(), transactionId: z.string() }),
+          history: z.array(z.unknown()),
+        })
+        .loose(),
+    )
+    .optional(),
 });
 
-type StoredDatabase = Omit<MockDatabase, "draftingJobs"> & { draftingJobs?: MockDraftingJobRecord[] };
+type StoredDatabase = Omit<MockDatabase, "draftingJobs" | "fauReports"> & {
+  draftingJobs?: MockDraftingJobRecord[];
+  fauReports?: FauReport[];
+};
 
 function isStoredDatabase(value: unknown): value is StoredDatabase {
   return storedDatabaseSchema.safeParse(value).success;
@@ -164,7 +183,11 @@ export function readMockDatabase(): MockDatabase {
   }
   const storedDatabase = readStorageItem(DATABASE_KEY);
   if (isStoredDatabase(storedDatabase)) {
-    cachedDatabase = { ...storedDatabase, draftingJobs: storedDatabase.draftingJobs ?? [] };
+    cachedDatabase = {
+      ...storedDatabase,
+      draftingJobs: storedDatabase.draftingJobs ?? [],
+      fauReports: storedDatabase.fauReports ?? [],
+    };
     return cachedDatabase;
   }
   if (storedDatabase !== null) {

@@ -117,6 +117,23 @@ function createUpdatedRule(): Rule {
   };
 }
 
+/** A deterministic draft with a base score, which only deterministic rules have. */
+function createDeterministicDraft(): Rule {
+  const rule = createRule("draft");
+  const [draftVersion] = rule.versions;
+  return {
+    ...rule,
+    type: "deterministic",
+    versions: [
+      {
+        ...draftVersion!,
+        content: { type: "deterministic", code: "{}", explanation: "Vysvětlení" },
+        baseScore: 60,
+      },
+    ],
+  };
+}
+
 // A card is the section around its title.
 function queryCard(title: string): HTMLElement | null {
   return screen.queryByRole("heading", { level: 2, name: title })?.closest("section") ?? null;
@@ -262,6 +279,76 @@ describe("RuleDetailScreen actions", () => {
 
     expect(updateDraftMutate).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toBe(en.ruleForm.validationRiskProfiles);
+  });
+
+  it("opens the draft editor from the configuration card", () => {
+    renderRule(createRule("draft"));
+    const configurationCard = within(getCard(`${en.rules.proposedConfiguration} (v1)`));
+    fireEvent.click(configurationCard.getByRole("button", { name: en.common.edit }));
+
+    expect(screen.getByRole("button", { name: en.rules.saveDraft })).toBeTruthy();
+    expect(changeGroup().getByRole("button", { name: en.rules.editDraft })).toBeTruthy();
+  });
+
+  it("disables the configuration card's edit for a role that can't manage rules", () => {
+    jest.mocked(useRolePermissions).mockReturnValue(getRolePermissions("lawyer"));
+    renderRule(createRule("draft"));
+    const configurationCard = within(getCard(`${en.rules.proposedConfiguration} (v1)`));
+
+    expect(configurationCard.getByRole<HTMLButtonElement>("button", { name: en.common.edit }).disabled).toBe(
+      true,
+    );
+  });
+
+  it("explains on the configuration card why a draft can't be edited while the API lacks it", () => {
+    withoutDraftEditing();
+    renderRule(createRule("draft"));
+    const configurationCard = within(getCard(`${en.rules.proposedConfiguration} (v1)`));
+
+    expect(configurationCard.getByText(en.rules.editDraftUnavailable)).toBeTruthy();
+    expect(configurationCard.queryByRole("button", { name: en.common.edit })).toBeNull();
+  });
+
+  it("saves a deterministic draft's base score with the content and config", () => {
+    renderRule(createDeterministicDraft());
+    fireEvent.click(changeGroup().getByRole("button", { name: en.rules.editDraft }));
+    const baseScoreInput = screen.getByLabelText<HTMLInputElement>(en.rules.baseScore);
+    expect(baseScoreInput.value).toBe("60");
+
+    fireEvent.change(baseScoreInput, { target: { value: "75" } });
+    fireEvent.click(screen.getByRole("button", { name: en.rules.saveDraft }));
+
+    expect(updateDraftMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ ruleId: "rule-1", baseScore: 75 }),
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  // The input's own range check (0..100, whole numbers) stops the submit before the editor validates it.
+  it.each(["101", "-1", "12.5"])("doesn't save a draft with the base score %p", (baseScore) => {
+    renderRule(createDeterministicDraft());
+    fireEvent.click(changeGroup().getByRole("button", { name: en.rules.editDraft }));
+    fireEvent.change(screen.getByLabelText(en.rules.baseScore), { target: { value: baseScore } });
+    fireEvent.click(screen.getByRole("button", { name: en.rules.saveDraft }));
+
+    expect(updateDraftMutate).not.toHaveBeenCalled();
+  });
+
+  it("doesn't save a draft without a base score and says what it needs", () => {
+    renderRule(createDeterministicDraft());
+    fireEvent.click(changeGroup().getByRole("button", { name: en.rules.editDraft }));
+    fireEvent.change(screen.getByLabelText(en.rules.baseScore), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: en.rules.saveDraft }));
+
+    expect(updateDraftMutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toBe(en.ruleForm.validationBaseScore);
+  });
+
+  it("offers no base score for an agentic draft", () => {
+    renderRule(createRule("draft"));
+    fireEvent.click(changeGroup().getByRole("button", { name: en.rules.editDraft }));
+
+    expect(screen.queryByLabelText(en.rules.baseScore)).toBeNull();
   });
 
   it("starts the review role again from a newer version brought by a refetch", () => {

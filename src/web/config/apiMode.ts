@@ -3,7 +3,15 @@ import { clientEnv, type ApiMode } from "./env.client";
 export type { ApiMode };
 
 export type ServiceName =
-  "regulations" | "policies" | "rules" | "batches" | "wizard" | "dashboard" | "users" | "transactions";
+  | "regulations"
+  | "policies"
+  | "rules"
+  | "batches"
+  | "wizard"
+  | "dashboard"
+  | "users"
+  | "transactions"
+  | "fauReports";
 
 export const SERVICE_NAMES: readonly ServiceName[] = [
   "regulations",
@@ -14,6 +22,7 @@ export const SERVICE_NAMES: readonly ServiceName[] = [
   "dashboard",
   "users",
   "transactions",
+  "fauReports",
 ];
 
 export type ServiceImplementations<TService> = Record<ApiMode, TService>;
@@ -29,6 +38,7 @@ const SERVICE_MODE_OVERRIDES: Record<ServiceName, ApiMode | undefined> = {
   dashboard: clientEnv.NEXT_PUBLIC_API_MODE_DASHBOARD,
   users: clientEnv.NEXT_PUBLIC_API_MODE_USERS,
   transactions: clientEnv.NEXT_PUBLIC_API_MODE_TRANSACTIONS,
+  fauReports: clientEnv.NEXT_PUBLIC_API_MODE_FAU_REPORTS,
 };
 
 // --- Global data source (the sidebar switch). Priority: localStorage, then NEXT_PUBLIC_API_MODE, then mock. ---

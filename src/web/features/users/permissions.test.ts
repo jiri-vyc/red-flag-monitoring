@@ -8,20 +8,30 @@ describe("getRolePermissions (issue #6)", () => {
       canApprovePolicy: false,
       canDraftRules: false,
       canManageRules: false,
+      canViewFauReports: false,
+      canPrepareFauReport: false,
+      canApproveFauReport: false,
     });
   });
 
-  it("lets the compliance officer approve policies, draft and manage rules", () => {
+  it("lets the compliance officer approve policies, draft and manage rules, view and approve FAÚ reports", () => {
     expect(getRolePermissions("compliance_officer")).toEqual({
       canCreateRegulation: false,
       canDraftPolicies: false,
       canApprovePolicy: true,
       canDraftRules: true,
       canManageRules: true,
+      canViewFauReports: true,
+      canPrepareFauReport: false,
+      canApproveFauReport: true,
     });
   });
 
-  it.each(["lawyer", "contact_person", "designated_person"] as const)("keeps %s read-only", (role) => {
+  it("lets the contact person view and prepare FAÚ reports, nothing else (issue #20)", () => {
+    expect(grantedPermissions("contact_person")).toEqual(["canViewFauReports", "canPrepareFauReport"]);
+  });
+
+  it.each(["lawyer", "designated_person"] as const)("keeps %s read-only", (role) => {
     expect(Object.values(getRolePermissions(role)).some(Boolean)).toBe(false);
   });
 });
@@ -33,6 +43,9 @@ describe("rolesWithPermission (issue #6)", () => {
     ["canApprovePolicy", ["compliance_officer"]],
     ["canDraftRules", ["compliance_officer"]],
     ["canManageRules", ["compliance_officer"]],
+    ["canViewFauReports", ["compliance_officer", "contact_person"]],
+    ["canPrepareFauReport", ["contact_person"]],
+    ["canApproveFauReport", ["compliance_officer"]],
   ] as const)("derives the roles allowed to %s", (permission, roles) => {
     expect(rolesWithPermission(permission)).toEqual(roles);
   });

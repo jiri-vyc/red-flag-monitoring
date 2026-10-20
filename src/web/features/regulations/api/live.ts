@@ -100,7 +100,7 @@ export const liveRegulationsService: RegulationsService = {
     return Object.fromEntries(regulations.map((regulation) => [regulation.id, regulation.code]));
   },
 
-  // The backend has no regulation deletion endpoint yet (todo-web.md). Hidden in the UI; this is the safety net.
+  // The backend has no regulation deletion endpoint yet (BE-23, issue #30). Hidden in the UI; this is the safety net.
   deleteRegulation: () => {
     throw new ApiError({
       kind: "unsupported",

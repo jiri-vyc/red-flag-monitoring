@@ -9,6 +9,7 @@ const EMPTY_DATABASE: MockDatabase = {
   whitelistEntries: [],
   batches: [],
   draftingJobs: [],
+  fauReports: [],
 };
 
 const RECORD: MockRegulationRecord = {
