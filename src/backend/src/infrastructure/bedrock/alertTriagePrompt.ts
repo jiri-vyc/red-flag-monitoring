@@ -7,6 +7,7 @@ import {
   type TriageAlert,
   type TriageProposal,
 } from "../../domain/alertTriage";
+import { toDateKey } from "../../domain/features/calendar";
 
 const SAMPLE_HITS_PER_ALERT = 5;
 const RULE_TEXT_CHARACTERS = 600;
@@ -111,7 +112,7 @@ function describeAlert(
     guardrails: proposal && proposal.guardrails.length > 0 ? describeGuardrails(proposal.guardrails) : null,
     largest_hit_transactions: sampleHits.map((hit) => ({
       transaction_id: hit.transactionId,
-      at: hit.occurredAt.toISOString(),
+      at: `${toDateKey(hit.occurredAt)} ${hit.occurredAt.toTimeString().slice(0, 5)}`,
       type: hit.transactionType,
       amount_czk: Math.round(hit.amountCzk),
       amount_multiple_of_q2_max_tx: roundMultiple(q2MaxTxCzk > 0 ? hit.amountCzk / q2MaxTxCzk : null),
