@@ -345,6 +345,54 @@ describe("livePoliciesService.approvePolicy", () => {
   });
 });
 
+describe("livePoliciesService.rejectPolicy", () => {
+  beforeEach(() => requestJsonMock.mockReset());
+
+  it("submits the draft, then reviews it as rejected with the reason as the review comment", async () => {
+    const requests = serveEndpoints();
+    const fallbackImplementation = requestJsonMock.getMockImplementation()!;
+    requestJsonMock.mockImplementation(async (options) => {
+      const { path, method = "GET" } = options;
+      if (method === "POST" && path.endsWith("/submit")) {
+        requests.push({ path, method });
+        return { ...MULTI_REGULATION_VERSION, status: "pending_review" };
+      }
+      if (method === "POST" && path.endsWith("/review")) {
+        requests.push({ path, method, jsonBody: options.jsonBody });
+        return { ...MULTI_REGULATION_VERSION, status: "rejected" };
+      }
+      return fallbackImplementation(options);
+    });
+
+    const policy = await livePoliciesService.rejectPolicy({
+      policyId: "policy-multi",
+      rejectedBy: getCurrentUser().name,
+      reason: "  Chybí částkový práh ",
+    });
+
+    const writes = requests.filter(({ method }) => method !== "GET");
+    expect(writes.map(({ path }) => path)).toEqual([
+      "/internal-policies/policy-multi/versions/policy-multi-v1/submit",
+      "/internal-policies/policy-multi/versions/policy-multi-v1/review",
+    ]);
+    expect(writes[1]?.jsonBody).toEqual({
+      decision: "rejected",
+      reviewedBy: getCurrentUser().id,
+      reviewComment: "Chybí částkový práh",
+    });
+    expect(policy.id).toBe("policy-multi");
+  });
+
+  it("refuses an empty reason before any request, as the backend requires a review comment", async () => {
+    const requests = serveEndpoints();
+
+    await expect(
+      livePoliciesService.rejectPolicy({ policyId: "policy-multi", rejectedBy: "Demo", reason: "  " }),
+    ).rejects.toMatchObject({ kind: "validation" });
+    expect(requests).toEqual([]);
+  });
+});
+
 describe("livePoliciesService.deletePolicy", () => {
   it("is hidden and refused, as the API cannot delete policies yet", () => {
     expect(livePoliciesService.capabilities).toEqual({ canDeletePolicy: false });

@@ -1,9 +1,18 @@
-import type { Policy } from "@/features/policies/types";
+import type { Policy, PolicyVersion } from "@/features/policies/types";
 import type { Regulation } from "@/features/regulations/types";
 
-import { canContinueToRules, findPoliciesToApprove, keepApprovedPolicies } from "./policySelection";
+import {
+  canContinueToRules,
+  findPoliciesToApprove,
+  isEveryDraftRejected,
+  keepApprovedPolicies,
+} from "./policySelection";
 
-const POLICIES = ["policy-a", "policy-b", "policy-c"].map((id) => ({ id }) as Policy);
+const POLICIES = ["policy-a", "policy-b", "policy-c"].map((id) => ({ id, versions: [] }) as unknown as Policy);
+
+function reject(policy: Policy): Policy {
+  return { ...policy, versions: [{ versionNumber: 1, state: "rejected" } as PolicyVersion] };
+}
 
 const ids = (policies: Policy[]) => policies.map((policy) => policy.id);
 
@@ -15,6 +24,15 @@ describe("findPoliciesToApprove", () => {
   it("leaves out skipped drafts and those approved in an earlier attempt", () => {
     expect(ids(findPoliciesToApprove(POLICIES, ["policy-a"], ["policy-c"]))).toEqual(["policy-b"]);
   });
+
+  it("never approves a rejected draft", () => {
+    const [policyA, policyB, policyC] = POLICIES;
+
+    expect(ids(findPoliciesToApprove([policyA!, reject(policyB!), policyC!], [], []))).toEqual([
+      "policy-a",
+      "policy-c",
+    ]);
+  });
 });
 
 describe("canContinueToRules", () => {
@@ -25,6 +43,24 @@ describe("canContinueToRules", () => {
 
   it("continues with the already approved policies when every remaining draft is skipped", () => {
     expect(canContinueToRules(POLICIES, ["policy-a"], ["policy-b", "policy-c"])).toBe(true);
+  });
+
+  it("cannot continue when every draft is rejected, and can when one of them is approved", () => {
+    const rejectedPolicies = POLICIES.map(reject);
+
+    expect(canContinueToRules(rejectedPolicies, [], [])).toBe(false);
+    expect(canContinueToRules(rejectedPolicies.slice(1), ["policy-a"], [])).toBe(true);
+  });
+});
+
+describe("isEveryDraftRejected", () => {
+  it("holds only when every draft is rejected and none is approved", () => {
+    const [policyA, policyB, policyC] = POLICIES;
+
+    expect(isEveryDraftRejected(POLICIES.map(reject), [])).toBe(true);
+    expect(isEveryDraftRejected([reject(policyA!), reject(policyB!), policyC!], [])).toBe(false);
+    expect(isEveryDraftRejected([policyA!, reject(policyB!)], ["policy-a"])).toBe(false);
+    expect(isEveryDraftRejected([], [])).toBe(false);
   });
 });
 

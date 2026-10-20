@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import type { Policy } from "@/features/policies/types";
+import type { Policy, PolicyVersion } from "@/features/policies/types";
 import type { Regulation } from "@/features/regulations/types";
 import { en } from "@/i18n/en";
 import { I18nProvider } from "@/i18n/I18nProvider";
@@ -9,6 +9,10 @@ import type { PolicyDraftResult } from "../types";
 import { PolicyDraftStep } from "./PolicyDraftStep";
 
 jest.mock("@/features/users/api/hooks", () => ({ useRolePermissions: () => ({ canApprovePolicy: true }) }));
+const rejectMutateAsync = jest.fn();
+jest.mock("@/features/policies/api/hooks", () => ({
+  useRejectPolicy: () => ({ mutateAsync: rejectMutateAsync, isPending: false, error: null }),
+}));
 
 function createPolicy(id: string, text: string): Policy {
   return {
@@ -32,31 +36,56 @@ const DRAFT: PolicyDraftResult = {
   policies: [createPolicy("a", "**Text A**"), createPolicy("b", "Text B")],
 };
 
-function renderStep(approvedPolicyIds: string[] = []) {
+function rejectPolicy(policy: Policy, reason: string): Policy {
+  const rejectedVersion: PolicyVersion = {
+    versionNumber: 1,
+    state: "rejected",
+    createdVia: "wizard",
+    text: policy.text,
+    legalBases: [],
+    createdBy: "AI",
+    createdAt: "",
+    reviewedBy: "Petr Svoboda",
+    reviewedAt: "",
+    reviewComment: reason,
+  };
+  return { ...policy, versions: [rejectedVersion] };
+}
+
+function renderStep(approvedPolicyIds: string[] = [], draft: PolicyDraftResult = DRAFT) {
   const onApprove = jest.fn();
+  const onPolicyRejected = jest.fn();
   render(
     <I18nProvider initialLocale="en">
       <PolicyDraftStep
-        draft={DRAFT}
+        draft={draft}
         initialSelection={{ policyTexts: {}, skippedPolicyIds: [] }}
         approvedPolicyIds={approvedPolicyIds}
         onApprove={onApprove}
+        onPolicyRejected={onPolicyRejected}
       />
     </I18nProvider>,
   );
-  return onApprove;
+  return Object.assign(onApprove, { onPolicyRejected });
 }
+
+const includeToggles = () =>
+  screen.getAllByRole<HTMLButtonElement>("button", { name: new RegExp(`^${en.wizard.includePolicy}`) });
+const includeToggle = (policyName: string) =>
+  screen.getByRole<HTMLButtonElement>("button", {
+    name: new RegExp(`^${en.wizard.includePolicy}.*${policyName}$`),
+  });
+const isPressed = (button: HTMLButtonElement) => button.getAttribute("aria-pressed") === "true";
 
 const approveButton = () => screen.getByRole<HTMLButtonElement>("button", { name: en.wizard.generateRules });
 
 describe("PolicyDraftStep", () => {
   it("selects every draft by default and passes the skipped ones and edited texts on approval", () => {
     const onApprove = renderStep();
-    const checkboxes = screen.getAllByRole<HTMLInputElement>("checkbox");
-    expect(checkboxes.map((checkbox) => checkbox.checked)).toEqual([true, true]);
+    expect(includeToggles().map(isPressed)).toEqual([true, true]);
     expect(screen.getByText(en.wizard.skipPolicyHint)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Předpis b/ }));
+    fireEvent.click(includeToggle("Předpis b"));
     fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "Upravený text A" } });
     fireEvent.click(approveButton());
 
@@ -66,11 +95,26 @@ describe("PolicyDraftStep", () => {
     });
   });
 
+  it("toggles a draft's selection with aria-pressed and leaves a deselected draft out of the approval", () => {
+    const onApprove = renderStep();
+
+    fireEvent.click(includeToggle("Předpis a"));
+    expect(isPressed(includeToggle("Předpis a"))).toBe(false);
+    expect(isPressed(includeToggle("Předpis b"))).toBe(true);
+    fireEvent.click(approveButton());
+    expect(onApprove).toHaveBeenLastCalledWith(expect.objectContaining({ skippedPolicyIds: ["a"] }));
+
+    fireEvent.click(includeToggle("Předpis a"));
+    expect(isPressed(includeToggle("Předpis a"))).toBe(true);
+    fireEvent.click(approveButton());
+    expect(onApprove).toHaveBeenLastCalledWith(expect.objectContaining({ skippedPolicyIds: [] }));
+  });
+
   it("disables approval when every draft is skipped and nothing is approved yet", () => {
     renderStep();
 
-    for (const checkbox of screen.getAllByRole("checkbox")) {
-      fireEvent.click(checkbox);
+    for (const toggle of includeToggles()) {
+      fireEvent.click(toggle);
     }
 
     expect(approveButton().disabled).toBe(true);
@@ -80,14 +124,59 @@ describe("PolicyDraftStep", () => {
   it("shows approved policies read-only and continues with them when the rest is skipped", () => {
     const onApprove = renderStep(["a"]);
 
-    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(includeToggles()).toHaveLength(1);
     expect(screen.getByText("Text A").tagName).toBe("STRONG");
 
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(includeToggle("Předpis b"));
 
     expect(approveButton().disabled).toBe(false);
     fireEvent.click(approveButton());
     expect(onApprove).toHaveBeenCalledWith(expect.objectContaining({ skippedPolicyIds: ["b"] }));
+  });
+
+  it("rejects a draft with a required reason and reports the rejected policy", async () => {
+    const rejectedB = rejectPolicy(DRAFT.policies[1]!, "Chybí práh");
+    rejectMutateAsync.mockResolvedValue(rejectedB);
+    const { onPolicyRejected } = renderStep();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(`^${en.wizard.rejectPolicy}.*Předpis b$`) }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: en.policies.confirmReject }));
+
+    expect(screen.getByText(en.policies.rejectReasonRequired)).toBeTruthy();
+    expect(rejectMutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(en.policies.rejectReason), { target: { value: " Chybí práh " } });
+    fireEvent.click(screen.getByRole("button", { name: en.policies.confirmReject }));
+
+    expect(rejectMutateAsync).toHaveBeenCalledWith({ policyId: "b", reason: "Chybí práh" });
+    await waitFor(() => expect(onPolicyRejected).toHaveBeenCalledWith(rejectedB));
+  });
+
+  it("shows a rejected draft read-only with its reason and continues with the rest", () => {
+    const onApprove = renderStep([], {
+      ...DRAFT,
+      policies: [DRAFT.policies[0]!, rejectPolicy(DRAFT.policies[1]!, "Chybí práh")],
+    });
+
+    expect(screen.getByText(en.policies.rejected)).toBeTruthy();
+    expect(screen.getByText("Chybí práh")).toBeTruthy();
+    expect(includeToggles()).toHaveLength(1);
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByText(en.wizard.skipPolicyHint)).toBeTruthy();
+
+    fireEvent.click(approveButton());
+    expect(onApprove).toHaveBeenCalled();
+  });
+
+  it("offers no rules step when every draft is rejected", () => {
+    renderStep([], { ...DRAFT, policies: DRAFT.policies.map((policy) => rejectPolicy(policy, "Nevhodné")) });
+
+    expect(screen.getByText(en.wizard.allPoliciesRejectedTitle)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: en.wizard.generateRules })).toBeNull();
+    expect(screen.getByRole("link", { name: en.wizard.goToPolicies }).getAttribute("href")).toBe("/policies");
+    expect(screen.getByRole("link", { name: en.wizard.startAgain }).getAttribute("href")).toBe("/wizard");
   });
 
   it("previews the edited text formatted and keeps the edit when switching back", () => {

@@ -31,9 +31,10 @@ import { RoleGatedButton } from "@/features/users/components/RoleGatedButton";
 import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import { usePolicy } from "../api/hooks";
+import { findRejectedLatestVersion } from "../domain/policyRejection";
 import { findCurrentPolicyVersion, type Policy, type PolicyVersion } from "../types";
 import { DeletePolicyAction } from "./DeletePolicyAction";
-import { PolicyOriginBadge, PolicyStatusBadge } from "./PolicyBadges";
+import { PolicyOriginBadge, PolicyRejectedBadge, PolicyStatusBadge } from "./PolicyBadges";
 import styles from "./PolicyDetailScreen.module.css";
 import { PolicyTextEditor } from "./PolicyTextEditor";
 import { PolicyVersionHistory } from "./PolicyVersionHistory";
@@ -152,17 +153,41 @@ function CurrentPolicyText({
   if (policy.status !== "draft") {
     return <MarkdownText>{policy.text}</MarkdownText>;
   }
+  const isRejected = findRejectedLatestVersion(policy) !== undefined;
   return (
     <>
-      <Notice tone="info">{t.policies.editDraftHint}</Notice>
+      <Notice tone="info">{isRejected ? t.policies.rejectedEditHint : t.policies.editDraftHint}</Notice>
       <PolicyTextEditor
         key={policy.updatedAt}
         policy={policy}
-        showApprove={canApprovePolicy}
+        showReviewActions={canApprovePolicy}
         onApproved={({ rulesJob }) => onApproved(rulesJob?.id ?? null)}
       />
       {!canApprovePolicy && <RoleGateNotice permission="canApprovePolicy" />}
     </>
+  );
+}
+
+/** A rejected latest version with its reviewer and reason (review comment), kept in the audit trail. */
+function PolicyRejectionNotice({ policy, rejectedVersion }: { policy: Policy; rejectedVersion: PolicyVersion }) {
+  const { t, locale } = useI18n();
+  const currentVersion = findCurrentPolicyVersion(policy);
+  return (
+    <Notice
+      tone="compliance"
+      title={formatMessage(t.policies.rejectedTitle, { versionNumber: rejectedVersion.versionNumber })}
+    >
+      {rejectedVersion.reviewedBy &&
+        rejectedVersion.reviewedAt &&
+        `${formatMessage(t.policies.rejectedBy, {
+          reviewedBy: rejectedVersion.reviewedBy,
+          reviewedAt: formatDateTime(rejectedVersion.reviewedAt, locale),
+        })} `}
+      {t.policies.rejectReason}: <strong>{rejectedVersion.reviewComment ?? "–"}</strong>
+      {policy.status === "approved" &&
+        currentVersion &&
+        ` ${formatMessage(t.policies.rejectedApprovedInForce, { versionNumber: currentVersion.versionNumber })}`}
+    </Notice>
   );
 }
 
@@ -194,6 +219,7 @@ function PolicyDetail({ policy }: { policy: Policy }) {
     (version) => version !== currentVersion && version.versionNumber === selectedVersionNumber,
   );
   const shownVersionNumber = selectedOlderVersion?.versionNumber ?? currentVersion?.versionNumber;
+  const rejectedVersion = findRejectedLatestVersion(policy);
   return (
     <>
       <PageHeader
@@ -202,11 +228,13 @@ function PolicyDetail({ policy }: { policy: Policy }) {
         meta={
           <>
             <PolicyStatusBadge status={policy.status} />
+            {rejectedVersion && <PolicyRejectedBadge />}
             <PolicyOriginBadge origin={policy.origin} />
           </>
         }
       />
       {rulesJobId && <RulesJobNotice jobId={rulesJobId} onRetried={setRulesJobId} />}
+      {rejectedVersion && <PolicyRejectionNotice policy={policy} rejectedVersion={rejectedVersion} />}
       <Card tone={policy.origin === "generated" ? "ai" : "default"}>
         <KeyValueList
           items={[

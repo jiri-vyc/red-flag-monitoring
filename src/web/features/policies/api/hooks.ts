@@ -70,6 +70,16 @@ export function useApprovePolicy() {
   });
 }
 
+// A rejection starts no rules job, but invalidating the same caches as approval keeps every screen in step.
+export function useRejectPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ policyId, reason }: { policyId: string; reason: string }) =>
+      policiesService.rejectPolicy({ policyId, rejectedBy: getCurrentUser().name, reason }),
+    onSuccess: () => invalidatePolicyApprovalQueries(queryClient),
+  });
+}
+
 export function useDeletePolicy() {
   const queryClient = useQueryClient();
   return useMutation({

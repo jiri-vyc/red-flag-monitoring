@@ -105,6 +105,19 @@ function submitVersion(policyId: string, versionId: string) {
   });
 }
 
+// The backend reviews only pending versions, so a draft is submitted first. Returns the version to review.
+async function submitLatestVersionForReview(policyId: string): Promise<InternalPolicyVersionDto> {
+  const { versions } = await fetchPolicyWithVersions(policyId);
+  const latestVersion = versions.at(-1);
+  if (!latestVersion || (latestVersion.status !== "draft" && latestVersion.status !== "pending_review")) {
+    return throwValidation("The policy has no version awaiting review. Edit the text to create one.");
+  }
+  if (latestVersion.status === "draft") {
+    await submitVersion(policyId, latestVersion.id);
+  }
+  return latestVersion;
+}
+
 // `nullish`: a backend that still drafts rules inline answers without `rulesJob`.
 const approvedPolicyVersionDtoSchema = internalPolicyVersionDtoSchema.extend({
   rulesJob: draftingJobDtoSchema.nullish(),
@@ -147,16 +160,8 @@ export const livePoliciesService: PoliciesService = {
     return loadPolicy(policyId);
   },
 
-  // The backend reviews only pending versions, so a draft is submitted first.
   async approvePolicy({ policyId }) {
-    const { versions } = await fetchPolicyWithVersions(policyId);
-    const latestVersion = versions.at(-1);
-    if (!latestVersion || (latestVersion.status !== "draft" && latestVersion.status !== "pending_review")) {
-      return throwValidation("The policy has no version awaiting approval. Edit the text to create one.");
-    }
-    if (latestVersion.status === "draft") {
-      await submitVersion(policyId, latestVersion.id);
-    }
+    const latestVersion = await submitLatestVersionForReview(policyId);
     const { rulesJob } = await requestJson({
       path: `${versionPath(policyId, latestVersion.id)}/review`,
       method: "POST",
@@ -164,6 +169,22 @@ export const livePoliciesService: PoliciesService = {
       schema: approvedPolicyVersionDtoSchema,
     });
     return { policy: await loadPolicy(policyId), rulesJob: rulesJob ? toDraftingJob(rulesJob) : null };
+  },
+
+  // The backend requires a non-empty review comment for a rejection; it is the reason kept in the audit trail.
+  async rejectPolicy({ policyId, reason }) {
+    const trimmedReason = reason.trim();
+    if (trimmedReason === "") {
+      return throwValidation("A rejection needs a reason.");
+    }
+    const latestVersion = await submitLatestVersionForReview(policyId);
+    await requestJson({
+      path: `${versionPath(policyId, latestVersion.id)}/review`,
+      method: "POST",
+      jsonBody: { decision: "rejected", reviewedBy: getCurrentUser().id, reviewComment: trimmedReason },
+      schema: internalPolicyVersionDtoSchema,
+    });
+    return loadPolicy(policyId);
   },
 
   // The backend has no policy deletion endpoint yet (BE-22, issue #30). Hidden in the UI; this is the safety net.

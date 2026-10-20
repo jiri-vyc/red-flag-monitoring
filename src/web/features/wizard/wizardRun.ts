@@ -1,5 +1,6 @@
 import type { DraftingJobsService } from "@/features/draftingJobs/api/contract";
 import type { DraftingJob } from "@/features/draftingJobs/types";
+import { isPolicyRejected } from "@/features/policies/domain/policyRejection";
 import { ApiError, isApiError } from "@/lib/apiError";
 
 import type { WizardService } from "./api/contract";
@@ -63,18 +64,21 @@ export async function resumeWizardRun(jobId: string, services: WizardRunServices
   if (draft === null) {
     return { step: "unavailable", policyJobId: policyJob.id };
   }
+  // A rejected latest version is never approved, even when an older approved version keeps the policy in force.
   const approvedPolicyIds = draft.policies
-    .filter((policy) => policy.status === "approved")
+    .filter((policy) => policy.status === "approved" && !isPolicyRejected(policy))
     .map((policy) => policy.id);
   const rulesJobs =
     approvedPolicyIds.length > 0 ? await services.wizard.findRulesJobs(approvedPolicyIds) : [];
   const rulesJobIds = rulesJobs.map((rulesJob) => rulesJob.id);
   // A run with drafts the user skipped (left as drafts) cannot be told apart from one interrupted mid-approval,
   // so it reopens the policy step: the approved policies are read-only there and continuing without selecting
-  // any remaining draft goes on to the rules of the approved ones.
-  const isEveryPolicyApproved =
-    draft.policies.length > 0 && approvedPolicyIds.length === draft.policies.length;
-  return isEveryPolicyApproved
+  // any remaining draft goes on to the rules of the approved ones. Rejected drafts are decided too; when every
+  // draft is rejected the policy step shows that there is nothing to generate rules from.
+  const isEveryPolicyDecided = draft.policies.every(
+    (policy) => approvedPolicyIds.includes(policy.id) || isPolicyRejected(policy),
+  );
+  return approvedPolicyIds.length > 0 && isEveryPolicyDecided
     ? { step: "rules", policyJobId: policyJob.id, draft, rulesJobIds }
     : { step: "policy", policyJobId: policyJob.id, draft, approvedPolicyIds, rulesJobIds };
 }

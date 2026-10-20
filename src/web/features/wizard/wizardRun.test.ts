@@ -1,7 +1,7 @@
 import { createDraftingJobDto } from "@/features/draftingJobs/api/draftingJobDtoFixture";
 import { toDraftingJob, type DraftingJobDto } from "@/features/draftingJobs/api/dto";
 import type { DraftingJob } from "@/features/draftingJobs/types";
-import type { Policy } from "@/features/policies/types";
+import type { Policy, PolicyVersion } from "@/features/policies/types";
 import type { Regulation } from "@/features/regulations/types";
 import { ApiError } from "@/lib/apiError";
 
@@ -19,7 +19,12 @@ const POLICY_JOB = createJob({
 });
 const RULES_JOB = createJob({ id: "job-rules", kind: "rules_from_policy", parentJobId: "job-policy" });
 
-function createPolicy(id: string, status: Policy["status"]): Policy {
+type PolicyDecision = Policy["status"] | "rejected";
+
+// A rejected draft stays a draft policy whose latest version is rejected.
+function createPolicy(id: string, decision: PolicyDecision): Policy {
+  const status = decision === "rejected" ? "draft" : decision;
+  const versions = decision === "rejected" ? [{ versionNumber: 1, state: "rejected" } as PolicyVersion] : [];
   return {
     id,
     name: id,
@@ -32,11 +37,11 @@ function createPolicy(id: string, status: Policy["status"]): Policy {
     approvedBy: null,
     approvedAt: null,
     ruleIds: [],
-    versions: [],
+    versions,
   };
 }
 
-function createServices(jobs: DraftingJob[], policyStatuses: Record<string, Policy["status"]>) {
+function createServices(jobs: DraftingJob[], policyStatuses: Record<string, PolicyDecision>) {
   const findRulesJobs = jest.fn(async (policyIds: string[]) =>
     policyIds.includes("policy-a") ? [RULES_JOB] : [],
   );
@@ -116,6 +121,52 @@ describe("resumeWizardRun", () => {
       approvedPolicyIds: ["policy-a"],
       rulesJobIds: ["job-rules"],
     });
+  });
+
+  it("waits for the rules once every draft is approved or rejected and at least one is approved", async () => {
+    const { services, findRulesJobs } = createServices([POLICY_JOB], {
+      "policy-a": "approved",
+      "policy-b": "rejected",
+    });
+
+    const run = await resumeWizardRun("job-policy", services);
+
+    expect(run).toMatchObject({ step: "rules", rulesJobIds: ["job-rules"] });
+    expect(findRulesJobs).toHaveBeenCalledWith(["policy-a"]);
+  });
+
+  it("reopens the policy step with nothing approved when every draft is rejected", async () => {
+    const { services, findRulesJobs } = createServices([POLICY_JOB], {
+      "policy-a": "rejected",
+      "policy-b": "rejected",
+    });
+
+    await expect(resumeWizardRun("job-policy", services)).resolves.toMatchObject({
+      step: "policy",
+      approvedPolicyIds: [],
+      rulesJobIds: [],
+    });
+    expect(findRulesJobs).not.toHaveBeenCalled();
+  });
+
+  it("does not count a policy as approved when its latest version is rejected", async () => {
+    const { services } = createServices([POLICY_JOB], { "policy-a": "approved" });
+    const loadPolicyDraft = jest.fn(async (job: DraftingJob) => {
+      const draft = await services.wizard.loadPolicyDraft(job);
+      const [approvedPolicy, otherPolicy] = draft.policies;
+      const rejectedRewording = {
+        ...approvedPolicy!,
+        versions: [
+          { versionNumber: 1, state: "approved" } as PolicyVersion,
+          { versionNumber: 2, state: "rejected" } as PolicyVersion,
+        ],
+      };
+      return { ...draft, policies: [rejectedRewording, otherPolicy!] };
+    });
+
+    await expect(
+      resumeWizardRun("job-policy", { ...services, wizard: { ...services.wizard, loadPolicyDraft } }),
+    ).resolves.toMatchObject({ step: "policy", approvedPolicyIds: [] });
   });
 
   it("does not look for rules jobs while nothing is approved", async () => {

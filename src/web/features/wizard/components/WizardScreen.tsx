@@ -310,7 +310,8 @@ function WizardFlow({
     );
 
   // Saves edited texts of the selected drafts as new policy versions, then approves each of them; each approval
-  // starts a rules job. Skipped drafts stay drafts and the following steps see only the approved policies.
+  // starts a rules job. Skipped drafts stay drafts, rejected ones stay rejected, and the following steps see only
+  // the approved policies.
   const approvePolicies = async (
     current: Extract<WizardState, { step: "policy" }>,
     selection: PolicyDraftSelection,
@@ -349,6 +350,12 @@ function WizardFlow({
       setIsApprovingPolicies(false);
     }
   };
+
+  // A rejection is saved right away; the rejected draft stays in the step, read-only and never approved.
+  const replaceRejectedPolicy = (rejectedPolicy: Policy) =>
+    setState((current) =>
+      current.step === "policy" ? { ...current, draft: replacePolicy(current.draft, rejectedPolicy) } : current,
+    );
 
   const replaceReviewedRule = (updatedRule: Rule) =>
     setState((current) =>
@@ -414,6 +421,7 @@ function WizardFlow({
             initialSelection={state.selection}
             approvedPolicyIds={state.approvedPolicyIds}
             onApprove={(selection) => void approvePolicies(state, selection)}
+            onPolicyRejected={replaceRejectedPolicy}
           />
         ))}
 

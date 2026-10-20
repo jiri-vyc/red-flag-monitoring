@@ -9,6 +9,9 @@ export type PoliciesCapabilities = {
 /** The actor is recorded in the audit trail of the deletion. */
 export type DeletePolicyInput = { policyId: string; deletedBy: string };
 
+/** A human review decision (AML): the required reason is stored as the version's review comment in the audit trail. */
+export type RejectPolicyInput = { policyId: string; rejectedBy: string; reason: string };
+
 export interface PoliciesService {
   readonly capabilities: PoliciesCapabilities;
   loadPolicies(): Promise<Policy[]>;
@@ -18,6 +21,8 @@ export interface PoliciesService {
   updatePolicyText(input: UpdatePolicyTextInput): Promise<Policy>;
   /** Approves the latest version and starts drafting the policy's rules. */
   approvePolicy(input: { policyId: string; approvedBy: string }): Promise<PolicyApproval>;
+  /** Rejects the latest version; an older approved version stays in force and the author can write a new one. */
+  rejectPolicy(input: RejectPolicyInput): Promise<Policy>;
   /** Removes the policy with its versions; refused once a version was approved or rules derive from it. */
   deletePolicy(input: DeletePolicyInput): Promise<void>;
 }

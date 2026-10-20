@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, UserPen } from "lucide-react";
+import { CircleX, Sparkles, UserPen } from "lucide-react";
 
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -10,6 +10,16 @@ import type { PolicyOrigin, PolicyStatus } from "../types";
 export function PolicyStatusBadge({ status }: { status: PolicyStatus }) {
   const { t } = useI18n();
   return <Badge tone={status === "approved" ? "success" : "neutral"}>{t.policyStatus[status]}</Badge>;
+}
+
+/** The latest version was rejected (see `findRejectedLatestVersion`); the status badge still shows the current one. */
+export function PolicyRejectedBadge() {
+  const { t } = useI18n();
+  return (
+    <Badge tone="danger" icon={<CircleX aria-hidden="true" />}>
+      {t.policies.rejected}
+    </Badge>
+  );
 }
 
 export function PolicyOriginBadge({ origin }: { origin: PolicyOrigin }) {

@@ -21,6 +21,17 @@ function assertPolicyIsDraft(record: MockPolicyRecord): void {
   }
 }
 
+// As in the live backend, only the latest draft (or pending) version is reviewed; a rejected one needs a new version.
+function assertLatestVersionAwaitsReview(record: MockPolicyRecord): void {
+  const latestState = record.versions.at(-1)?.state;
+  if (latestState !== "draft" && latestState !== "pending_review") {
+    throw new ApiError({
+      kind: "validation",
+      message: "The policy has no version awaiting review. Edit the text to create one.",
+    });
+  }
+}
+
 function persistPolicyRecord(updatedRecord: MockPolicyRecord) {
   const database = readMockDatabase();
   const policies = database.policies.map((policy) =>
@@ -54,6 +65,24 @@ function approveLatestVersion(record: MockPolicyRecord, approvedBy: string, now:
   return record.versions.map((version) =>
     version.versionNumber === latestVersionNumber
       ? { ...version, state: "approved", reviewedBy: approvedBy, reviewedAt: now }
+      : version,
+  );
+}
+
+function rejectLatestVersion(
+  record: MockPolicyRecord,
+  rejection: { rejectedBy: string; reason: string; now: string },
+): PolicyVersion[] {
+  const latestVersionNumber = record.versions.at(-1)?.versionNumber;
+  return record.versions.map((version) =>
+    version.versionNumber === latestVersionNumber
+      ? {
+          ...version,
+          state: "rejected",
+          reviewedBy: rejection.rejectedBy,
+          reviewedAt: rejection.now,
+          reviewComment: rejection.reason,
+        }
       : version,
   );
 }
@@ -95,6 +124,7 @@ export const mockPoliciesService: PoliciesService = {
     await simulateLatency();
     const record = findPolicyRecord(policyId);
     assertPolicyIsDraft(record);
+    assertLatestVersionAwaitsReview(record);
     const now = new Date().toISOString();
     const policy = persistPolicyRecord({
       ...record,
@@ -117,6 +147,24 @@ export const mockPoliciesService: PoliciesService = {
     });
     writeMockDatabase(enqueued.database);
     return { policy, rulesJob: enqueued.job };
+  },
+
+  // The policy stays a draft with the rejected wording as its text, as in the live API for a never-approved policy.
+  async rejectPolicy({ policyId, rejectedBy, reason }) {
+    await simulateLatency();
+    const trimmedReason = reason.trim();
+    if (trimmedReason === "") {
+      throw new ApiError({ kind: "validation", message: "A rejection needs a reason." });
+    }
+    const record = findPolicyRecord(policyId);
+    assertPolicyIsDraft(record);
+    assertLatestVersionAwaitsReview(record);
+    const now = new Date().toISOString();
+    return persistPolicyRecord({
+      ...record,
+      updatedAt: now,
+      versions: rejectLatestVersion(record, { rejectedBy, reason: trimmedReason, now }),
+    });
   },
 
   // The UI only offers deletion when nothing blocks it; this check is the safety net.

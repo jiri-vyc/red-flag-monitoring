@@ -57,6 +57,61 @@ describe("mock policies version history", () => {
   });
 });
 
+describe("mock policies rejection", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetMockDatabase();
+  });
+
+  it("rejects the latest draft version with the reason as its review comment and keeps the policy a draft", async () => {
+    const draftPolicy = readMockDatabase().policies.find((policy) => policy.status === "draft")!;
+
+    const rejected = await mockPoliciesService.rejectPolicy({
+      policyId: draftPolicy.id,
+      rejectedBy: "Petr Svoboda",
+      reason: "  Chybí částkový práh  ",
+    });
+
+    expect(rejected.status).toBe("draft");
+    expect(rejected.versions).toHaveLength(draftPolicy.versions.length);
+    expect(rejected.versions.at(-1)).toMatchObject({
+      state: "rejected",
+      reviewedBy: "Petr Svoboda",
+      reviewComment: "Chybí částkový práh",
+    });
+  });
+
+  it("refuses an empty reason and a version that is already decided", async () => {
+    const draftPolicy = readMockDatabase().policies.find((policy) => policy.status === "draft")!;
+    const reject = (reason: string) =>
+      mockPoliciesService.rejectPolicy({ policyId: draftPolicy.id, rejectedBy: "Petr Svoboda", reason });
+
+    await expect(reject("   ")).rejects.toMatchObject({ kind: "validation" });
+    await reject("Chybí částkový práh");
+    await expect(reject("Znovu")).rejects.toMatchObject({ kind: "validation" });
+    await expect(
+      mockPoliciesService.approvePolicy({ policyId: draftPolicy.id, approvedBy: "Petr Svoboda" }),
+    ).rejects.toMatchObject({ kind: "validation" });
+  });
+
+  it("lets the author write a new version after a rejection, which can be approved", async () => {
+    const draftPolicy = readMockDatabase().policies.find((policy) => policy.status === "draft")!;
+    await mockPoliciesService.rejectPolicy({
+      policyId: draftPolicy.id,
+      rejectedBy: "Petr Svoboda",
+      reason: "Chybí částkový práh",
+    });
+
+    await mockPoliciesService.updatePolicyText({ policyId: draftPolicy.id, text: "Opravený text" });
+    const { policy } = await mockPoliciesService.approvePolicy({
+      policyId: draftPolicy.id,
+      approvedBy: "Petr Svoboda",
+    });
+
+    expect(policy.versions.slice(-2).map(({ state }) => state)).toEqual(["rejected", "approved"]);
+  });
+});
+
 describe("mock policies deletion", () => {
   const deletedBy = getCurrentUser().name;
 

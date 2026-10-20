@@ -7,6 +7,8 @@ import { usePolicy } from "../api/hooks";
 import type { Policy, PolicyVersion } from "../types";
 import { PolicyDetailScreen } from "./PolicyDetailScreen";
 
+const rejectMutateAsync = jest.fn();
+
 // The real editor is rendered, so unsaved draft edits are covered; its mutations stay idle.
 jest.mock("../api/hooks", () => {
   const idleMutation = {
@@ -22,6 +24,7 @@ jest.mock("../api/hooks", () => {
     useApprovePolicy: () => idleMutation,
     usePoliciesCapabilities: () => ({ canDeletePolicy: false }),
     useDeletePolicy: () => idleMutation,
+    useRejectPolicy: () => ({ ...idleMutation, mutateAsync: rejectMutateAsync }),
   };
 });
 jest.mock("@/features/rules/api/hooks", () => ({
@@ -218,5 +221,54 @@ describe("PolicyDetailScreen version history (issue #5)", () => {
     renderScreen({ ...REJECTED_VERSION, reviewedAt: null });
 
     expect(screen.getByText("Petr Svoboda")).toBeTruthy();
+  });
+});
+
+describe("PolicyDetailScreen rejection (issue #28)", () => {
+  function renderPolicy(policy: Policy) {
+    jest.mocked(usePolicy).mockReturnValue({
+      data: policy,
+      error: null,
+      isPending: false,
+      isError: false,
+      refetch: jest.fn(),
+    } as unknown as ReturnType<typeof usePolicy>);
+    render(
+      <I18nProvider initialLocale="en">
+        <PolicyDetailScreen policyId="policy-1" />
+      </I18nProvider>,
+    );
+  }
+
+  it("rejects the draft with a required reason, not while there are unsaved changes", () => {
+    rejectMutateAsync.mockResolvedValue(POLICY);
+    renderPolicy(POLICY);
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Neuložená úprava" } });
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: en.policies.reject }).disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: DRAFT_VERSION.text } });
+
+    fireEvent.click(screen.getByRole("button", { name: en.policies.reject }));
+    fireEvent.click(screen.getByRole("button", { name: en.policies.confirmReject }));
+    expect(screen.getByText(en.policies.rejectReasonRequired)).toBeTruthy();
+    expect(rejectMutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(en.policies.rejectReason), { target: { value: "Chybí práh" } });
+    fireEvent.click(screen.getByRole("button", { name: en.policies.confirmReject }));
+
+    expect(rejectMutateAsync).toHaveBeenCalledWith({ policyId: "policy-1", reason: "Chybí práh" });
+  });
+
+  it("shows a rejected latest version with its reason and keeps only saving a new version", () => {
+    const rejectedLatest: PolicyVersion = { ...DRAFT_VERSION, state: "rejected", reviewComment: "Chybí práh" };
+    renderPolicy({ ...POLICY, versions: [REJECTED_VERSION, rejectedLatest] });
+
+    expect(screen.getAllByText(en.policies.rejected).length).toBeGreaterThan(0);
+    expect(screen.getByText("Version v2 was rejected")).toBeTruthy();
+    expect(screen.getByText(en.policies.rejectedEditHint)).toBeTruthy();
+    expect(screen.getByRole("textbox")).toBeTruthy();
+    expect(screen.getByRole("button", { name: en.common.save })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: en.policies.approve })).toBeNull();
+    expect(screen.queryByRole("button", { name: en.policies.reject })).toBeNull();
   });
 });
