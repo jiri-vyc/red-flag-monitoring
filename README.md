@@ -67,14 +67,6 @@ Each event is one line, for example:
 [audit] action=rule.version_reviewed entity_type=rule entity_id=040cf2d7-… actor_id=00000000-… payload={"versionId":"4dc519b5-…","decision":"approved","reviewComment":"Thresholds match SVZ-03","escalationRole":null} [/audit]
 ```
 
-> **Hackathon shortcut, not the production design.** We record the audit trail in logs to have it working for the demo. A production system would do it differently:
->
-> - **Atomic.** Here a line is written after the change is committed, so a crash in between can lose it. Production: an append-only audit table written in the same database transaction as the change.
-> - **Real actors.** Here the user comes from the request without login, and some actions (switching a rule on, removing a whitelist entry) record no user at all. Production: every event carries the authenticated user, enforced by the server.
-> - **Real references.** Here users, rules and alerts are plain IDs inside a text line, without referential integrity and not joinable with the data. Production: foreign keys to users and records, queryable together with the decisions they explain.
-> - **Tamper-evident.** CloudWatch does not let anyone edit an event, but anyone with write access can add one, and the retention can be changed. Production: immutable (WORM) storage, restricted access and a retention policy agreed with compliance.
-> - **Complete.** A human's final decision on an alert is not recorded yet; it comes with the alert workflow.
-
 ## Built on AWS
 
 | Layer                 | Service                                                                                   |
