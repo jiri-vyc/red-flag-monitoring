@@ -49,6 +49,8 @@ const SHORT_RELATIONSHIP_MONTHS = 12;
 const VOLUME_OVER_PROJECTION_MULTIPLE = 5;
 const Q2_MONTHS = 3;
 const CONSISTENT_VOLUME_MULTIPLE = 2;
+// Tabulka P grants the all-conditions bonus to R-01 only, although R-13 and R-16 also have `any` conditions.
+const ALL_CONDITIONS_BONUS_RULE_CODES: ReadonlySet<string> = new Set(["R-01"]);
 
 // R-02 to R-05 always need the background and purpose of the trade examined (SVZ-03 čl. 8.6), R-09 and R-16
 // cannot be closed without an individual review (SVZ-06 čl. 17).
@@ -316,7 +318,7 @@ function isHighRiskJurisdictionInvolved(triageCase: ClientTriageCase, alert: Tri
 }
 
 function areAllConditionsMet(alert: TriageAlert): boolean {
-  if (alert.anyConditionCount < 2) {
+  if (!ALL_CONDITIONS_BONUS_RULE_CODES.has(alert.ruleCode) || alert.anyConditionCount < 2) {
     return false;
   }
 

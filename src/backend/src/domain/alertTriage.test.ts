@@ -123,6 +123,18 @@ describe("calculateAlertPriority", () => {
     expect(calculateAlertPriority(triageCase, alert).priority).toBe(35);
   });
 
+  it("gives the all-conditions bonus to R-01 only", () => {
+    const alert = createAlert({
+      ruleCode: "R-13",
+      anyConditionCount: 2,
+      hits: [{ ...BASE_HIT, metConditionIds: ["a", "b"] }],
+    });
+
+    expect(
+      calculateAlertPriority(createCase({ alerts: [alert] }), alert).factors.map(({ code }) => code),
+    ).toEqual(["scenario_base"]);
+  });
+
   it("caps the priority at 100", () => {
     const alert = createAlert({ ruleCode: "R-16" });
     const pepCase = createCase({

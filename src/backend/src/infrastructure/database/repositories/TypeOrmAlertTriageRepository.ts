@@ -21,7 +21,8 @@ const LOAD_RUN_ALERTS = `
   SELECT e."id" AS "amlEventId", e."alert_id" AS "alertId", e."client_id" AS "clientId", r."code" AS "ruleCode",
          e."rule_version_id" AS "ruleVersionId", rv."human_text" AS "ruleText", e."alert_type" AS "alertType",
          e."transaction_id" AS "transactionId", e."period_month" AS "periodMonth", e."max_score" AS "maxScore",
-         CASE WHEN rv."definition" ->> 'logic' = 'any'
+         -- The definition keys its operator as "match"; only the trace calls it "logic".
+         CASE WHEN rv."definition" ->> 'match' = 'any'
               THEN jsonb_array_length(rv."definition" -> 'conditions') ELSE 0 END AS "anyConditionCount",
          jsonb_agg(jsonb_build_object(
            'transactionId', te."transaction_id",
