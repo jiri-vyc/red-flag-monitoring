@@ -9,6 +9,7 @@ export const en = {
     policies: "Internal policies",
     rules: "Rules",
     batches: "Batches",
+    transactions: "Transactions",
     mainNavigation: "Main navigation",
   },
   sidebar: {

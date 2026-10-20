@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowLeftRight,
   Database,
   FileText,
   Flag,
@@ -35,6 +36,7 @@ const NAVIGATION_ITEMS = [
   { href: "/policies", labelKey: "policies", service: "policies", Icon: FileText },
   { href: "/rules", labelKey: "rules", service: "rules", Icon: ListChecks },
   { href: "/batches", labelKey: "batches", service: "batches", Icon: Layers },
+  { href: "/transactions", labelKey: "transactions", service: "transactions", Icon: ArrowLeftRight },
 ] as const;
 
 const LOCALE_OPTIONS: { value: Locale; label: string }[] = [
@@ -43,7 +45,7 @@ const LOCALE_OPTIONS: { value: Locale; label: string }[] = [
 ];
 
 function isNavigationItemActive(itemHref: string, pathname: string): boolean {
-  return itemHref === "/" ? pathname === "/" : pathname.startsWith(itemHref);
+  return itemHref === "/" ? pathname === "/" : pathname === itemHref || pathname.startsWith(`${itemHref}/`);
 }
 
 function MockDataPanel() {

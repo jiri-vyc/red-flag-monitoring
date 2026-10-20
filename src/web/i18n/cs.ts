@@ -11,6 +11,7 @@ export const cs: Dictionary = {
     policies: "Interní předpisy",
     rules: "Pravidla",
     batches: "Dávky",
+    transactions: "Transakce",
     mainNavigation: "Hlavní navigace",
   },
   sidebar: {
@@ -224,7 +225,8 @@ export const cs: Dictionary = {
     configColumn: "Konfigurace",
     pendingChange: "Čekající změna",
     escalationRole: "Eskalovat na",
-    escalationRoleHint: "Kdo řeší vyhodnocení pravidla. Alert transakčního monitoringu je eskalován na tuto osobu, která je zodpovědná za jeho řešení. Výchozí je kontaktní osoba podle znění § 22 zákona o AML.",
+    escalationRoleHint:
+      "Kdo řeší vyhodnocení pravidla. Alert transakčního monitoringu je eskalován na tuto osobu, která je zodpovědná za jeho řešení. Výchozí je kontaktní osoba podle znění § 22 zákona o AML.",
     pendingConfigNote:
       "Verze čekající na schválení mění zvýrazněná pole. Do jejího schválení se vyhodnocuje se spouštěnou konfigurací.",
     sourceChain: "Zdroj",
@@ -323,8 +325,7 @@ export const cs: Dictionary = {
     title: "Dávky",
     subtitle: "Nahrajte CSV s transakcemi. Vyhodnocení podle všech aktivních pravidel začne okamžitě.",
     subtitleReadOnly: "Vyhodnocovací běhy transakcí podle aktivních pravidel.",
-    readOnlyNote:
-      "Běhy vytváří vyhodnocovací engine na backendu.",
+    readOnlyNote: "Běhy vytváří vyhodnocovací engine na backendu.",
     uploadTitle: "Nahrát CSV s transakcemi",
     uploadHint: "Oddělovač středník, UTF-8, stejné sloupce jako datasets/transactions.csv.",
     chooseFile: "Vybrat soubor",
@@ -387,8 +388,7 @@ export const cs: Dictionary = {
     allLoaded: "Načteny všechny transakce",
     rulesOfBatch: "Použitá pravidla",
     uploadedBy: "Nahrál(a)",
-    decisionAid:
-      "Výsledky jsou podkladem pro AML analytiky, nejsou to finální AML určení.",
+    decisionAid: "Výsledky jsou podkladem pro AML analytiky, nejsou to finální AML určení.",
   },
   transactionDetail: {
     noHitsForRole: "Žádné nesplněné pravidlo této transakce není eskalované na roli {role}.",

@@ -35,7 +35,7 @@ Průvodce v live režimu (`features/wizard/api/live.ts`) jde přes asynchronní 
 
 ## Transakce uživatele (issue #9, hotovo)
 
-- **Stránka `/transactions`** (`features/transactions`, služba `transactions`, `GET /api/transactions`, v mocku seed `mocks/seed/transactions.ts`). Není v sidebaru. Tabulka transakcí od nejnovější s nekonečným scrollováním, filtr podle ID klienta (formát `K000123`, prázdný filtr ukáže vše). Filtr je v URL (`/transactions?clientId=K000123`), takže jde sdílet. Bez filtru má tabulka sloupec Klient.
+- **Stránka `/transactions`** (`features/transactions`, služba `transactions`, `GET /api/transactions`, v mocku seed `mocks/seed/transactions.ts`). V sidebaru jako „Transakce“. Tabulka transakcí od nejnovější s nekonečným scrollováním, filtr podle ID klienta (formát `K000123`, prázdný filtr ukáže vše). Filtr je v URL (`/transactions?clientId=K000123`), takže jde sdílet. Bez filtru má tabulka sloupec Klient.
 - **Odkaz z detailu alertu:** karta nesplněného pravidla má odkaz „Kontext: zobrazit transakce klienta“ na `/transactions?clientId=…&highlight=…&from=…`. Vyhodnocovaná transakce je zvýrazněná. Seznam donačítá stránky, dokud se neobjeví (nejvýš 20 stránek), a posune se na ni. „Zpět na vyhodnocení transakce“ vede zpět na detail.
 - [ ] **Časové okno pravidla** v odkazu (`from` / `to`): API ho umí, web ho neposílá. Rozdíl v časové zóně: `occurredAt` přichází jako UTC z lokálního `ts` podle zóny procesu backendu, převod zpět na lokální čas v prohlížeči by nebyl spolehlivý. Navíc okna se liší podle pravidla.
 - [ ] Typ transakce se ukazuje surově (`incoming` v live, `incoming payment` v mocku), stejně jako v detailu transakce.
