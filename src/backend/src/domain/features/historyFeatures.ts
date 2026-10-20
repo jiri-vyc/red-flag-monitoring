@@ -1,7 +1,6 @@
 import { type FeatureContext, listTransactionsInTrailingHours } from "./featureContext";
 import { type FeatureDefinition, type FeatureResult, toResultFromTransactions } from "./featureDefinition";
 import { type PricedTransaction, roundCzk } from "./pricedTransaction";
-import { LIMIT_L_CZK, NEAR_LIMIT_LOWER_CZK, SMALL_PAYMENT_WINDOW_DAYS } from "./thresholds";
 
 const HOURS_PER_DAY = 24;
 
@@ -86,9 +85,13 @@ export const HISTORY_FEATURES: FeatureDefinition[] = [
     isNullable: false,
     calculate: (context) =>
       countTransactions(
-        listTransactionsInTrailingHours(context, SMALL_PAYMENT_WINDOW_DAYS * HOURS_PER_DAY).filter(
+        listTransactionsInTrailingHours(
+          context,
+          context.parameters.nearLimitWindowDays * HOURS_PER_DAY,
+        ).filter(
           (transaction) =>
-            transaction.amountCzk >= NEAR_LIMIT_LOWER_CZK && transaction.amountCzk < LIMIT_L_CZK,
+            transaction.amountCzk >= context.parameters.nearLimitLowerCzk &&
+            transaction.amountCzk < context.parameters.nearLimitUpperCzk,
         ),
       ),
   },

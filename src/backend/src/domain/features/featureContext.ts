@@ -1,5 +1,6 @@
 import type { Client } from "../client";
 import { MILLISECONDS_PER_HOUR } from "./calendar";
+import { DEFAULT_FEATURE_PARAMETERS, type FeatureParameters } from "./featureParameters";
 import type { PayeeDayClientIndex } from "./payeeDayClientIndex";
 import { compareChronologically, type PricedTransaction } from "./pricedTransaction";
 
@@ -9,6 +10,7 @@ export type FeatureContext = {
   // Client transactions up to and including `transaction`, oldest first. Later ones are cut off (F1).
   historyUntilTransaction: readonly PricedTransaction[];
   payeeDayClientIndex: PayeeDayClientIndex;
+  parameters: Readonly<FeatureParameters>;
 };
 
 export type FeatureContextInput = {
@@ -17,6 +19,7 @@ export type FeatureContextInput = {
   // The client's whole history (V4), oldest first. It may or may not contain `transaction`.
   clientHistory: readonly PricedTransaction[];
   payeeDayClientIndex: PayeeDayClientIndex;
+  parameters?: Readonly<FeatureParameters>;
 };
 
 export function createFeatureContext(input: FeatureContextInput): FeatureContext {
@@ -31,6 +34,7 @@ export function createFeatureContext(input: FeatureContextInput): FeatureContext
     client: input.client,
     historyUntilTransaction: [...earlierTransactions, input.transaction],
     payeeDayClientIndex: input.payeeDayClientIndex,
+    parameters: input.parameters ?? DEFAULT_FEATURE_PARAMETERS,
   };
 }
 
