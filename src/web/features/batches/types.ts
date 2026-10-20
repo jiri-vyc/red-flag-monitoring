@@ -7,6 +7,9 @@ export const BUCKETS = ["ok", "to_check", "alert"] as const;
 export const bucketSchema = z.enum(BUCKETS);
 export type Bucket = z.infer<typeof bucketSchema>;
 
+/** The batch detail lists alerts unless the URL picks another bucket. */
+export const DEFAULT_BUCKET: Bucket = "alert";
+
 export const bucketCountsSchema = z.object({ ok: z.number(), to_check: z.number(), alert: z.number() });
 export type BucketCounts = z.infer<typeof bucketCountsSchema>;
 

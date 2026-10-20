@@ -4,7 +4,6 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import { Notice } from "@/components/ui/Notice";
 import tableStyles from "@/components/ui/DataTable.module.css";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
@@ -97,7 +96,7 @@ export function BatchesScreen() {
         description={canUploadBatch ? t.batches.subtitle : t.batches.subtitleReadOnly}
       />
       {canStartRun && <RunEvaluationPanel />}
-      {canUploadBatch ? <UploadDropzone /> : <Notice tone="info">{t.batches.readOnlyNote}</Notice>}
+      {canUploadBatch && <UploadDropzone />}
       <Card title={t.batches.history}>
         <QueryView query={batchesQuery}>{(batches) => <BatchHistoryTable batches={batches} />}</QueryView>
       </Card>

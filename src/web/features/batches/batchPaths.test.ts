@@ -1,4 +1,5 @@
-import { batchPath, batchTransactionPath } from "./batchPaths";
+import { batchPath, batchTransactionPath, parseBucketParam } from "./batchPaths";
+import { DEFAULT_BUCKET } from "./types";
 
 describe("batchPath", () => {
   it("links to the batch detail", () => {
@@ -17,5 +18,19 @@ describe("batchPath", () => {
 describe("batchTransactionPath", () => {
   it("links to the transaction detail with both IDs encoded", () => {
     expect(batchTransactionPath("batch 1", "tx/42")).toBe("/batches/batch%201/transactions/tx%2F42");
+  });
+});
+
+describe("parseBucketParam", () => {
+  it("keeps an explicit bucket", () => {
+    expect(parseBucketParam("ok")).toBe("ok");
+    expect(parseBucketParam("to_check")).toBe("to_check");
+  });
+
+  it("falls back to alerts when the bucket is missing or invalid", () => {
+    expect(DEFAULT_BUCKET).toBe("alert");
+    expect(parseBucketParam(undefined)).toBe(DEFAULT_BUCKET);
+    expect(parseBucketParam("unknown")).toBe(DEFAULT_BUCKET);
+    expect(parseBucketParam(["ok", "alert"])).toBe(DEFAULT_BUCKET);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getServiceMode, selectServiceImplementation, type ApiMode } from "@/config/apiMode";
 import { getCurrentUser } from "@/config/currentUser";
@@ -12,7 +12,7 @@ import type { Batch, Bucket, RunScope } from "../types";
 import type { BatchesCapabilities } from "./contract";
 import { batchesImplementations, batchesService } from "./service";
 import { useCurrentUser } from "@/features/users/api/hooks";
-import type { UserRole } from "@/features/users/types";
+import { USER_ROLES, type UserRole } from "@/features/users/types";
 
 // The mock's simulated run lasts a few seconds, so it is polled often for a smooth progress; a live run over
 // the database takes minutes and is polled every 2 s.
@@ -26,6 +26,8 @@ export const batchQueryKeys = {
   detail: (batchId: string) => ["batches", batchId] as const,
   transactions: (batchId: string, bucket: Bucket, role: UserRole) =>
     ["batches", batchId, "transactions", bucket, role] as const,
+  roleAccess: (batchId: string, bucket: Bucket, role: UserRole) =>
+    ["batches", batchId, "roleAccess", bucket, role] as const,
   evaluation: (batchId: string, transactionId: string, role: UserRole) =>
     ["batches", batchId, "evaluation", transactionId, role] as const,
 };
@@ -103,6 +105,50 @@ export function useBatchTransactions({ batchId, bucket }: { batchId: string; buc
       batchesService.loadBatchTransactions({ batchId, bucket, cursor: pageParam, role }),
     initialPageParam: FIRST_PAGE_CURSOR,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+  });
+}
+
+export type BucketRoleAccess = {
+  isPending: boolean;
+  isError: boolean;
+  /** The other roles that see at least one transaction of the bucket, in USER_ROLES order. */
+  rolesWithAccess: UserRole[];
+};
+
+/**
+ * Issue #6: the bucket counts are not filtered by role, so a bucket can look full while the active role sees
+ * nothing. Asks for the first page as each other role and keeps the roles with a non-zero total.
+ * Mount it only when the active role's list is empty and the bucket count is positive, so it costs no requests
+ * otherwise.
+ */
+export function useBucketRoleAccess({
+  batchId,
+  bucket,
+}: {
+  batchId: string;
+  bucket: Bucket;
+}): BucketRoleAccess {
+  useServiceUsage("batches");
+  const { activeRole } = useCurrentUser();
+  const otherRoles = USER_ROLES.filter((role) => role !== activeRole);
+  return useQueries({
+    queries: otherRoles.map((role) => ({
+      queryKey: batchQueryKeys.roleAccess(batchId, bucket, role),
+      queryFn: async (): Promise<{ role: UserRole; hasAccess: boolean }> => {
+        const firstPage = await batchesService.loadBatchTransactions({
+          batchId,
+          bucket,
+          cursor: FIRST_PAGE_CURSOR,
+          role,
+        });
+        return { role, hasAccess: firstPage.totalCount > 0 };
+      },
+    })),
+    combine: (results) => ({
+      isPending: results.some((result) => result.isPending),
+      isError: results.some((result) => result.isError),
+      rolesWithAccess: results.flatMap((result) => (result.data?.hasAccess ? [result.data.role] : [])),
+    }),
   });
 }
 

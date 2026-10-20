@@ -126,12 +126,6 @@
   background: var(--color-danger-soft);
 }
 
-.bucketHint {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-lg);
-  text-align: center;
-}
-
 .transactionList {
   display: grid;
   gap: var(--space-4);

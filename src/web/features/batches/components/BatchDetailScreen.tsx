@@ -20,7 +20,7 @@ import { BatchTransactionList } from "./BatchTransactionList";
 import { BUCKET_ICONS } from "./BucketBadge";
 import styles from "./BatchDetail.module.css";
 
-function BucketCards({ batch, selectedBucket }: { batch: Batch; selectedBucket: Bucket | null }) {
+function BucketCards({ batch, selectedBucket }: { batch: Batch; selectedBucket: Bucket }) {
   const { t, locale } = useI18n();
   return (
     <div className={`${styles.bucketCards} rf-stagger`}>
@@ -47,7 +47,7 @@ function BucketCards({ batch, selectedBucket }: { batch: Batch; selectedBucket: 
   );
 }
 
-function BatchDetail({ batch, selectedBucket }: { batch: Batch; selectedBucket: Bucket | null }) {
+function BatchDetail({ batch, selectedBucket }: { batch: Batch; selectedBucket: Bucket }) {
   const { t, locale } = useI18n();
   const isCapped = batch.evaluatedRowCount < batch.fileRowCount;
   return (
@@ -87,26 +87,21 @@ function BatchDetail({ batch, selectedBucket }: { batch: Batch; selectedBucket: 
             <BucketCards batch={batch} selectedBucket={selectedBucket} />
             <Notice tone="ai">{t.batches.decisionAid}</Notice>
           </Card>
-          {selectedBucket ? (
-            <Card title={`${t.batches.transactionsIn}: ${t.bucket[selectedBucket]}`}>
-              <BatchTransactionList key={selectedBucket} batchId={batch.id} bucket={selectedBucket} />
-            </Card>
-          ) : (
-            <p className={styles.bucketHint}>{t.batches.clickBucket}</p>
-          )}
+          <Card title={`${t.batches.transactionsIn}: ${t.bucket[selectedBucket]}`}>
+            <BatchTransactionList
+              key={selectedBucket}
+              batchId={batch.id}
+              bucket={selectedBucket}
+              bucketCount={batch.counts[selectedBucket]}
+            />
+          </Card>
         </>
       )}
     </>
   );
 }
 
-export function BatchDetailScreen({
-  batchId,
-  selectedBucket,
-}: {
-  batchId: string;
-  selectedBucket: Bucket | null;
-}) {
+export function BatchDetailScreen({ batchId, selectedBucket }: { batchId: string; selectedBucket: Bucket }) {
   const batchQuery = useBatch(batchId);
   return (
     <QueryView query={batchQuery}>

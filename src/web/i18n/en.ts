@@ -146,8 +146,8 @@ export const en = {
   },
   bucket: {
     ok: "OK",
-    to_check: "To check",
-    alert: "Alert",
+    to_check: "Unknown",
+    alert: "To check",
   },
   dashboard: {
     title: "Dashboard",
@@ -342,8 +342,6 @@ export const en = {
     title: "Batches",
     subtitle: "Upload a CSV with transactions. Evaluation against all active rules starts immediately.",
     subtitleReadOnly: "Evaluation runs of transactions against the active rules.",
-    readOnlyNote:
-      "Runs are created by the backend evaluation engine. Uploading a CSV is not available while connected to the API.",
     uploadTitle: "Upload transactions CSV",
     uploadHint: "Semicolon-separated, UTF-8, same columns as datasets/transactions.csv.",
     chooseFile: "Choose file",
@@ -393,7 +391,6 @@ export const en = {
     elapsedTime: "Elapsed {time}",
     remainingEstimate: "~{duration} remaining",
     resultTitle: "Evaluation result",
-    clickBucket: "Select a result to list its transactions.",
     capNote: "Demo mock evaluated the first {evaluated} of {total} rows of the file.",
     transactionsIn: "Transactions",
     transaction: "Transaction",
@@ -404,6 +401,8 @@ export const en = {
     failedRules: "Failed rules",
     maxScore: "Max adjusted score",
     noTransactions: "No transactions in this result.",
+    roleNoAccess:
+      "Your current role ({role}) has no access to these transactions. They are visible to: {roles}.",
     allLoaded: "All transactions loaded",
     rulesOfBatch: "Rules used",
     uploadedBy: "Uploaded by",

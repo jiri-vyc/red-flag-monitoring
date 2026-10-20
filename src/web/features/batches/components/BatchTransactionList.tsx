@@ -15,8 +15,18 @@ import { useBatchTransactions } from "../api/hooks";
 import { batchTransactionPath } from "../batchPaths";
 import type { Bucket } from "../types";
 import styles from "./BatchDetail.module.css";
+import { RoleAccessEmptyState } from "./RoleAccessEmptyState";
 
-export function BatchTransactionList({ batchId, bucket }: { batchId: string; bucket: Bucket }) {
+export function BatchTransactionList({
+  batchId,
+  bucket,
+  bucketCount,
+}: {
+  batchId: string;
+  bucket: Bucket;
+  /** The unfiltered count from the batch summary; a positive count with an empty list means another role sees them. */
+  bucketCount: number;
+}) {
   const { t, locale } = useI18n();
   const transactionsQuery = useBatchTransactions({ batchId, bucket });
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = transactionsQuery;
@@ -33,7 +43,11 @@ export function BatchTransactionList({ batchId, bucket }: { batchId: string; buc
   }
   const transactions = transactionsQuery.data.pages.flatMap((page) => page.items);
   if (transactions.length === 0) {
-    return <EmptyState message={t.batches.noTransactions} />;
+    return bucketCount > 0 ? (
+      <RoleAccessEmptyState batchId={batchId} bucket={bucket} />
+    ) : (
+      <EmptyState message={t.batches.noTransactions} />
+    );
   }
 
   return (
