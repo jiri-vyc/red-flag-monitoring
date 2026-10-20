@@ -1,0 +1,190 @@
+import type { JsonValue } from "../../../domain/json";
+import { logTokenUsage, type TokenUsage } from "../modelResponse";
+import type { LlmCallAudit } from "../../../domain/ruleReview/ruleReviewReport";
+
+export type ModelResponseBlock = { type: string; text?: string; id?: string; name?: string; input?: unknown };
+export type ModelMessage = {
+  stop_reason: string | null;
+  content: ReadonlyArray<ModelResponseBlock>;
+  usage: TokenUsage;
+};
+
+export type ToolUseBlock = { type: "tool_use"; id: string; name: string; input: unknown };
+type AssistantBlock = { type: "text"; text: string } | ToolUseBlock;
+type CacheControl = { type: "ephemeral" };
+
+export type ToolResultBlock = {
+  type: "tool_result";
+  tool_use_id: string;
+  content: string;
+  is_error: boolean;
+  cache_control?: CacheControl;
+};
+
+type UserTextBlock = { type: "text"; text: string; cache_control?: CacheControl };
+export type ModelMessageParam =
+  | { role: "user"; content: string | (ToolResultBlock | UserTextBlock)[] }
+  | { role: "assistant"; content: AssistantBlock[] };
+
+export type ModelTool = {
+  name: string;
+  description: string;
+  input_schema: { type: "object"; [keyword: string]: unknown };
+};
+
+export type ModelRequestBody = {
+  model: string;
+  max_tokens: number;
+  system: { type: "text"; text: string; cache_control: { type: "ephemeral" } }[];
+  messages: ModelMessageParam[];
+  tools?: ModelTool[];
+  tool_choice?: { type: "auto" } | { type: "tool"; name: string };
+};
+
+export interface ModelClient {
+  messages: {
+    create(body: ModelRequestBody, options?: { signal?: AbortSignal }): Promise<ModelMessage>;
+  };
+}
+
+export type ModelCallRequest = {
+  purpose: LlmCallAudit["purpose"];
+  findingId: string | null;
+  isContinuation: boolean;
+  system: string;
+  messages: ModelMessageParam[];
+  // The messages this call adds to the conversation; only these go into the audit record.
+  newMessages: ModelMessageParam[];
+  tools: ModelTool[];
+  toolChoice: { type: "auto" } | { type: "tool"; name: string };
+  maxTokens: number;
+  // A multi-turn loop resends the conversation; a breakpoint on its latest message lets the next turn read it from
+  // the cache.
+  cacheConversation?: boolean;
+  signal?: AbortSignal;
+};
+
+export type ModelCallOutcome =
+  | { isSuccess: true; message: ModelMessage; audit: LlmCallAudit }
+  | { isSuccess: false; error: string; audit: LlmCallAudit };
+
+// Never throws: a failed request comes back as an outcome with the error, audited like any other call.
+export async function callModel(
+  client: ModelClient,
+  modelId: string,
+  request: ModelCallRequest,
+): Promise<ModelCallOutcome> {
+  const startedAt = new Date();
+  const auditBase = {
+    purpose: request.purpose,
+    findingId: request.findingId,
+    modelId,
+    startedAt: startedAt.toISOString(),
+    prompt: {
+      system: request.isContinuation ? null : request.system,
+      tools: request.tools.map(({ name }) => name),
+      messages: request.newMessages.map(toJsonValue),
+    },
+    toolCalls: [],
+  };
+
+  try {
+    const message = await client.messages.create(
+      {
+        model: modelId,
+        max_tokens: request.maxTokens,
+        system: [{ type: "text", text: request.system, cache_control: { type: "ephemeral" } }],
+        messages: request.cacheConversation ? withCacheBreakpoint(request.messages) : request.messages,
+        ...(request.tools.length > 0 && { tools: request.tools, tool_choice: request.toolChoice }),
+      },
+      { signal: request.signal },
+    );
+
+    logTokenUsage(request.purpose, modelId, message.usage);
+
+    return {
+      isSuccess: true,
+      message,
+      audit: {
+        ...auditBase,
+        durationMs: Date.now() - startedAt.getTime(),
+        response: { stopReason: message.stop_reason, content: message.content.map(toJsonValue) },
+        inputTokens: countInputTokens(message.usage),
+        outputTokens: message.usage.output_tokens,
+        errorMessage: null,
+      },
+    };
+  } catch (error) {
+    const errorMessage = describeError(error);
+
+    return {
+      isSuccess: false,
+      error: errorMessage,
+      audit: {
+        ...auditBase,
+        durationMs: Date.now() - startedAt.getTime(),
+        response: null,
+        inputTokens: 0,
+        outputTokens: 0,
+        errorMessage,
+      },
+    };
+  }
+}
+
+export function findToolUses(message: ModelMessage): ToolUseBlock[] {
+  return message.content.flatMap((block) => toToolUseBlocks(block));
+}
+
+// Only text and tool use go back to the model; other block types are not part of these conversations.
+export function toAssistantMessage(message: ModelMessage): ModelMessageParam {
+  const content = message.content.flatMap((block): AssistantBlock[] =>
+    block.type === "text" && block.text !== undefined
+      ? [{ type: "text", text: block.text }]
+      : toToolUseBlocks(block),
+  );
+
+  return { role: "assistant", content };
+}
+
+export function readMessageText(message: ModelMessage): string {
+  return message.content
+    .flatMap((block) => (block.type === "text" && block.text !== undefined ? [block.text] : []))
+    .join("\n")
+    .trim();
+}
+
+export function describeError(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
+
+function toToolUseBlocks(block: ModelResponseBlock): ToolUseBlock[] {
+  return block.type === "tool_use" && block.id !== undefined && block.name !== undefined
+    ? [{ type: "tool_use", id: block.id, name: block.name, input: block.input }]
+    : [];
+}
+
+function countInputTokens(usage: TokenUsage): number {
+  return usage.input_tokens + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0);
+}
+
+export function toJsonValue(value: unknown): JsonValue {
+  return JSON.parse(JSON.stringify(value)) as JsonValue;
+}
+
+// Only the request gets the breakpoint, never the stored conversation: a request allows at most four.
+function withCacheBreakpoint(messages: ModelMessageParam[]): ModelMessageParam[] {
+  const last = messages.at(-1);
+
+  if (!last || last.role !== "user") {
+    return messages;
+  }
+
+  const blocks =
+    typeof last.content === "string" ? [{ type: "text" as const, text: last.content }] : last.content;
+  const cachedBlocks = blocks.map((block, index) =>
+    index === blocks.length - 1 ? { ...block, cache_control: { type: "ephemeral" as const } } : block,
+  );
+
+  return [...messages.slice(0, -1), { role: "user", content: cachedBlocks }];
+}

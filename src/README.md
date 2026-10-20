@@ -149,6 +149,7 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 | `/drafting-jobs`     | `POST /` (start, see below), `GET /?status=&kind=&regulationId=&policyVersionId=&limit=&offset=`, `GET /:jobId`, `POST /:jobId/retry`                                                                                                                                                                                                                                                                                                |
 | `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&role=&limit=&offset=`, `GET /:runId/transactions/:transactionId?role=` (detail with trace), `GET /:runId/aml-events?alertType=&clientId=&limit=&offset=` (alerts with their current `triage`, highest priority first), `GET /:runId/aml-events.csv` (mandatory FINREG CSV), `POST /:runId/triage` (see below) |
 | `/aml-events`        | `GET /:id`: an alert with its rule and version, the client, the triggering transactions with their rule result, the client's other alerts in the run (issue #13), the current `triage`, every proposal in `triageHistory` (priority factors, log) and the `triageLlmCall` behind the model's proposal (issue #14)                                                                                                                    |
+| `/rule-reviews`      | `POST /` (start a gap review, see below), `GET /` (summaries, newest first), `GET /:reviewId` (the whole report)                                                                                                                                                                                                                                                                                                                     |
 | `/database-status`   | `GET /`: the connected database (`current_database()`, `version()`, `aurora_version()` or `null`, server address and time, latest migration, `clients` count)                                                                                                                                                                                                                                                                        |
 
 ### Evaluation runs
@@ -171,6 +172,15 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 - Where the run executes: in the API process by default. With `EVALUATION_WORKER_FUNCTION` set, the API invokes that Lambda function asynchronously instead (`backend/src/evaluationWorker.ts`, export `handler`), because a Web Function may remove its environment after the response.
 - When the transactions are evaluated, the run groups its hits into AML events (alerts) by the rule's `alertGranularity` before it turns `completed`: `transaction` makes one alert per hit transaction, `client_month` one per client and calendar month. The summary has `amlEventCount` per rule version. `POST /api/rules` accepts `alertGranularity` (default `transaction`); `SetSampleRuleAlertGranularity` sets `client_month` on R-01 and R-04 to R-14. Runs completed before the `AmlEvents` migration have no alerts; start a new run.
 - The `SeedSampleRules` migration adds the sample rules R-01 to R-17 from `knowledgebase/pravidla-priklady` as active versions.
+
+### Rule reviews (gap analysis, local only)
+
+`POST /api/rule-reviews` starts the rule gap review of [spec/rule-gap-hunting.md](../spec/rule-gap-hunting.md) over the active rules, or over the versions an evaluation run fixed. Body, all optional: `{ "createdBy": "<user id>", "evaluationRunId": "<run id>", "llm": false }`.
+
+- The response is `202` with the report in status `running`, `409` while another review runs. Poll `GET /:reviewId` (the web does it every 2 s): `progress` moves through `loading`, `baseline`, `feature_sweeps` and `association` until `status` is `completed` or `failed`. The whole dataset takes ~50 s against local Docker; the API stays responsive meanwhile.
+- The report holds `findings` (`rule_adjustment`, `new_rule`, `coverage_gap`, `association`) with the affected clients, the `coverageMatrix` of SVZ-03 čl. 7 and the `llm` section. Findings are leads for the compliance officer, never alerts. Nothing is written to the database.
+- Reports are JSON files in `RULE_REVIEW_DIR`. That does not work on Lambda, so the router is for local development until iteration 2 picks a store.
+- `npm run rule-review` runs the same review from the command line and prints where the report is. `npm run rule-review -- --probe [fx|czk]` prints the sensitivity table (3.5), the association table (4.1) and the perturbation test, with FX conversion and with volume read as CZK.
 
 ### Rule escalation
 
@@ -212,13 +222,14 @@ Versions are immutable. A version goes `draft` → `pending_review` → `approve
 
 ## Scripts (from `src/`)
 
-| Command          | What it does                                        |
-| ---------------- | --------------------------------------------------- |
-| `npm run dev`    | Backend (`tsx watch`) and web (`next dev`) together |
-| `npm run build`  | `tsc` for backend, `next build` for web             |
-| `npm run lint`   | ESLint in both packages                             |
-| `npm test`       | Jest in both packages                               |
-| `npm run format` | Prettier over the whole workspace                   |
+| Command               | What it does                                                         |
+| --------------------- | -------------------------------------------------------------------- |
+| `npm run dev`         | Backend (`tsx watch`) and web (`next dev`) together                  |
+| `npm run build`       | `tsc` for backend, `next build` for web                              |
+| `npm run lint`        | ESLint in both packages                                              |
+| `npm test`            | Jest in both packages                                                |
+| `npm run format`      | Prettier over the whole workspace                                    |
+| `npm run rule-review` | Rule gap review from the CLI; `-- --probe` prints the phase 0 tables |
 
 Run a single package with `-w`, e.g. `npm test -w backend`. Production start: `npm start -w backend`, `npm start -w web`.
 
@@ -236,6 +247,8 @@ Copy `.env.example` to `.env` in each package if you need to override defaults. 
 | backend | `ENGINE_VERSION`             | `local`                 | Code version stored on each evaluation run (V10); `deploy/api.sh` sets the git commit                                            |
 | backend | `EVALUATION_WORKER_FUNCTION` | (unset)                 | Lambda function that executes evaluation runs; unset = in the API process. Needs `AWS_REGION`                                    |
 | backend | `DRAFTING_WORKER_FUNCTION`   | (unset)                 | Lambda function that executes drafting jobs; unset = in the API process. Needs `AWS_REGION`                                      |
+| backend | `RULE_REVIEW_DIR`            | `backend/.rule-reviews` | Where rule review reports are written (git-ignored)                                                                              |
+| backend | `RULE_REVIEW_LLM`            | `off`                   | `bedrock` switches on the Bedrock explanations, summary and rule hypotheses of the rule review; uses the `BEDROCK_*` variables   |
 | web     | `BACKEND_URL`                | `http://localhost:4000` | Server-only. Backend base URL for the `/api/*` proxy; baked into the rewrite at build time                                       |
 | web     | `NEXT_PUBLIC_API_MODE`       | `mock`                  | Default data source (`mock` or `live`); the sidebar switch overrides it per browser                                              |
 | web     | `NEXT_PUBLIC_API_MODE_<SVC>` | (unset)                 | Per-service override, `<SVC>` is `REGULATIONS`, `POLICIES`, `RULES`, `BATCHES`, `WIZARD`, `DASHBOARD`, `USERS` or `TRANSACTIONS` |

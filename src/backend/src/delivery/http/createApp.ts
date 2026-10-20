@@ -9,6 +9,7 @@ import type { EvaluationRunUseCases } from "../../application/evaluationRuns/eva
 import type { InternalPolicyUseCases } from "../../application/internalPolicies/internalPolicyUseCases";
 import type { ReferenceListUseCases } from "../../application/referenceLists/referenceListUseCases";
 import type { RegulationUseCases } from "../../application/regulations/regulationUseCases";
+import type { RuleReviewUseCases } from "../../application/ruleReviews/ruleReviewUseCases";
 import type { RuleUseCases } from "../../application/rules/ruleUseCases";
 import type { TransactionQueries } from "../../application/transactions/transactionQueries";
 import type { UserUseCases } from "../../application/users/userUseCases";
@@ -23,6 +24,7 @@ import { createHealthRouter } from "./healthRouter";
 import { createInternalPoliciesRouter } from "./internalPoliciesRouter";
 import { createReferenceListsRouter } from "./referenceListsRouter";
 import { createRegulationsRouter } from "./regulationsRouter";
+import { createRuleReviewsRouter } from "./ruleReviewsRouter";
 import { createRulesRouter } from "./rulesRouter";
 import { createTransactionsRouter } from "./transactionsRouter";
 import { createUsersRouter } from "./usersRouter";
@@ -44,6 +46,7 @@ export type AppUseCases = {
   databaseStatus: DatabaseStatusQueries;
   users: UserUseCases;
   transactions: TransactionQueries;
+  ruleReviews?: RuleReviewUseCases;
 };
 
 export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureDatabaseReady): Express {
@@ -73,6 +76,7 @@ export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureData
   app.use("/api/database-status", createDatabaseStatusRouter(useCases.databaseStatus));
   app.use("/api/users", createUsersRouter(useCases.users));
   app.use("/api/transactions", createTransactionsRouter(useCases.transactions));
+  if (useCases.ruleReviews) app.use("/api/rule-reviews", createRuleReviewsRouter(useCases.ruleReviews));
   app.use(notFoundHandler);
   app.use(errorHandler);
 

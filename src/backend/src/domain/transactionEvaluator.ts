@@ -6,6 +6,7 @@ import {
   type TransactionEvaluationResult,
 } from "./evaluateTransaction";
 import { createFeatureContext } from "./features/featureContext";
+import type { FeatureParameters } from "./features/featureParameters";
 import { createFxRateTable, type FxRate, type FxRateTable, MissingFxRateError } from "./features/fxRates";
 import { createPayeeDayClientIndex } from "./features/payeeDayClientIndex";
 import { priceTransactionsChronologically, type PricedTransaction } from "./features/pricedTransaction";
@@ -41,6 +42,7 @@ type PricedClientHistory =
 export function createTransactionEvaluator(input: {
   dataset: EvaluationDataset;
   ruleSet: RunRuleSet;
+  featureParameters?: Readonly<FeatureParameters>;
 }): TransactionEvaluator {
   const fxRateTable = createFxRateTable(input.dataset.fxRates);
   const payeeDayClientIndex = createPayeeDayClientIndex(input.dataset.transactions);
@@ -96,6 +98,7 @@ export function createTransactionEvaluator(input: {
       client,
       clientHistory: pricedHistory.history,
       payeeDayClientIndex,
+      parameters: input.featureParameters,
     });
 
     return { ...evaluatedTransaction, ...evaluateTransaction({ context, ruleSet: input.ruleSet }) };

@@ -1,0 +1,75 @@
+.stack {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sectionHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sectionHeader h2 {
+  font-size: var(--font-size-xl);
+}
+
+.hint {
+  color: var(--color-text-muted);
+}
+
+.findingGrid {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.findingMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.proposal {
+  font-variant-numeric: tabular-nums;
+}
+
+.progress {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 1px solid var(--color-ai-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--color-surface), var(--color-ai-soft));
+}
+
+.explanation {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.explanation ul {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.inlineList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.copyRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.selectedRow {
+  background: var(--color-primary-soft);
+}

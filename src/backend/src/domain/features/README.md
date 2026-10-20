@@ -31,8 +31,8 @@ Amounts convert with the ČNB rate on the transaction date, or the last publishe
 3. Look only backwards. Use `context.historyUntilTransaction`, `listTransactionsBefore` or `listTransactionsInTrailingHours`, never the full history.
 4. Return the transactions you used via `toResultFromTransactions` so they end up in `context_refs`.
 5. Return `null` when the value makes no sense, e.g. a payee pattern for an incoming payment. Conditions on `null` are false (F6).
-6. Put fixed parameters in `thresholds.ts` (F8). Changing one changes detection without a new rule version (see the compliance notes in the spec).
-7. Add a test in `calculateFeatures.test.ts`.
+6. Put fixed parameters in `thresholds.ts` (F8). Changing one changes detection without a new rule version (see the compliance notes in the spec). A pattern feature reads them through `context.parameters` (`featureParameters.ts`), which defaults to `thresholds.ts`; only the rule gap review passes relaxed values.
+7. Add a test in `calculateFeatures.test.ts`. A feature that changes detection also changes `detectionRegression.test.ts` (per-rule hits on the full dataset and the features of a fixed sample); regenerate its baseline only for an intended change.
 
 ## Condition DSL (`../ruleDefinition.ts`)
 

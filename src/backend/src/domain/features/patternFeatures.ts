@@ -10,6 +10,7 @@ import {
   toPlainResult,
   toResultFromTransactions,
 } from "./featureDefinition";
+import type { FeatureParameters } from "./featureParameters";
 import { listPayeeDayPayments } from "./payeeDayClientIndex";
 import {
   getCounterpartyAccount,
@@ -17,17 +18,6 @@ import {
   type PricedTransaction,
   roundCzk,
 } from "./pricedTransaction";
-import {
-  LIMIT_L_CZK,
-  PASSTHROUGH_INFLOW_WINDOW_HOURS,
-  PASSTHROUGH_MIN_INFLOW_CZK,
-  PASSTHROUGH_OUTFLOW_WINDOW_HOURS,
-  QUICK_FORWARD_MAX_RATIO,
-  QUICK_FORWARD_MIN_RATIO,
-  QUICK_FORWARD_WINDOW_HOURS,
-  ROUND_TRIP_WINDOW_HOURS,
-  SMALL_PAYMENT_WINDOW_DAYS,
-} from "./thresholds";
 
 const HOURS_PER_DAY = 24;
 const RATIO_DECIMALS = 10_000;
@@ -39,7 +29,7 @@ type PassthroughFlow = {
   transactions: PricedTransaction[];
 };
 
-// Pattern features with fixed parameters from thresholds.ts (section 2.4 of spec/features.md, F8). Each one
+// Pattern features with parameters from context.parameters, by default thresholds.ts (section 2.4 of spec/features.md, F8). Each one
 // looks only backwards from the evaluated transaction, so a pattern hits on the transaction that completes it.
 export const PATTERN_FEATURES: FeatureDefinition[] = [
   {
@@ -140,11 +130,13 @@ function findSmallPaymentsToSamePayee(context: FeatureContext): PricedTransactio
     return null;
   }
 
-  return listTransactionsInTrailingHours(context, SMALL_PAYMENT_WINDOW_DAYS * HOURS_PER_DAY).filter(
+  const { smallPaymentWindowDays, smallPaymentMaxCzk } = context.parameters;
+
+  return listTransactionsInTrailingHours(context, smallPaymentWindowDays * HOURS_PER_DAY).filter(
     (candidate) =>
       isOutgoingTransaction(candidate) &&
       candidate.payeeAccount === context.transaction.payeeAccount &&
-      candidate.amountCzk < LIMIT_L_CZK,
+      candidate.amountCzk < smallPaymentMaxCzk,
   );
 }
 
@@ -156,19 +148,24 @@ function calculateQuickForwardMatchCount(context: FeatureContext): FeatureResult
     return toPlainResult(null);
   }
 
-  const windowStartMs = forwardingPayment.occurredAtMs - QUICK_FORWARD_WINDOW_HOURS * MILLISECONDS_PER_HOUR;
+  const { quickForwardWindowHours, quickForwardMinAmountCzk, quickForwardMinRatio, quickForwardMaxRatio } =
+    context.parameters;
+  const windowStartMs = forwardingPayment.occurredAtMs - quickForwardWindowHours * MILLISECONDS_PER_HOUR;
   const forwardedPayments = listTransactionsBefore(context).filter((candidate) => {
     if (candidate.transactionType !== "incoming" || candidate.occurredAtMs < windowStartMs) {
       return false;
     }
 
-    if (candidate.amountCzk < LIMIT_L_CZK || candidate.payerAccount === forwardingPayment.payeeAccount) {
+    if (
+      candidate.amountCzk < quickForwardMinAmountCzk ||
+      candidate.payerAccount === forwardingPayment.payeeAccount
+    ) {
       return false;
     }
 
     const ratio = forwardingPayment.amountCzk / candidate.amountCzk;
 
-    return ratio >= QUICK_FORWARD_MIN_RATIO && ratio <= QUICK_FORWARD_MAX_RATIO;
+    return ratio >= quickForwardMinRatio && ratio <= quickForwardMaxRatio;
   });
 
   return toResultFromTransactions(forwardedPayments.length, forwardedPayments);
@@ -178,16 +175,17 @@ function calculateQuickForwardMatchCount(context: FeatureContext): FeatureResult
 function calculateRoundTripMatchCount(context: FeatureContext): FeatureResult {
   const secondPayment = context.transaction;
   const counterpartyAccount = getCounterpartyAccount(secondPayment);
+  const { roundTripWindowHours, roundTripMinAmountCzk } = context.parameters;
 
-  if (secondPayment.amountCzk < LIMIT_L_CZK || counterpartyAccount === null) {
+  if (secondPayment.amountCzk < roundTripMinAmountCzk || counterpartyAccount === null) {
     return toPlainResult(null);
   }
 
-  const windowStartMs = secondPayment.occurredAtMs - ROUND_TRIP_WINDOW_HOURS * MILLISECONDS_PER_HOUR;
+  const windowStartMs = secondPayment.occurredAtMs - roundTripWindowHours * MILLISECONDS_PER_HOUR;
   const firstPayments = listTransactionsBefore(context).filter(
     (candidate) =>
       candidate.occurredAtMs >= windowStartMs &&
-      candidate.amountCzk >= LIMIT_L_CZK &&
+      candidate.amountCzk >= roundTripMinAmountCzk &&
       isOutgoingTransaction(candidate) !== isOutgoingTransaction(secondPayment) &&
       getCounterpartyAccount(candidate) === counterpartyAccount,
   );
@@ -217,7 +215,8 @@ function findStrongestPassthrough(context: FeatureContext): PassthroughFlow | nu
 
   const history = context.historyUntilTransaction;
   const anchorWindowStartMs =
-    context.transaction.occurredAtMs - PASSTHROUGH_OUTFLOW_WINDOW_HOURS * MILLISECONDS_PER_HOUR;
+    context.transaction.occurredAtMs -
+    context.parameters.passthroughOutflowWindowHours * MILLISECONDS_PER_HOUR;
   let strongestFlow: PassthroughFlow | null = null;
 
   for (const [anchorIndex, anchor] of history.entries()) {
@@ -225,7 +224,7 @@ function findStrongestPassthrough(context: FeatureContext): PassthroughFlow | nu
       continue;
     }
 
-    const flow = calculatePassthroughFlow({ history, anchorIndex });
+    const flow = calculatePassthroughFlow({ history, anchorIndex, parameters: context.parameters });
 
     if (flow && (!strongestFlow || flow.ratio > strongestFlow.ratio)) {
       strongestFlow = flow;
@@ -238,6 +237,7 @@ function findStrongestPassthrough(context: FeatureContext): PassthroughFlow | nu
 function calculatePassthroughFlow(input: {
   history: readonly PricedTransaction[];
   anchorIndex: number;
+  parameters: Readonly<FeatureParameters>;
 }): PassthroughFlow | null {
   const anchor = input.history[input.anchorIndex];
 
@@ -245,7 +245,8 @@ function calculatePassthroughFlow(input: {
     return null;
   }
 
-  const inflowWindowStartMs = anchor.occurredAtMs - PASSTHROUGH_INFLOW_WINDOW_HOURS * MILLISECONDS_PER_HOUR;
+  const inflowWindowStartMs =
+    anchor.occurredAtMs - input.parameters.passthroughInflowWindowHours * MILLISECONDS_PER_HOUR;
   const inflow = input.history
     .slice(0, input.anchorIndex + 1)
     .filter(
@@ -253,7 +254,7 @@ function calculatePassthroughFlow(input: {
     );
   const inflowCzk = sumCzk(inflow);
 
-  if (inflowCzk <= PASSTHROUGH_MIN_INFLOW_CZK) {
+  if (inflowCzk <= input.parameters.passthroughMinInflowCzk) {
     return null;
   }
 
