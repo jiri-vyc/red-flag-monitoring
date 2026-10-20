@@ -86,6 +86,7 @@ export interface AlertTriageModel {
   }): Promise<LlmTriageResult>;
 }
 
+// Either the named clients, or the `clientLimit` highest-priority clients of the run.
 export type LlmTriageRequest = { runId: string; clientIds: string[] | null; clientLimit: number | null };
 
 export interface AlertTriageLauncher {

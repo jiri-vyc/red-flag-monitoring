@@ -15,7 +15,7 @@ import {
   priceTransactionsChronologically,
 } from "../../domain/features/pricedTransaction";
 import type { Clock } from "../clock";
-import { BusinessRuleViolationError, NotFoundError, toErrorMessage } from "../errors";
+import { BusinessRuleViolationError, ConflictError, NotFoundError, toErrorMessage } from "../errors";
 import type { EvaluationRunReadRepository } from "../evaluationRuns/evaluationRunReadRepository";
 import type {
   AlertTriageLauncher,
@@ -29,6 +29,11 @@ import type {
 
 export type LlmTriageSummary = { triagedClients: number; failedClients: number; skippedClients: number };
 
+// One Bedrock call per client: these caps keep a click in the web from triaging the whole client base (~5.5k
+// calls on the PoC run). A whole-run pass is a deliberate series of background requests.
+export const MAX_SYNC_TRIAGE_CLIENTS = 20;
+export const MAX_BACKGROUND_TRIAGE_CLIENTS = 100;
+
 export class AlertTriageUseCases {
   constructor(
     private readonly dependencies: {
@@ -40,6 +45,8 @@ export class AlertTriageUseCases {
       llmConcurrency: number;
     },
   ) {}
+
+  private readonly runIdsInBackgroundTriage = new Set<string>();
 
   async triageRunWithRules(runId: string): Promise<number> {
     const { alertTriageRepository, clock } = this.dependencies;
@@ -64,22 +71,45 @@ export class AlertTriageUseCases {
     return this.triageRunWithRules(runId);
   }
 
-  async triageClientsWithLlmNow(request: LlmTriageRequest): Promise<LlmTriageSummary> {
+  async triageClientsWithLlmNow(request: { runId: string; clientIds: string[] }): Promise<LlmTriageSummary> {
     this.requireLlm();
+    requireClientCount(request.clientIds.length, MAX_SYNC_TRIAGE_CLIENTS, "clientIds");
     await this.requireCompletedRun(request.runId);
 
-    return this.triageRunWithLlm(request);
+    return this.triageRunWithLlm({ runId: request.runId, clientIds: request.clientIds, clientLimit: null });
   }
 
-  async startLlmTriage(request: LlmTriageRequest): Promise<void> {
-    const launcher = this.requireLlm().launcher;
+  async startLlmTriage(request: { runId: string; clientLimit: number }): Promise<void> {
+    const { launcher } = this.requireLlm();
+    const { runId, clientLimit } = request;
 
-    await this.requireCompletedRun(request.runId);
-    await launcher.launchLlmTriage(request);
+    requireClientCount(clientLimit, MAX_BACKGROUND_TRIAGE_CLIENTS, "clientLimit");
+    await this.requireCompletedRun(runId);
+
+    if (this.runIdsInBackgroundTriage.has(runId)) {
+      throw new ConflictError(`An LLM triage of run ${runId} is already running`);
+    }
+
+    this.runIdsInBackgroundTriage.add(runId);
+
+    try {
+      await launcher.launchLlmTriage({ runId, clientIds: null, clientLimit });
+    } catch (error) {
+      this.runIdsInBackgroundTriage.delete(runId);
+      throw error;
+    }
+  }
+
+  async runBackgroundLlmTriage(request: LlmTriageRequest): Promise<LlmTriageSummary> {
+    try {
+      return await this.triageRunWithLlm(request);
+    } finally {
+      this.runIdsInBackgroundTriage.delete(request.runId);
+    }
   }
 
   // Clients the model already triaged are skipped, so a repeated call continues an interrupted triage.
-  async triageRunWithLlm(request: LlmTriageRequest): Promise<LlmTriageSummary> {
+  private async triageRunWithLlm(request: LlmTriageRequest): Promise<LlmTriageSummary> {
     const { alertTriageRepository } = this.dependencies;
     const { model } = this.requireLlm();
     const [input, triagedClientIds] = await Promise.all([
@@ -187,6 +217,12 @@ export class AlertTriageUseCases {
 }
 
 export class MissingAlertDecisionError extends Error {}
+
+function requireClientCount(count: number, max: number, field: string): void {
+  if (!Number.isInteger(count) || count < 1 || count > max) {
+    throw new BusinessRuleViolationError(`${field} must name 1 to ${max} clients, got ${count}`);
+  }
+}
 
 type RankedTriageCase = { triageCase: ClientTriageCase; proposals: TriageProposal[]; maxPriority: number };
 

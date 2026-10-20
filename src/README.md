@@ -127,7 +127,10 @@ The LLM steps of the wizard run as jobs, because one step can take minutes (desi
 ### Alert triage (issue #14)
 
 - Every completed run stores a rule-based proposal per alert: priority 0–100 from table P of SVZ-03 with its factors, `FP` / `REVIEW` and a reason. For a run created before #14, `POST /api/evaluation-runs/:runId/triage {"source":"rules"}` fills them in.
-- `POST /api/evaluation-runs/:runId/triage` with `{"clientIds":["K000001"]}` (up to 20 clients) asks Claude on Bedrock within the request and returns `{ triagedClients, failedClients, skippedClients }`. Without `clientIds`, or with more, it returns `202` and triages in the background, highest priority first, at most `clientLimit` clients. Clients the model already triaged are skipped, so the same request continues an interrupted triage.
+- `POST /api/evaluation-runs/:runId/triage` takes exactly one of:
+  - `{"clientIds":["K000001"]}`: 1 to 20 clients, triaged by Claude on Bedrock within the request; returns `{ triagedClients, failedClients, skippedClients }`. This is the entry point for a button on the alert detail.
+  - `{"clientLimit":50}`: the 1 to 100 highest-priority clients the model has not triaged yet, in the background (`202`). Only one background triage per run runs at a time (`409` otherwise).
+  - There is no "whole run" mode: one call per client means ~5.5k calls on the PoC run, so a full pass is a deliberate series of `clientLimit` requests, each continuing where the last stopped. A larger request is rejected with `422`, an empty body with `400`.
 - Env: `ALERT_TRIAGE=bedrock` turns the model on (default `off`), `TRIAGE_MODEL_ID` (default `eu.anthropic.claude-haiku-4-5-20251001-v1:0`), `TRIAGE_CONCURRENCY` (parallel calls, default 8). Bedrock auth and region as for drafting. One client takes ~7–10 s and ~3–4k input tokens; the whole PoC run is ~5.5k clients.
 - The background triage runs in the API process. On the deployed Lambda Web Function the environment can stop mid-way; repeat the request to continue.
 

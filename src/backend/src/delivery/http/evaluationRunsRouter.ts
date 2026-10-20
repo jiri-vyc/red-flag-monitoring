@@ -71,22 +71,16 @@ const amlEventListQuerySchema = pageQuerySchema.extend({
     .transform((value) => value ?? null),
 });
 
-const MAX_SYNC_TRIAGE_CLIENTS = 20;
-
-const triageBodySchema = z.object({
-  source: z.enum(["rules", "llm"]).default("llm"),
-  clientIds: z
-    .array(z.string().regex(CLIENT_ID_PATTERN))
-    .min(1)
-    .nullish()
-    .transform((value) => value ?? null),
-  clientLimit: z
-    .number()
-    .int()
-    .positive()
-    .nullish()
-    .transform((value) => value ?? null),
-});
+const triageBodySchema = z.union([
+  z.object({ source: z.literal("rules") }).strict(),
+  z
+    .object({
+      source: z.literal("llm").default("llm"),
+      clientIds: z.array(z.string().regex(CLIENT_ID_PATTERN)),
+    })
+    .strict(),
+  z.object({ source: z.literal("llm").default("llm"), clientLimit: z.number().int() }).strict(),
+]);
 
 // Runs are immutable (V14): the API starts a run and reads its results, it never edits them.
 export function createEvaluationRunsRouter(
@@ -141,21 +135,19 @@ export function createEvaluationRunsRouter(
   // `rules` fills in the deterministic proposals of a run created before #14.
   router.post("/:runId/triage", async (request, response) => {
     const { runId } = parseRequest(runParamsSchema, request.params);
-    const { source, clientIds, clientLimit } = parseRequest(triageBodySchema, request.body ?? {});
+    const body = parseRequest(triageBodySchema, request.body ?? {});
 
-    if (source === "rules") {
+    if (body.source === "rules") {
       response.json({ triagedAlerts: await alertTriageUseCases.retriageRunWithRules(runId) });
       return;
     }
 
-    const triageRequest = { runId, clientIds, clientLimit };
-
-    if (clientIds && clientIds.length <= MAX_SYNC_TRIAGE_CLIENTS) {
-      response.json(await alertTriageUseCases.triageClientsWithLlmNow(triageRequest));
+    if ("clientIds" in body) {
+      response.json(await alertTriageUseCases.triageClientsWithLlmNow({ runId, clientIds: body.clientIds }));
       return;
     }
 
-    await alertTriageUseCases.startLlmTriage(triageRequest);
+    await alertTriageUseCases.startLlmTriage({ runId, clientLimit: body.clientLimit });
     response.status(202).json({ status: "started" });
   });
 

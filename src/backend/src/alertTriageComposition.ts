@@ -25,7 +25,7 @@ export function createAlertTriageUseCases(
     evaluationRunReadRepository: new TypeOrmEvaluationRunReadRepository(dataSource),
     alertTriageModel,
     alertTriageLauncher: alertTriageModel
-      ? new InProcessAlertTriageLauncher((request) => useCases.triageRunWithLlm(request))
+      ? new InProcessAlertTriageLauncher((request) => useCases.runBackgroundLlmTriage(request))
       : null,
     clock: systemClock,
     llmConcurrency: config.mode === "bedrock" ? config.concurrency : 1,

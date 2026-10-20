@@ -1,5 +1,6 @@
 import request from "supertest";
 
+import type { AlertTriageUseCases } from "../../application/alertTriage/alertTriageUseCases";
 import { AmlEventQueries } from "../../application/amlEvents/amlEventQueries";
 import type { AmlEventFilter } from "../../application/amlEvents/amlEventReadModels";
 import type { EvaluationRunReadRepository } from "../../application/evaluationRuns/evaluationRunReadRepository";
@@ -357,6 +358,27 @@ describe("HTTP app", () => {
 
       return { app: createApp({ amlEvents } as AppUseCases, databaseReady), calls };
     }
+
+    it("starts an LLM triage only for named clients or a client limit, never for the whole run", async () => {
+      const started: unknown[] = [];
+      const alertTriage = {
+        startLlmTriage: async (command: unknown) => {
+          started.push(command);
+        },
+      } as unknown as AlertTriageUseCases;
+      const app = createApp({ alertTriage } as AppUseCases, databaseReady);
+      const triagePath = `/api/evaluation-runs/${RUN_ID}/triage`;
+
+      await request(app).post(triagePath).send({}).expect(400);
+      await request(app).post(triagePath).send({ source: "llm" }).expect(400);
+      await request(app)
+        .post(triagePath)
+        .send({ clientIds: ["K000001"], clientLimit: 5 })
+        .expect(400);
+      await request(app).post(triagePath).send({ clientLimit: 5 }).expect(202);
+
+      expect(started).toEqual([{ runId: RUN_ID, clientLimit: 5 }]);
+    });
 
     it("exports the run's events as the mandatory CSV", async () => {
       const { app } = createAmlEventsApp();

@@ -1,14 +1,20 @@
 import type { Client } from "../../domain/client";
+import { BusinessRuleViolationError, ConflictError } from "../errors";
 import type { EvaluationRunReadRepository } from "../evaluationRuns/evaluationRunReadRepository";
 import type {
   AlertTriageModel,
   AlertTriageRepository,
   LlmAlertDecision,
+  LlmTriageRequest,
   NewAlertTriage,
   NewTriageLlmCall,
   TriageInputData,
 } from "./alertTriagePorts";
-import { AlertTriageUseCases } from "./alertTriageUseCases";
+import {
+  AlertTriageUseCases,
+  MAX_BACKGROUND_TRIAGE_CLIENTS,
+  MAX_SYNC_TRIAGE_CLIENTS,
+} from "./alertTriageUseCases";
 
 const RUN_ID = "run-1";
 const FIXED_NOW = new Date("2026-10-20T10:00:00Z");
@@ -126,16 +132,25 @@ function createModel(decide: (alertId: string) => LlmAlertDecision | null): Aler
 
 function createSubject(model: AlertTriageModel) {
   const repository = new InMemoryAlertTriageRepository();
+  const launchedRequests: LlmTriageRequest[] = [];
+  const completedRunReadRepository = {
+    findRunSummary: () => Promise.resolve({ run: { id: RUN_ID, status: "completed" } }),
+  } as unknown as EvaluationRunReadRepository;
   const useCases = new AlertTriageUseCases({
     alertTriageRepository: repository,
-    evaluationRunReadRepository: {} as EvaluationRunReadRepository,
+    evaluationRunReadRepository: completedRunReadRepository,
     alertTriageModel: model,
-    alertTriageLauncher: { launchLlmTriage: () => Promise.resolve() },
+    alertTriageLauncher: {
+      launchLlmTriage: (request) => {
+        launchedRequests.push(request);
+        return Promise.resolve();
+      },
+    },
     clock: () => FIXED_NOW,
     llmConcurrency: 2,
   });
 
-  return { repository, useCases };
+  return { repository, useCases, launchedRequests };
 }
 
 const fpDecision = (alertId: string): LlmAlertDecision => ({
@@ -172,7 +187,7 @@ describe("AlertTriageUseCases", () => {
   it("stores the model's triage with its call and overrides an FP behind a guardrail", async () => {
     const { repository, useCases } = createSubject(createModel(fpDecision));
 
-    await useCases.triageRunWithLlm({ runId: RUN_ID, clientIds: null, clientLimit: null });
+    await useCases.triageClientsWithLlmNow({ runId: RUN_ID, clientIds: ["K000001", "K000002"] });
 
     const savesByClient = new Map(repository.llmSaves.map((save) => [save.call.clientId, save]));
     expect(savesByClient.get("K000001")?.triages).toMatchObject([
@@ -190,7 +205,7 @@ describe("AlertTriageUseCases", () => {
     const { repository, useCases } = createSubject(model);
     repository.clientIdsWithLlmTriage = ["K000002"];
 
-    const summary = await useCases.triageRunWithLlm({ runId: RUN_ID, clientIds: null, clientLimit: 1 });
+    const summary = await useCases.runBackgroundLlmTriage({ runId: RUN_ID, clientIds: null, clientLimit: 1 });
 
     expect(model.calls).toEqual(["K000001"]);
     expect(summary).toEqual({ triagedClients: 1, failedClients: 0, skippedClients: 1 });
@@ -199,13 +214,40 @@ describe("AlertTriageUseCases", () => {
   it("stores nothing for a client whose alerts the model left undecided", async () => {
     const { repository, useCases } = createSubject(createModel(() => null));
 
-    const summary = await useCases.triageRunWithLlm({
-      runId: RUN_ID,
-      clientIds: ["K000001"],
-      clientLimit: null,
-    });
+    const summary = await useCases.triageClientsWithLlmNow({ runId: RUN_ID, clientIds: ["K000001"] });
 
     expect(summary).toMatchObject({ triagedClients: 0, failedClients: 1 });
     expect(repository.llmSaves).toEqual([]);
+  });
+
+  it("refuses to triage more clients than the caps allow in one request", async () => {
+    const { useCases, launchedRequests } = createSubject(createModel(fpDecision));
+    const tooManyClientIds = Array.from(
+      { length: MAX_SYNC_TRIAGE_CLIENTS + 1 },
+      (_, index) => `K${String(index).padStart(6, "0")}`,
+    );
+
+    await expect(
+      useCases.triageClientsWithLlmNow({ runId: RUN_ID, clientIds: tooManyClientIds }),
+    ).rejects.toThrow(BusinessRuleViolationError);
+    await expect(
+      useCases.startLlmTriage({ runId: RUN_ID, clientLimit: MAX_BACKGROUND_TRIAGE_CLIENTS + 1 }),
+    ).rejects.toThrow(BusinessRuleViolationError);
+    expect(launchedRequests).toEqual([]);
+  });
+
+  it("runs one background triage per run at a time", async () => {
+    const { useCases, launchedRequests } = createSubject(createModel(fpDecision));
+
+    await useCases.startLlmTriage({ runId: RUN_ID, clientLimit: 1 });
+    await expect(useCases.startLlmTriage({ runId: RUN_ID, clientLimit: 1 })).rejects.toThrow(ConflictError);
+
+    await useCases.runBackgroundLlmTriage({ runId: RUN_ID, clientIds: null, clientLimit: 1 });
+    await useCases.startLlmTriage({ runId: RUN_ID, clientLimit: 1 });
+
+    expect(launchedRequests).toEqual([
+      { runId: RUN_ID, clientIds: null, clientLimit: 1 },
+      { runId: RUN_ID, clientIds: null, clientLimit: 1 },
+    ]);
   });
 });
