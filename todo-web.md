@@ -106,6 +106,15 @@ Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obo
 - [x] `TransactionEvaluationScreen.tsx`: dlaždice se skóre má `role="img"`, takže se `aria-label` ohlásí.
 - [x] **Názvy předpisů a regulací** v seznamu pravidel (a všude, kde jsou `PolicyLink` a `RegulationLink`): odkazy berou název z levného indexu názvů (`usePolicyNames`, `useRegulationNames`, jeden request `GET /internal-policies` a `GET /regulations` bez verzí) místo celých seznamů, které v live dělaly N+1. ID se ukáže jen během načítání nebo u neznámého názvu.
 
+## Analýza mezer v pravidlech ([spec/rule-gap-hunting.md](spec/rule-gap-hunting.md), iterace 1 lokálně)
+
+Tlačítko „Gap analysis“ / „Analýza mezer v pravidlech“ na stránce Pravidla vidí jen role s `canManageRules` (compliance officer), stránka `/rules/gap-analysis` ostatním rolím ukáže jen hlášku o roli. Služba `ruleReviews` (`features/ruleReviews`) jede na zdroji dat `rules`: live na `GET/POST /api/rule-reviews`, mock vrací report z lokálního běhu (`mocks/seed/ruleReviewReport.json`) a spuštěná analýza v mocku proběhne za 6 s. Běžící analýza se dotazuje každé 2 s.
+
+- [ ] **„Vytvořit verzi z nálezu“ a „Spustit znovu pro tyto klienty“** (iterace 2): do té doby stránka nabízí „Kopírovat ID klientů“ pro rozsah vyhodnocení.
+- [ ] **Stav nálezu** (`open` / `investigating` / `adopted` / `dismissed`) s povinným důvodem: až s úložištěm reportů z iterace 2.
+- [ ] **Nasazení**: souborové úložiště reportů na Lambdě nefunguje (efemérní disk). Před nasazením API s tímto routerem vybrat S3 nebo tabulky, jinak `POST /api/rule-reviews` na nasazeném API selže.
+- [ ] **Vysvětlení Bedrock** (krok 1b): stránka umí vysvětlení, neověřené citace, komentáře a hypotézy zobrazit, backend je zatím nevyplňuje (`RULE_REVIEW_LLM` vypnuté).
+
 ## Chybějící funkce
 
 - [ ] **Audit log** (BE-13): sekce se všemi akcemi (vytvoření, úprava, schválení a zamítnutí pravidla, nová verze, vyhodnocení dávky, rozhodnutí o AML události). U každé akce kdo, kdy, co, proč a verze pravidla. Podle spec je povinný (sekce 7.7 a 8).
