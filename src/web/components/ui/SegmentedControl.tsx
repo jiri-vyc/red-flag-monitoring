@@ -7,6 +7,8 @@ type SegmentedControlProps<TValue extends string> = {
   options: SegmentOption<TValue>[];
   value: TValue;
   onChange: (value: TValue) => void;
+  /** Stretches the control to its container and splits the width evenly between the options. */
+  fullWidth?: boolean;
 };
 
 export function SegmentedControl<TValue extends string>({
@@ -14,9 +16,14 @@ export function SegmentedControl<TValue extends string>({
   options,
   value,
   onChange,
+  fullWidth = false,
 }: SegmentedControlProps<TValue>) {
   return (
-    <div className={styles.control} role="radiogroup" aria-label={label}>
+    <div
+      className={`${styles.control} ${fullWidth ? styles.fullWidth : ""}`}
+      role="radiogroup"
+      aria-label={label}
+    >
       {options.map((option) => (
         <button
           key={option.value}

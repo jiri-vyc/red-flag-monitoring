@@ -131,17 +131,8 @@ export function Sidebar() {
       </nav>
 
       <div className={styles.footer}>
-        <DatabaseStatusPanel />
         {isAnyServiceMocked(apiMode) && <MockDataPanel />}
-        <div className={styles.footerRow}>
-          <span className={styles.footerLabel}>{t.sidebar.dataSource}</span>
-          <SegmentedControl
-            label={t.sidebar.dataSource}
-            options={apiModeOptions}
-            value={apiMode}
-            onChange={changeApiMode}
-          />
-        </div>
+        <CurrentUserPicker />
         <div className={styles.footerRow}>
           <span className={styles.footerLabel}>{t.sidebar.language}</span>
           <SegmentedControl
@@ -149,9 +140,20 @@ export function Sidebar() {
             options={LOCALE_OPTIONS}
             value={locale}
             onChange={changeLocale}
+            fullWidth
           />
         </div>
-        <CurrentUserPicker />
+        <div className={styles.footerRow}>
+          <span className={styles.footerLabel}>{t.sidebar.dataSource}</span>
+          <SegmentedControl
+            label={t.sidebar.dataSource}
+            options={apiModeOptions}
+            value={apiMode}
+            onChange={changeApiMode}
+            fullWidth
+          />
+        </div>
+        <DatabaseStatusPanel />
       </div>
     </aside>
   );

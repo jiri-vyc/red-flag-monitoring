@@ -1,7 +1,6 @@
 .picker {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
@@ -10,23 +9,21 @@
 .avatar {
   display: grid;
   place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 1.8rem;
+  height: 1.8rem;
   border-radius: 50%;
   background: var(--color-primary-soft);
   color: var(--color-primary);
-  flex-shrink: 0;
 }
 
 .avatar svg {
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .fields {
   display: grid;
   gap: var(--space-1);
-  flex: 1;
   min-width: 0;
 }
 
