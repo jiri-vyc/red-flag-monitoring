@@ -202,6 +202,7 @@ export const cs: Dictionary = {
   rules: {
     title: "Pravidla",
     subtitle: "Kontroly vyhodnocované nad transakcemi. Spouštějí se jen schválené verze aktivních pravidel.",
+    backToTransaction: "Zpět na transakci",
     newRule: "Nové pravidlo",
     filterByStatus: "Filtr podle stavu",
     sensitivity: "Citlivost",

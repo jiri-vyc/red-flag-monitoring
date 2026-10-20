@@ -310,7 +310,7 @@ function DraftEditor({ rule, onClose }: { rule: Rule; onClose: () => void }) {
   );
 }
 
-function RuleDetail({ rule }: { rule: Rule }) {
+function RuleDetail({ rule, returnPath }: { rule: Rule; returnPath: string | null }) {
   const { t } = useI18n();
   const [editorMode, setEditorMode] = useState<EditorMode>("none");
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null);
@@ -322,7 +322,11 @@ function RuleDetail({ rule }: { rule: Rule }) {
   return (
     <>
       <PageHeader
-        backLink={{ href: "/rules", label: t.rules.title }}
+        backLink={
+          returnPath === null
+            ? { href: "/rules", label: t.rules.title }
+            : { href: returnPath, label: t.rules.backToTransaction }
+        }
         title={rule.name}
         meta={
           <>
@@ -383,7 +387,10 @@ function RuleDetail({ rule }: { rule: Rule }) {
   );
 }
 
-export function RuleDetailScreen({ ruleId }: { ruleId: string }) {
+// returnPath is a vetted internal path (see lib/returnPath.ts), set when the detail was opened from a transaction.
+export function RuleDetailScreen({ ruleId, returnPath }: { ruleId: string; returnPath: string | null }) {
   const ruleQuery = useRule(ruleId);
-  return <QueryView query={ruleQuery}>{(rule) => <RuleDetail rule={rule} />}</QueryView>;
+  return (
+    <QueryView query={ruleQuery}>{(rule) => <RuleDetail rule={rule} returnPath={returnPath} />}</QueryView>
+  );
 }

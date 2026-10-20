@@ -200,6 +200,7 @@ export const en = {
   rules: {
     title: "Rules",
     subtitle: "Checks evaluated over transactions. Only approved versions of active rules run.",
+    backToTransaction: "Back to transaction",
     newRule: "New rule",
     filterByStatus: "Filter by status",
     sensitivity: "Sensitivity",

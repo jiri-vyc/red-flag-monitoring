@@ -2,6 +2,7 @@
 
 import { ArrowRight, Check, ChevronRight, Circle, CircleSlash, ListChecks, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/ui/KeyValueList";
@@ -9,9 +10,11 @@ import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { findScoreTone, ScoreBar } from "@/components/ui/ScoreBar";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
+import { rulePath } from "@/features/rules/api/dto";
 import { RuleTypeBadge } from "@/features/rules/components/RuleBadges";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatAmount, formatDateTime } from "@/lib/format";
+import { withReturnPath } from "@/lib/returnPath";
 
 import { useTransactionEvaluation } from "../api/hooks";
 import type { RuleEvaluation, TransactionEvaluation } from "../types";
@@ -19,6 +22,12 @@ import { BucketBadge } from "./BucketBadge";
 import styles from "./TransactionEvaluationScreen.module.css";
 import { useCurrentUser } from "@/features/users/api/hooks";
 import { formatMessage } from "@/i18n/dictionaries";
+
+// The rule detail links back to this transaction instead of the rule list.
+function useRuleDetailHref(): (ruleId: string) => string {
+  const pathname = usePathname();
+  return (ruleId) => withReturnPath(rulePath(ruleId), pathname);
+}
 
 function TraceTimeline({ evaluation }: { evaluation: RuleEvaluation }) {
   return (
@@ -87,6 +96,7 @@ const SCORE_TILE_CLASS = {
 
 function FailedRuleCard({ evaluation }: { evaluation: RuleEvaluation }) {
   const { t } = useI18n();
+  const ruleDetailHref = useRuleDetailHref();
   const scoreTileClass = SCORE_TILE_CLASS[findScoreTone(evaluation.adjustedScore)];
   return (
     <article className={`${styles.ruleCard} rf-slide-up`}>
@@ -108,7 +118,7 @@ function FailedRuleCard({ evaluation }: { evaluation: RuleEvaluation }) {
             </span>
           </span>
         </div>
-        <Link href={`/rules/${evaluation.ruleId}`} className={styles.ruleLink}>
+        <Link href={ruleDetailHref(evaluation.ruleId)} className={styles.ruleLink}>
           {t.transactionDetail.openRule}
           <ArrowRight aria-hidden="true" />
         </Link>
@@ -128,6 +138,7 @@ function FailedRuleCard({ evaluation }: { evaluation: RuleEvaluation }) {
 
 function PassedRuleList({ evaluations }: { evaluations: RuleEvaluation[] }) {
   const { t } = useI18n();
+  const ruleDetailHref = useRuleDetailHref();
   return (
     <ul className={styles.ruleRowList}>
       {evaluations.map((evaluation) => {
@@ -145,7 +156,7 @@ function PassedRuleList({ evaluations }: { evaluations: RuleEvaluation[] }) {
                     {t.transactionDetail.adjustedScore} {evaluation.adjustedScore}
                   </small>
                 </span>
-                <Link href={`/rules/${evaluation.ruleId}`} className={styles.inlineRuleLink}>
+                <Link href={ruleDetailHref(evaluation.ruleId)} className={styles.inlineRuleLink}>
                   {t.transactionDetail.openRule}
                   <ArrowRight aria-hidden="true" />
                 </Link>
@@ -168,6 +179,7 @@ function PassedRuleList({ evaluations }: { evaluations: RuleEvaluation[] }) {
 
 function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEvaluation }) {
   const { t, locale } = useI18n();
+  const ruleDetailHref = useRuleDetailHref();
   const { activeRole } = useCurrentUser();
   const { transaction, client } = evaluation;
   return (
@@ -275,7 +287,7 @@ function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEv
             <ul className={styles.ruleRowList}>
               {evaluation.skippedRules.map((skippedRule) => (
                 <li key={skippedRule.ruleId}>
-                  <Link href={`/rules/${skippedRule.ruleId}`} className={styles.skippedRule}>
+                  <Link href={ruleDetailHref(skippedRule.ruleId)} className={styles.skippedRule}>
                     <span className={styles.passedRuleName}>
                       <strong>{skippedRule.ruleName}</strong>
                       <small>{t.transactionDetail.skipReason[skippedRule.reason]}</small>
