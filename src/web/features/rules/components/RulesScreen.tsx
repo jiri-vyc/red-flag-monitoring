@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -128,11 +128,21 @@ export function RulesScreen() {
         title={t.rules.title}
         description={t.rules.subtitle}
         actions={
-          canManageRules &&
-          (canCreateDeterministicRule || canCreateAgenticRule) && (
-            <ButtonLink href="/rules/new" icon={<Plus aria-hidden="true" />}>
-              {t.rules.newRule}
-            </ButtonLink>
+          canManageRules && (
+            <>
+              <ButtonLink
+                href="/rules/gap-analysis"
+                variant="secondary"
+                icon={<ScanSearch aria-hidden="true" />}
+              >
+                {t.rules.gapAnalysis}
+              </ButtonLink>
+              {(canCreateDeterministicRule || canCreateAgenticRule) && (
+                <ButtonLink href="/rules/new" icon={<Plus aria-hidden="true" />}>
+                  {t.rules.newRule}
+                </ButtonLink>
+              )}
+            </>
           )
         }
       />
