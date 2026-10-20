@@ -35,7 +35,7 @@ sequenceDiagram
     W->>DB: claim job (pending → running)
     W->>BR: draft internal policy
     W->>DB: tx: policy + version(draft, wizard) + legal bases, job → succeeded
-    loop every 30 s while any job is pending/running, or on manual refresh
+    loop every 5 s while any job is pending/running, or on manual refresh
         FE->>API: GET /api/drafting-jobs?status=pending,running
     end
     FE->>API: edit policy (new draft version), submit, review(approved)
@@ -152,9 +152,9 @@ Job:
 
 ### Web refresh
 
-A job runs for minutes, up to 15. The web does not need second-level freshness.
+A job runs for minutes, up to 15. The web does not need second-level freshness; 5 s shows a finished draft quickly without loading the API much.
 
-- The list query refetches every **30 s**, and only while at least one listed job is `pending` or `running` (`refetchInterval` as a function, like `useBatch` in `features/batches/api/hooks.ts`). With nothing in flight it stops.
+- The list query refetches every **5 s**, and only while at least one listed job is `pending` or `running` (`refetchInterval` as a function, like `useBatch` in `features/batches/api/hooks.ts`). With nothing in flight it stops.
 - A refresh button next to the list, like `DatabaseStatusPanel`, calls `refetch()` and spins while `isFetching`.
 - The web invalidates the list right after its own `POST` (new job, retry, approval), so the new `pending` row shows without waiting.
 - Refetch on window focus for this query only, so a user coming back after 10 minutes sees the result at once.
@@ -224,5 +224,5 @@ The cutoff of this change is the worker. The Bedrock part plugs in behind one po
    - Two requests to the backend:
      - Return the created entity IDs in a `succeeded` job (`output.policyVersionIds` / `output.ruleIds`), so the web does not have to diff lists.
      - Keep `rulesJob` in the policy review response, so the web can start polling right away.
-   - **Implemented (drafting jobs):** the web polls every 30 s while a job is `pending` or `running`, not every ~2 s, because one step runs for minutes; a refresh button and refetch on window focus cover the rest. The created IDs are in the job as `policyVersions` / `ruleVersions` (with their review status), and the review response keeps `rulesJob`. Step-level progress is not built.
+   - **Implemented (drafting jobs):** the web polls every 5 s while a job is `pending` or `running` (changed from 30 s on 2026-10-20 so a finished draft shows up sooner); a refresh button and refetch on window focus cover the rest. The created IDs are in the job as `policyVersions` / `ruleVersions` (with their review status), and the review response keeps `rulesJob`. Step-level progress is not built.
 5. Placeholder metadata for a URL regulation: good enough, or should the worker derive `code`, `title` and `kind` via Bedrock?
