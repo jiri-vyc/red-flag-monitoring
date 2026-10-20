@@ -41,6 +41,39 @@ Regulation ──AI──▶ Internal policy ──AI──▶ Monitoring rules 
 - **Every rule has a legal basis.** You can follow any alert back through the rule version and the policy to the paragraph of the regulation.
 - **Immutable history.** Regulations, policies and rules are versioned, never overwritten, with author, reviewer and time. Each evaluation run freezes the rule versions and reference lists it used, so past results can be reproduced.
 - **Data stays in AWS.** The models run on Amazon Bedrock in the EU, inside the team's own AWS account. All access uses IAM roles, and no data goes to external AI APIs.
+- **Audit log.** Every change and every AI call is recorded, see [below](#audit-log).
+
+## Audit log
+
+The backend records who did what, when and with which result, for every change of state and every call to the AI model:
+
+- regulations, policies, rules and reference lists: new versions, submission for review, approval or rejection with the reviewer's comment;
+- rules switched on or off, the active version changed, clients added to or removed from a rule's whitelist (a removal keeps the removed entry);
+- evaluation runs: start (scope, the rule versions it froze, a hash of the evaluated transactions), completion, failure;
+- AI drafting jobs and alert triage: the proposal for every alert with its priority factors, guardrails and the model's decision;
+- every Bedrock call: model, tokens, duration and SHA-256 fingerprints of the prompt and the answer. The full prompts and answers are stored in the database next to the drafts and alerts they produced.
+
+**Where it lives.** Amazon CloudWatch Logs in the team's AWS account (`eu-central-1`), log groups `/aws/lambda/web/rfm-api` (API, evaluation runs, triage) and `/aws/lambda/rfm-drafting-worker` (AI drafting), kept for 10 years (AML Act § 16). The account is not public; we show the log live in the demo.
+
+**How to view it.** AWS console → CloudWatch → Logs Insights → Saved queries → **`rfm/audit`** → Run. It lists every event with `action`, `entityType`, `entityId`, `actorId` and `payload`, newest first. Add a line to narrow it, e.g. `| filter entityId = "<alert or rule id>"` or `| filter action like /^rule\./`. From a terminal with access to the account:
+
+```bash
+aws logs filter-log-events --region eu-central-1 --log-group-name /aws/lambda/web/rfm-api --filter-pattern '"[audit]"'
+```
+
+Each event is one line, for example:
+
+```
+[audit] action=rule.version_reviewed entity_type=rule entity_id=040cf2d7-… actor_id=00000000-… payload={"versionId":"4dc519b5-…","decision":"approved","reviewComment":"Thresholds match SVZ-03","escalationRole":null} [/audit]
+```
+
+> **Hackathon shortcut, not the production design.** We record the audit trail in logs to have it working for the demo. A production system would do it differently:
+>
+> - **Atomic.** Here a line is written after the change is committed, so a crash in between can lose it. Production: an append-only audit table written in the same database transaction as the change.
+> - **Real actors.** Here the user comes from the request without login, and some actions (switching a rule on, removing a whitelist entry) record no user at all. Production: every event carries the authenticated user, enforced by the server.
+> - **Real references.** Here users, rules and alerts are plain IDs inside a text line, without referential integrity and not joinable with the data. Production: foreign keys to users and records, queryable together with the decisions they explain.
+> - **Tamper-evident.** CloudWatch does not let anyone edit an event, but anyone with write access can add one, and the retention can be changed. Production: immutable (WORM) storage, restricted access and a retention policy agreed with compliance.
+> - **Complete.** A human's final decision on an alert is not recorded yet; it comes with the alert workflow.
 
 ## Built on AWS
 
