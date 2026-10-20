@@ -40,6 +40,11 @@ Průvodce v live režimu (`features/wizard/api/live.ts`) jde přes asynchronní 
 - [ ] **Časové okno pravidla** v odkazu (`from` / `to`): API ho umí, web ho neposílá. Rozdíl v časové zóně: `occurredAt` přichází jako UTC z lokálního `ts` podle zóny procesu backendu, převod zpět na lokální čas v prohlížeči by nebyl spolehlivý. Navíc okna se liší podle pravidla.
 - [ ] Typ transakce se ukazuje surově (`incoming` v live, `incoming payment` v mocku), stejně jako v detailu transakce.
 
+## Formátovaný text předpisu (issue #12, hotovo)
+
+- **Detail předpisu** (`/policies/[policyId]`) ukazuje schválený text jako Markdown (GFM: nadpisy, seznamy, tabulky, zvýraznění, odkazy, kód) přes `components/ui/MarkdownText.tsx` (`react-markdown` + `remark-gfm`). Surové HTML se nevykresluje a nebezpečné URL (`javascript:`) zahodí výchozí `urlTransform`. Externí odkazy se otevírají v novém okně. Nadpisy z textu začínají na `h3`, aby nekonkurovaly titulku stránky.
+- [ ] Draft předpisu (editor v detailu i krok předpisu v průvodci) je dál textarea se surovým Markdownem, náhled formátovaného textu chybí.
+
 ## Asynchronní schválení a polling (rozhodnutí 2026-10-19, hotovo)
 
 Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obojí přes polling v UI (varianta 1). Schválení předpisu běží přes drafting jobs ([spec/drafting-jobs.md](spec/drafting-jobs.md)), na webu to napojil commit `ad03408`.

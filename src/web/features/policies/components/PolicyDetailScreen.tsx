@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/ui/KeyValueList";
+import { MarkdownText } from "@/components/ui/MarkdownText";
 import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -197,7 +198,7 @@ function PolicyDetail({ policy }: { policy: Policy }) {
             {!canApprovePolicy && <RoleGateNotice requiredRole="compliance_officer" />}
           </>
         ) : (
-          <div className={styles.text}>{policy.text}</div>
+          <MarkdownText>{policy.text}</MarkdownText>
         )}
       </Card>
       <RelatedRules policy={policy} />
