@@ -69,6 +69,9 @@ export async function resumeWizardRun(jobId: string, services: WizardRunServices
   const rulesJobs =
     approvedPolicyIds.length > 0 ? await services.wizard.findRulesJobs(approvedPolicyIds) : [];
   const rulesJobIds = rulesJobs.map((rulesJob) => rulesJob.id);
+  // A run with drafts the user skipped (left as drafts) cannot be told apart from one interrupted mid-approval,
+  // so it reopens the policy step: the approved policies are read-only there and continuing without selecting
+  // any remaining draft goes on to the rules of the approved ones.
   const isEveryPolicyApproved =
     draft.policies.length > 0 && approvedPolicyIds.length === draft.policies.length;
   return isEveryPolicyApproved

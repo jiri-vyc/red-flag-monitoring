@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { fieldStyles } from "@/components/ui/Field";
+import { MarkdownText } from "@/components/ui/MarkdownText";
 import { Notice } from "@/components/ui/Notice";
+import { PolicyTextField } from "@/features/policies/components/PolicyTextField";
 import type { Policy } from "@/features/policies/types";
 import { formatLegalBasisRefs } from "@/features/regulations/types";
 import { formatMessage } from "@/i18n/dictionaries";
@@ -15,17 +17,24 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { useRolePermissions } from "@/features/users/api/hooks";
 import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
+import { canContinueToRules } from "../policySelection";
 import type { PolicyDraftResult } from "../types";
 import styles from "./Wizard.module.css";
 
+export type PolicyDraftSelection = {
+  /** Edited texts by policy id. */
+  policyTexts: Record<string, string>;
+  /** Drafts the user unchecked: they are not approved and stay drafts. */
+  skippedPolicyIds: string[];
+};
+
 type PolicyDraftStepProps = {
   draft: PolicyDraftResult;
-  /** Texts edited before a failed attempt, by policy id. */
-  initialPolicyTexts: Record<string, string>;
+  /** Texts and skipped drafts from before a failed attempt. */
+  initialSelection: PolicyDraftSelection;
   /** Policies approved in an earlier attempt are shown read-only and not approved again. */
   approvedPolicyIds: string[];
-  /** Edited texts by policy id. */
-  onApprove: (policyTexts: Record<string, string>) => void;
+  onApprove: (selection: PolicyDraftSelection) => void;
 };
 
 function PolicyDraftCard({
@@ -33,16 +42,19 @@ function PolicyDraftCard({
   regulationShortName,
   text,
   isApproved,
+  isSkipped,
   onTextChange,
+  onSkippedChange,
 }: {
   policy: Policy;
   regulationShortName: string;
   text: string;
   isApproved: boolean;
+  isSkipped: boolean;
   onTextChange: (text: string) => void;
+  onSkippedChange: (isSkipped: boolean) => void;
 }) {
   const { t } = useI18n();
-  const editorId = `wizard-policy-text-${policy.id}`;
   return (
     <article className={styles.generatedRule}>
       <div className={styles.provenance}>
@@ -59,23 +71,41 @@ function PolicyDraftCard({
         )}
       </div>
       <h3>{policy.name}</h3>
-      <label htmlFor={editorId} className="visually-hidden">
-        {t.policies.text}
-      </label>
-      <textarea
-        id={editorId}
-        className={`${fieldStyles.textarea} ${styles.policyText}`}
-        value={text}
-        readOnly={isApproved}
-        onChange={(event) => onTextChange(event.target.value)}
-      />
+      {isApproved ? (
+        <MarkdownText>{text}</MarkdownText>
+      ) : (
+        <>
+          <div>
+            <label className={fieldStyles.checkboxOption}>
+              <input
+                type="checkbox"
+                checked={!isSkipped}
+                onChange={(event) => onSkippedChange(!event.target.checked)}
+              />
+              {t.wizard.includePolicy}
+              <span className="visually-hidden">: {policy.name}</span>
+            </label>
+          </div>
+          {/* A skipped draft is not saved, so it is read-only; its edits come back when it is checked again. */}
+          {isSkipped ? (
+            <MarkdownText>{text}</MarkdownText>
+          ) : (
+            <PolicyTextField
+              id={`wizard-policy-text-${policy.id}`}
+              value={text}
+              onChange={onTextChange}
+              textAreaClassName={styles.policyText}
+            />
+          )}
+        </>
+      )}
     </article>
   );
 }
 
 export function PolicyDraftStep({
   draft,
-  initialPolicyTexts,
+  initialSelection,
   approvedPolicyIds,
   onApprove,
 }: PolicyDraftStepProps) {
@@ -83,9 +113,15 @@ export function PolicyDraftStep({
   const { canApprovePolicy } = useRolePermissions();
   const [policyTexts, setPolicyTexts] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      draft.policies.map((policy) => [policy.id, initialPolicyTexts[policy.id] ?? policy.text]),
+      draft.policies.map((policy) => [policy.id, initialSelection.policyTexts[policy.id] ?? policy.text]),
     ),
   );
+  const [skippedPolicyIds, setSkippedPolicyIds] = useState(initialSelection.skippedPolicyIds);
+  const canContinue = canContinueToRules(draft.policies, approvedPolicyIds, skippedPolicyIds);
+  const setSkipped = (policyId: string, isSkipped: boolean) =>
+    setSkippedPolicyIds((current) =>
+      isSkipped ? [...current, policyId] : current.filter((skippedId) => skippedId !== policyId),
+    );
   return (
     <Card tone="ai" title={t.wizard.policyDraftTitle}>
       <p className={styles.muted}>
@@ -102,16 +138,32 @@ export function PolicyDraftStep({
             regulationShortName={draft.regulation.shortName}
             text={policyTexts[policy.id] ?? policy.text}
             isApproved={approvedPolicyIds.includes(policy.id)}
+            isSkipped={skippedPolicyIds.includes(policy.id)}
             onTextChange={(text) => setPolicyTexts((current) => ({ ...current, [policy.id]: text }))}
+            onSkippedChange={(isSkipped) => setSkipped(policy.id, isSkipped)}
           />
         ))}
       </div>
       {canApprovePolicy ? (
-        <div>
-          <Button size="lg" icon={<Sparkles aria-hidden="true" />} onClick={() => onApprove(policyTexts)}>
-            {t.wizard.generateRules}
-          </Button>
-        </div>
+        <>
+          <p className={styles.muted}>{t.wizard.skipPolicyHint}</p>
+          <div>
+            <Button
+              size="lg"
+              icon={<Sparkles aria-hidden="true" />}
+              disabled={!canContinue}
+              aria-describedby={canContinue ? undefined : "wizard-no-policy-selected"}
+              onClick={() => onApprove({ policyTexts, skippedPolicyIds })}
+            >
+              {t.wizard.generateRules}
+            </Button>
+          </div>
+          {!canContinue && (
+            <p id="wizard-no-policy-selected" className={styles.muted}>
+              {t.wizard.noPolicySelected}
+            </p>
+          )}
+        </>
       ) : (
         <RoleGateNotice permission="canApprovePolicy" />
       )}

@@ -261,6 +261,18 @@ export const en = {
     viewing: "Viewing",
     olderVersionNote:
       "You are viewing a version of the policy that is not the current one. The current one is version {versionNumber}.",
+    textView: "Policy text view",
+    preview: "Preview",
+    emptyPreview: "The policy text is empty.",
+    compareVersions: "Compare versions",
+    hideComparison: "Hide comparison",
+    compareFrom: "Original version",
+    compareTo: "Changed version",
+    diffTitle: "Changes from v{from} to v{to}",
+    diffSummary: "Lines added: {added} · Lines removed: {removed}",
+    diffIdentical: "The selected versions have the same text.",
+    diffAdded: "Added:",
+    diffRemoved: "Removed:",
   },
   rules: {
     title: "Rules",
@@ -791,6 +803,10 @@ export const en = {
     policyDraftHint:
       "Drafts: {count}. Review and edit them. Approving a policy saves your edits as a new version and generates its rules.",
     generateRules: "Approve policies and generate rules",
+    includePolicy: "Approve this policy",
+    skipPolicyHint:
+      "Unchecked drafts are skipped and stay as drafts. You can edit, approve or delete them later from the policy detail.",
+    noPolicySelected: "Select at least one draft to approve.",
     noRuleDrafts: "No rule drafts were created. A policy without a legal basis yields no rules.",
     reviewTitle: "Review generated rules",
     reviewHint:

@@ -262,6 +262,18 @@ export const cs: Dictionary = {
     reviewComment: "Komentář k posouzení",
     viewing: "Zobrazeno",
     olderVersionNote: "Zobrazujete jinou než aktuální verzi předpisu. Aktuální je verze {versionNumber}.",
+    textView: "Zobrazení textu předpisu",
+    preview: "Náhled",
+    emptyPreview: "Text předpisu je prázdný.",
+    compareVersions: "Porovnat verze",
+    hideComparison: "Skrýt porovnání",
+    compareFrom: "Původní verze",
+    compareTo: "Porovnávaná verze",
+    diffTitle: "Změny z v{from} na v{to}",
+    diffSummary: "Přidané řádky: {added} · Odebrané řádky: {removed}",
+    diffIdentical: "Vybrané verze mají shodný text.",
+    diffAdded: "Přidáno:",
+    diffRemoved: "Odebráno:",
   },
   rules: {
     title: "Pravidla",
@@ -787,6 +799,10 @@ export const cs: Dictionary = {
     policyDraftHint:
       "Počet návrhů: {count}. Zkontrolujte je a upravte. Schválením se úpravy uloží jako nová verze předpisu a vygenerují se jeho pravidla.",
     generateRules: "Schválit předpisy a vygenerovat pravidla",
+    includePolicy: "Schválit tento předpis",
+    skipPolicyHint:
+      "Nezaškrtnuté návrhy se vynechají a zůstanou jako koncepty. Upravit, schválit nebo smazat je můžete později v detailu předpisu.",
+    noPolicySelected: "Vyberte alespoň jeden návrh ke schválení.",
     noRuleDrafts: "Nevznikl žádný návrh pravidla. Z předpisu bez právního základu pravidla nevznikají.",
     reviewTitle: "Schválení vygenerovaných pravidel",
     reviewHint:

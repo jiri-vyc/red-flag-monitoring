@@ -97,6 +97,27 @@ describe("resumeWizardRun", () => {
     expect(run).toMatchObject({ step: "rules", policyJobId: "job-policy", rulesJobIds: ["job-rules"] });
   });
 
+  it("reopens the policy step for a run whose remaining drafts were skipped", async () => {
+    const policyJob = createJob({
+      id: "job-policy",
+      status: "succeeded",
+      policyVersions: [
+        { id: "pv-a", policyId: "policy-a", status: "approved" },
+        { id: "pv-b", policyId: "policy-b", status: "draft" },
+      ],
+    });
+    const { services } = createServices([policyJob, RULES_JOB], { "policy-a": "approved" });
+
+    const run = await resumeWizardRun("job-rules", services);
+
+    expect(run).toMatchObject({
+      step: "policy",
+      policyJobId: "job-policy",
+      approvedPolicyIds: ["policy-a"],
+      rulesJobIds: ["job-rules"],
+    });
+  });
+
   it("does not look for rules jobs while nothing is approved", async () => {
     const { services, findRulesJobs } = createServices([POLICY_JOB], {});
 

@@ -163,6 +163,57 @@ describe("PolicyDetailScreen version history (issue #5)", () => {
     expect(screen.getByText(/The current one is version 1/)).toBeTruthy();
   });
 
+  it("previews the unsaved draft text formatted and keeps it when switching back to editing", () => {
+    renderScreen();
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Text s **tučným** slovem" } });
+    fireEvent.click(screen.getByRole("radio", { name: en.policies.preview }));
+
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByText("tučným").tagName).toBe("STRONG");
+
+    fireEvent.click(screen.getByRole("radio", { name: en.common.edit }));
+
+    expect(screen.getByRole<HTMLTextAreaElement>("textbox").value).toBe("Text s **tučným** slovem");
+  });
+
+  it("compares the texts of two versions line by line", () => {
+    renderScreen({ ...REJECTED_VERSION, text: "Úvod\nPůvodní text předpisu" });
+
+    fireEvent.click(screen.getByRole("button", { name: en.policies.compareVersions }));
+
+    const diff = screen.getByRole("list", { name: "Changes from v1 to v2" });
+    const lines = Array.from(diff.querySelectorAll("li"));
+    expect(lines.map((line) => line.textContent)).toEqual([
+      "−Removed: Úvod",
+      "−Removed: Původní text předpisu",
+      "+Added: Upravený text předpisu",
+    ]);
+    expect(diff.querySelectorAll("del")).toHaveLength(2);
+    expect(diff.querySelector("ins")?.textContent).toBe("Added: Upravený text předpisu");
+
+    fireEvent.change(screen.getByLabelText(en.policies.compareFrom), { target: { value: "2" } });
+
+    expect(screen.getByText(en.policies.diffIdentical)).toBeTruthy();
+  });
+
+  it("offers no comparison for a policy with a single version", () => {
+    jest.mocked(usePolicy).mockReturnValue({
+      data: { ...POLICY, versions: [DRAFT_VERSION] },
+      error: null,
+      isPending: false,
+      isError: false,
+      refetch: jest.fn(),
+    } as unknown as ReturnType<typeof usePolicy>);
+    render(
+      <I18nProvider initialLocale="en">
+        <PolicyDetailScreen policyId="policy-1" />
+      </I18nProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: en.policies.compareVersions })).toBeNull();
+  });
+
   it("shows the reviewer even when the review time is missing", () => {
     renderScreen({ ...REJECTED_VERSION, reviewedAt: null });
 

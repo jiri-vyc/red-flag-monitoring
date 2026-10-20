@@ -35,10 +35,11 @@ import {
   useWizardCapabilities,
   useWizardRun,
 } from "../api/hooks";
+import { findPoliciesToApprove, keepApprovedPolicies } from "../policySelection";
 import type { DraftPoliciesInput, PolicyDraftResult } from "../types";
 import type { WizardRun } from "../wizardRun";
 import { AiProgress } from "./AiProgress";
-import { PolicyDraftStep } from "./PolicyDraftStep";
+import { PolicyDraftStep, type PolicyDraftSelection } from "./PolicyDraftStep";
 import { RuleReviewStep } from "./RuleReviewStep";
 import { SourceStep } from "./SourceStep";
 import styles from "./Wizard.module.css";
@@ -47,8 +48,8 @@ import { WizardStepper, type WizardStep } from "./WizardStepper";
 type WizardState =
   | { step: "source" }
   | { step: "resuming"; jobId: string }
-  /** After a failure the step keeps the approved policies, their rules jobs and the edited texts for a retry. */
-  | (Extract<WizardRun, { step: "policy" }> & { policyTexts: Record<string, string> })
+  /** After a failure the step keeps the approved policies, their rules jobs, the edited texts and skipped drafts for a retry. */
+  | (Extract<WizardRun, { step: "policy" }> & { selection: PolicyDraftSelection })
   | Exclude<WizardRun, { step: "policy" }>
   | { step: "review"; draft: PolicyDraftResult; rules: Rule[]; rulesJobIds: string[] }
   | { step: "done"; draft: PolicyDraftResult; rules: Rule[] };
@@ -125,7 +126,7 @@ function replacePolicy(draft: PolicyDraftResult, updatedPolicy: Policy): PolicyD
 }
 
 function toWizardState(run: WizardRun): WizardState {
-  return run.step === "policy" ? { ...run, policyTexts: {} } : run;
+  return run.step === "policy" ? { ...run, selection: { policyTexts: {}, skippedPolicyIds: [] } } : run;
 }
 
 function ResumingStep({ jobId, onResumed }: { jobId: string; onResumed: (run: WizardRun) => void }) {
@@ -308,18 +309,22 @@ function WizardFlow({
         : current,
     );
 
-  // Saves edited texts as new policy versions, then approves each policy; each approval starts a rules job.
+  // Saves edited texts of the selected drafts as new policy versions, then approves each of them; each approval
+  // starts a rules job. Skipped drafts stay drafts and the following steps see only the approved policies.
   const approvePolicies = async (
     current: Extract<WizardState, { step: "policy" }>,
-    policyTexts: Record<string, string>,
+    selection: PolicyDraftSelection,
   ) => {
+    const { policyTexts, skippedPolicyIds } = selection;
     let draft = current.draft;
     const approvedPolicyIds = [...current.approvedPolicyIds];
     const rulesJobIds = [...current.rulesJobIds];
     setIsApprovingPolicies(true);
     try {
-      for (const policy of current.draft.policies.filter(
-        (candidate) => !approvedPolicyIds.includes(candidate.id),
+      for (const policy of findPoliciesToApprove(
+        current.draft.policies,
+        approvedPolicyIds,
+        skippedPolicyIds,
       )) {
         const text = policyTexts[policy.id] ?? policy.text;
         if (text !== policy.text) {
@@ -331,10 +336,15 @@ function WizardFlow({
           rulesJobIds.push(rulesJob.id);
         }
       }
-      setState({ step: "rules", policyJobId: current.policyJobId, draft, rulesJobIds });
+      setState({
+        step: "rules",
+        policyJobId: current.policyJobId,
+        draft: keepApprovedPolicies(draft, approvedPolicyIds),
+        rulesJobIds,
+      });
     } catch {
       // The failure is rendered from the mutation error state; the progress so far is kept for a retry.
-      setState({ ...current, draft, approvedPolicyIds, rulesJobIds, policyTexts });
+      setState({ ...current, draft, approvedPolicyIds, rulesJobIds, selection });
     } finally {
       setIsApprovingPolicies(false);
     }
@@ -401,9 +411,9 @@ function WizardFlow({
         ) : (
           <PolicyDraftStep
             draft={state.draft}
-            initialPolicyTexts={state.policyTexts}
+            initialSelection={state.selection}
             approvedPolicyIds={state.approvedPolicyIds}
-            onApprove={(policyTexts) => void approvePolicies(state, policyTexts)}
+            onApprove={(selection) => void approvePolicies(state, selection)}
           />
         ))}
 
