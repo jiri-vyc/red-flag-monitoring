@@ -105,9 +105,13 @@ The deployment uses synthetic and organiser-provided data only. The endpoints ar
 
 ## Status
 
-Working end to end on the deployed system: regulation → AI policy draft → human review → AI rule drafts → human approval → evaluation of all active rules → alerts escalated by role.
+Working end to end on the deployed system: regulation → AI policy draft → human review → AI rule drafts → human approval → evaluation of all active rules → alerts escalated by role → triage of every alert.
 
-Next steps: LLM triage of each alert (false positive or needs review) with a written justification and a priority, evaluation of agentic rules, conflict-of-interest checks in escalation, and login with role-based permissions.
+- **Triage and priority.** Every alert gets a priority 0–100 computed from the policy's risk factors (AML risk score, PEP, high-risk country, relationship length, several scenarios on one client, …) and a proposal: false positive or needs review, with a written reason. A rule-based proposal is made for every alert in every run. On request, Claude on Bedrock re-triages a client's alerts together and writes the reason; guardrails keep alerts the policy reserves for a human (PEP, high-risk countries, mandatory-review rules) at "needs review" whatever the model says. The model's prompt, answer, model and tokens are stored with each proposal.
+- **Mandatory CSV.** The API exports one row per alert in the FINREG format (`/api/evaluation-runs/<run id>/aml-events.csv`). The person columns stay empty until escalation to a named person is done.
+- **Audit log.** Every change and every AI call is recorded in CloudWatch, see [Audit log](#audit-log).
+
+Next steps: escalation to a named person and approver with conflict-of-interest checks, alert screens in the web with the human decision and 4-eyes approval, the audit log in the database, evaluation of agentic rules, and login with role-based permissions.
 
 > Compliance note: the output supports AML decisions; it does not make them. Thresholds, escalation logic and the AI-drafted rules need review by a compliance officer before any real use.
 
