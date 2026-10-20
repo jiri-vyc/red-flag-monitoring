@@ -16,6 +16,7 @@ import { type AppConfig, parseAppConfig } from "./config";
 import { type AppUseCases, createApp } from "./delivery/http/createApp";
 import { createDraftingJobUseCases } from "./draftingJobComposition";
 import { createEvaluationRunUseCases } from "./evaluationRunComposition";
+import { createRuleReviewUseCases, parseRuleReviewConfig } from "./ruleReviewComposition";
 import { createDataSource } from "./infrastructure/database/createDataSource";
 import { memoizeInitialization } from "./infrastructure/database/memoizeInitialization";
 import { TypeOrmDatabaseStatusProbe } from "./infrastructure/database/TypeOrmDatabaseStatusProbe";
@@ -67,6 +68,7 @@ function createUseCases(dataSource: DataSource, appConfig: AppConfig): AppUseCas
     databaseStatus: new DatabaseStatusQueries(new TypeOrmDatabaseStatusProbe(dataSource)),
     users: new UserUseCases(new TypeOrmUserRepository(dataSource)),
     transactions: new TransactionQueries(new TypeOrmTransactionRepository(dataSource)),
+    ruleReviews: createRuleReviewUseCases(dataSource, appConfig, parseRuleReviewConfig(process.env)),
   };
 }
 

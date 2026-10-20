@@ -18,7 +18,8 @@
     "migration:create": "sh -c 'npm run typeorm -- migration:create src/infrastructure/database/migrations/\"$0\"'",
     "demo:policy-drafting": "tsx --env-file-if-exists=.env src/delivery/cli/demoPolicyDrafting.ts",
     "demo:hello-world": "tsx --env-file-if-exists=.env src/delivery/cli/demoHelloWorld.ts",
-    "demo:rule-drafting": "tsx --env-file-if-exists=.env src/delivery/cli/demoRuleDrafting.ts"
+    "demo:rule-drafting": "tsx --env-file-if-exists=.env src/delivery/cli/demoRuleDrafting.ts",
+    "rule-review": "tsx --env-file-if-exists=.env src/delivery/cli/ruleReview.ts"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.35.0",

@@ -26,7 +26,8 @@
     "deploy:web": "../deploy/web.sh",
     "demo:policy-drafting": "npm run demo:policy-drafting -w backend --",
     "demo:hello-world": "npm run demo:hello-world -w backend",
-    "demo:rule-drafting": "npm run demo:rule-drafting -w backend --"
+    "demo:rule-drafting": "npm run demo:rule-drafting -w backend --",
+    "rule-review": "npm run rule-review -w backend --"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",
