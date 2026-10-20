@@ -68,11 +68,13 @@ app/ (thin route pages)
 - **Env:** `config/env.client.ts` holds `NEXT_PUBLIC_*` only. `config/env.server.ts` holds `server-only` values (`BACKEND_URL`). Secrets go in Vercel env vars, never in `NEXT_PUBLIC_*`.
 - **Styling:** CSS Modules plus tokens in `app/globals.css`. The UI is light only. The root font size is fluid (`clamp`) so the app is readable on a projector. Runtime dependencies are `lucide-react`, `@tanstack/react-query` and `zod`.
 
-## Hidden in live mode until the API supports it
+## Next-step features
 
-Each section runs either fully live or fully on the mock. What the live API cannot do, the web hides. This is driven by `capabilities` in the service contract (`features/*/api/contract.ts`); the UI reads them through hooks (`useBatchesCapabilities`, `useRulesCapabilities`, `usePoliciesCapabilities`, `useRegulationsCapabilities`, `useWizardCapabilities`), never by mode. The mock has everything `true`. Hidden code stays, and live adapter methods for unsupported operations still throw `unsupported` as a safety net. A section on the mock has a blue dot in the menu. The "Data source: Mock / Live" switch in the menu footer switches the whole web at runtime (remembered in the browser; env sets only the default).
+These features are built in the web and work on the mock data: switch "Data source" in the menu footer to **Mock** to try them. They are the next steps of the product: each one waits only for the backend endpoint in the last column, and the web turns it on in live mode once the endpoint exists.
 
-| Capability | Hidden in live mode | Where | Backend |
+Each section runs either fully live or fully on the mock. What the live API cannot do yet, the web hides in live mode. This is driven by `capabilities` in the service contract (`features/*/api/contract.ts`); the UI reads them through hooks (`useBatchesCapabilities`, `useRulesCapabilities`, `usePoliciesCapabilities`, `useRegulationsCapabilities`, `useWizardCapabilities`, `useFauReportsCapabilities`), never by mode. The mock has everything `true`. Hidden code stays, and live adapter methods for unsupported operations still throw `unsupported` as a safety net. A section on the mock has a blue dot in the menu. The "Data source: Mock / Live" switch in the menu footer switches the whole web at runtime (remembered in the browser; env sets only the default).
+
+| Capability | Feature (on the mock; hidden in live mode) | Where | Backend |
 | --- | --- | --- | --- |
 | `batches.canUploadBatch` | CSV upload (dropzone), "Upload batch" on the dashboard. Batches are only a list of runs. | `features/batches/components/BatchesScreen.tsx`, `features/dashboard/components/DashboardScreen.tsx` | BE-01 (#31) |
 | `wizard.isAvailable` | Visible in live mode. Hidden (dashboard CTA, "Add regulation", "Create rules from this regulation", `/wizard` shows a notice) only when wizard, regulations, policies and rules do not share one data source, e.g. with a `NEXT_PUBLIC_API_MODE_<SVC>` override. | computed in `features/wizard/api/service.ts` | none |

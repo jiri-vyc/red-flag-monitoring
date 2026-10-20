@@ -113,6 +113,8 @@ Working end to end on the deployed system: regulation → AI policy draft → hu
 
 Next steps: escalation to a named person and approver with conflict-of-interest checks, alert screens in the web with the human decision and 4-eyes approval, the audit log in the database, evaluation of agentic rules, and login with role-based permissions.
 
+Already built in the web and working on the mock data (switch "Data source" to Mock), waiting only for their API: editing rule drafts, deleting unapproved rules, policies and regulations, CSV batch upload, and the FAÚ suspicious transaction report draft. See [next-step features](architecture.md#next-step-features).
+
 > Compliance note: the output supports AML decisions; it does not make them. Thresholds, escalation logic and the AI-drafted rules need review by a compliance officer before any real use.
 
 ## Repository
