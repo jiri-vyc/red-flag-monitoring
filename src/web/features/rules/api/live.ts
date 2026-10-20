@@ -351,16 +351,16 @@ function toAlertType(description: string): string {
 
 export const liveRulesService: RulesService = {
   capabilities: {
-    canEditDraftContent: false, // BE-05
-    canCreateDeterministicRule: false, // BE-04
+    canEditDraftContent: false,
+    canCreateDeterministicRule: false,
     canCreateAgenticRule: true,
-    canSuggestWhitelistClients: false, // BE-06
+    canSuggestWhitelistClients: false,
   },
 
   loadRules,
   loadRule,
 
-  // The backend does not generate rule logic (BE-04): the description becomes the prompt of an agentic rule.
+  // The backend does not generate rule logic: the description becomes the prompt of an agentic rule.
   // The deterministic option is hidden in the UI; this check is the safety net.
   async createManualRule({
     description,
@@ -499,7 +499,7 @@ export const liveRulesService: RulesService = {
     return loadRule(ruleId);
   },
 
-  // M17: versions are immutable, the backend has no draft edit (BE-05). Hidden in the UI; this is the safety net.
+  // M17: versions are immutable, the backend has no draft edit. Hidden in the UI; this is the safety net.
   updateDraftContent: () =>
     throwUnsupported(
       "Editing a saved rule version is not supported by the API (versions are immutable). Reject it and create a new version.",

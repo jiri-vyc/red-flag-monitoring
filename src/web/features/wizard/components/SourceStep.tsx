@@ -233,11 +233,6 @@ export function SourceStep({ existingRegulation, capabilities, onSubmit }: Sourc
                 onChange={(event) => updateValues({ url: event.target.value })}
               />
             </Field>
-            {!isSourceSupported && (
-              <Notice tone="info" title={t.wizard.urlUnsupportedTitle}>
-                {t.wizard.urlUnsupportedBody}
-              </Notice>
-            )}
           </>
         )}
         {values.kind === "text" && (
