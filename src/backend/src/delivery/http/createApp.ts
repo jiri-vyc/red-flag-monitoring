@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 
+import type { AlertTriageUseCases } from "../../application/alertTriage/alertTriageUseCases";
 import type { AmlEventQueries } from "../../application/amlEvents/amlEventQueries";
 import type { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
 import type { DraftingJobUseCases } from "../../application/drafting/draftingJobUseCases";
@@ -39,6 +40,7 @@ export type AppUseCases = {
   evaluationRuns: EvaluationRunQueries;
   evaluationRunUseCases: EvaluationRunUseCases;
   amlEvents: AmlEventQueries;
+  alertTriage: AlertTriageUseCases;
   databaseStatus: DatabaseStatusQueries;
   users: UserUseCases;
   transactions: TransactionQueries;
@@ -60,7 +62,12 @@ export function createApp(useCases: AppUseCases, ensureDatabaseReady: EnsureData
   app.use("/api/reference-lists", createReferenceListsRouter(useCases.referenceLists));
   app.use(
     "/api/evaluation-runs",
-    createEvaluationRunsRouter(useCases.evaluationRuns, useCases.evaluationRunUseCases, useCases.amlEvents),
+    createEvaluationRunsRouter(
+      useCases.evaluationRuns,
+      useCases.evaluationRunUseCases,
+      useCases.amlEvents,
+      useCases.alertTriage,
+    ),
   );
   app.use("/api/aml-events", createAmlEventsRouter(useCases.amlEvents));
   app.use("/api/database-status", createDatabaseStatusRouter(useCases.databaseStatus));

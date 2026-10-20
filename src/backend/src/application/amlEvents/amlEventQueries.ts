@@ -1,6 +1,7 @@
 import type { EvaluationRunReadRepository } from "../evaluationRuns/evaluationRunReadRepository";
 import { NotFoundError } from "../errors";
 import type { Page, PageRequest } from "../pagination";
+import { formatAmlEventsCsv } from "./amlEventCsv";
 import type { AmlEventDetail, AmlEventFilter, AmlEventListItem } from "./amlEventReadModels";
 import type { AmlEventReadRepository } from "./amlEventReadRepository";
 
@@ -18,6 +19,14 @@ export class AmlEventQueries {
     }
 
     return this.dependencies.amlEventReadRepository.listAmlEvents(filter, page);
+  }
+
+  async exportRunAmlEventsCsv(runId: string): Promise<string> {
+    if (!(await this.dependencies.evaluationRunReadRepository.hasRun(runId))) {
+      throw new NotFoundError("Evaluation run", runId);
+    }
+
+    return formatAmlEventsCsv(await this.dependencies.amlEventReadRepository.listRunCsvRows(runId));
   }
 
   async getAmlEventDetail(amlEventId: string): Promise<AmlEventDetail> {

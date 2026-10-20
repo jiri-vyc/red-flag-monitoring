@@ -1,5 +1,6 @@
 import type { DataSource } from "typeorm";
 
+import { createAlertTriageUseCases } from "./alertTriageComposition";
 import { systemClock } from "./application/clock";
 import { EvaluationRunExecutor } from "./application/evaluationRuns/evaluationRunExecutor";
 import type { EvaluationRunLauncher } from "./application/evaluationRuns/evaluationRunPorts";
@@ -17,6 +18,7 @@ export function createEvaluationRunExecutor(dataSource: DataSource): EvaluationR
     evaluationInputRepository: new TypeOrmEvaluationInputRepository(dataSource),
     evaluationRunRepository: new TypeOrmEvaluationRunRepository(dataSource),
     amlEventRepository: new TypeOrmAmlEventRepository(dataSource),
+    ruleBasedTriage: createAlertTriageUseCases(dataSource, { mode: "off" }),
     clock: systemClock,
   });
 }

@@ -1,8 +1,8 @@
 # Datový model
 
-- **Verze:** 0.4, 2026-10-19
-- **Rozsah:** regulace, interní předpisy, pravidla, referenční seznamy, whitelist, nahrání CSV s transakcemi, vyhodnocovací běh, výsledky pravidel a trace až k regulaci, AML události (alerty) z výsledků běhu (issue #13). Model zpřesňuje [sekce 3 a 5 specifikace](spec.md#3-doménový-model).
-- **Mimo rozsah:** triage (`FP` / `REVIEW`), eskalace, lidské review, export povinného CSV a audit log. MVP končí zobrazením výsledku běhu.
+- **Verze:** 0.5, 2026-10-20
+- **Rozsah:** regulace, interní předpisy, pravidla, referenční seznamy, whitelist, nahrání CSV s transakcemi, vyhodnocovací běh, výsledky pravidel a trace až k regulaci, AML události (alerty) z výsledků běhu (issue #13), návrh triáže `FP` / `REVIEW`, priorita 0–100 a odůvodnění alertu (issue #14). Model zpřesňuje [sekce 3 a 5 specifikace](spec.md#3-doménový-model).
+- **Mimo rozsah:** eskalace, odpovědná osoba, lidské rozhodnutí o alertu a audit log. MVP končí zobrazením výsledku běhu.
 - **Cíl:** MVP pro demo na hackathonu. Model je záměrně jednoduchý. Co chybí kvůli reálnému nasazení, uvádí [sekce Compliance poznámky](#compliance-poznámky).
 
 ## Konvence
@@ -49,6 +49,8 @@ erDiagram
     CLIENT ||--o{ AML_EVENT : "týká se"
     TRANSACTION |o--o{ AML_EVENT : "alert na transakci"
     AML_EVENT ||--|{ AML_EVENT_HIT : "vznikl ze zásahů"
+    AML_EVENT ||--o{ AML_EVENT_TRIAGE : "návrhy triáže"
+    ALERT_TRIAGE_LLM_CALL ||--|{ AML_EVENT_TRIAGE : "jedno volání na klienta"
     RULE_EVALUATION ||--o| AML_EVENT_HIT : "patří do alertu"
 
     REGULATION {
@@ -223,6 +225,31 @@ erDiagram
         uuid aml_event_id FK
         uuid rule_evaluation_id FK "unikátní"
     }
+    AML_EVENT_TRIAGE {
+        uuid id PK
+        uuid aml_event_id FK
+        enum source "rules, llm"
+        enum triage "FP, REVIEW"
+        int priority "0–100"
+        jsonb priority_factors "rozpad podle tabulky P"
+        text reason
+        jsonb log "záznam rozhodnutí do CSV"
+        uuid llm_call_id FK "jen u llm"
+        timestamp created_at
+    }
+    ALERT_TRIAGE_LLM_CALL {
+        uuid id PK
+        uuid run_id FK
+        string client_id FK
+        string model_id
+        text system_prompt
+        text user_prompt
+        jsonb response "odpověď Bedrocku beze změny"
+        int input_tokens
+        int output_tokens
+        int duration_ms
+        timestamp created_at
+    }
     FX_RATE {
         string currency PK
         date rate_date PK
@@ -245,7 +272,7 @@ erDiagram
 
 Stav verze (`status`) u předpisu i pravidla nabývá hodnot `draft`, `pending_review`, `approved`, `rejected`, `superseded`.
 
-Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVALUATION (transaction_evaluation_id, rule_version_id)`, `AML_EVENT (run_id, alert_id)`, `AML_EVENT_HIT (rule_evaluation_id)`.
+Unikátní klíče: `TRANSACTION_EVALUATION (run_id, transaction_id)`, `RULE_EVALUATION (transaction_evaluation_id, rule_version_id)`, `AML_EVENT (run_id, alert_id)`, `AML_EVENT_HIT (rule_evaluation_id)`, `AML_EVENT_TRIAGE (aml_event_id, source)`.
 
 ## Část A: pravidla
 
@@ -393,6 +420,10 @@ Cesta pokračuje přes `rule_versions.derived_from_policy_version_id` na verzi i
 | V18 | Po vyhodnocení všech transakcí běh seskupí své zásahy (`outcome = hit`) do **AML událostí** (`AML_EVENT`) podle `rules.alert_granularity`: `transaction` = jedna událost na transakci, `client_month` = jedna na klienta a kalendářní měsíc (`ts` bez převodu pásma, F2). Každý zásah patří právě do jedné události (`AML_EVENT_HIT`). Běh je `completed` až po uložení událostí; selhání událostí běh ukončí jako `failed`. | Issue #13, otázka 5 ve spec. Zadání FINREG hodnotí alerty, ne zásahy. Měsíc odpovídá SVZ-03 čl. 6.1 a nemění nic na datech za červenec 2026. |
 | V19 | Granularita je **na pravidle**, ne na verzi, a do události se kopíruje spolu s `alert_type`. Výchozí je `transaction`, drafty z wizardu ji dědí. Ukázková pravidla: `client_month` R-01, R-04 až R-14; `transaction` R-02, R-03, R-15 až R-17. R-07 (klient × příjemce × měsíc) a R-09 (účet příjemce × den) se seskupují per klient a měsíc. | Granularita nemění detekci, jen seskupení. Snapshot v události drží běh rekonstruovatelný (V14). Událost patří vždy jednomu klientovi, kterého jde prověřit; všechny příjemce vidí v zásazích. |
 | V20 | `alert_id` je čitelné a unikátní v běhu: `<kód pravidla>-<transaction_id>` nebo `<kód pravidla>-<client_id>-<YYYY-MM>`. Události z více pravidel u stejného klienta zůstávají samostatné; detail události je propojí (`otherClientAmlEvents`, SVZ-03 čl. 6.3). | ID jde do povinného CSV a je z něj vidět pravidlo, klient i období. Spojení do jednoho „příběhu klienta“ patří do triáže (#14). |
+| V21 | Každý alert dostane po vyhodnocení běhu **deterministický návrh** (`AML_EVENT_TRIAGE.source = rules`): prioritu podle tabulky P (SVZ-03 Příloha 1, základy pravidel z SVZ-06) s rozpadem po faktorech, triáž a odůvodnění. Při více alertech klienta v měsíci se bere nejvyšší základ a +10 za každý další scénář. `REVIEW`, když platí pojistka (V23) nebo objem měsíce přesáhne 2× očekávaný měsíc (max z projekce a průměru Q2 2026); jinak `FP`. Priorita triáž nerozhoduje. | Issue #14. Povinné CSV má vždy všechny řádky, i bez LLM. Váhy jsou v kódu (`domain/alertTriage.ts`), vysvětlitelné a stejné pro každý běh. |
+| V22 | **LLM návrh** (`source = llm`, Claude na Bedrocku, výchozí Haiku 4.5 v EU profilu) vzniká na vyžádání, jedno volání na klienta se všemi jeho alerty v běhu. Model vidí profil klienta, Q2 a měsíční agregáty, předpočítanou prioritu s faktory, deterministický návrh a nejvýš 5 největších zásahových transakcí na alert, ne celou historii. Rozhoduje `FP` / `REVIEW` a píše `reason`; prioritu nemění. Ukládá se prompt, odpověď, model a tokeny (`ALERT_TRIAGE_LLM_CALL`). Aktuální návrh je LLM, jinak deterministický. | SVZ-03 čl. 8.3, „see the whole story“. Rekonstruovatelnost podle vyhlášky 67/2018 § 18. Celý běh je ~5,5 tis. volání; triáž jde dávkovat (`clientLimit`) a opakované spuštění přeskočí hotové klienty. |
+| V23 | **Pojistky:** alert pravidel R-02 až R-05, R-09, R-16, alert klienta PEP a alert se zemí z `HRJ` (klient, plátce nebo příjemce zásahu) je vždy `REVIEW`. `FP` od modelu se u nich přepíše na `REVIEW` a `log.overridden_by_guardrail` to zaznamená. | SVZ-03 čl. 8.4 a 8.6, SVZ-06 čl. 17. Model nesmí sám uzavřít alert, který předpis vyhrazuje člověku. |
+| V24 | Návrhy jsou neměnné: alert má nejvýš jeden návrh od každého zdroje, opakovaná triáž stejného zdroje se přeskočí. `log` v CSV je JSON: čas, pravidlo a jeho verze, priorita a faktory, pojistky, model a tokeny, ID volání LLM, `decision_aid_only: true`. | Rozhodnutí jde zpětně rekonstruovat. Lidské rozhodnutí a eskalace přijdou s #15 a #17. |
 
 ### Obrazovky
 
@@ -402,8 +433,9 @@ Cesta pokračuje přes `rule_versions.derived_from_policy_version_id` na verzi i
 | Souhrn běhu | Počty transakcí podle `verdict`. Počet `hit` per pravidlo. Odmítnuté řádky z `import_errors`. Zafixované verze pravidel a seznamů. |
 | Seznam transakcí běhu | `TRANSACTION_EVALUATION` s filtrem podle `verdict` a pravidla, řazení podle `max_score`. |
 | Detail transakce | Transakce, klient, všechna pravidla s `outcome`, skóre, `trace.summary`, podmínkami, právním základem a odkazem na předpis. |
-| Seznam AML událostí běhu (#17) | `AML_EVENT` s filtrem podle `alert_type` a klienta, řazení podle `max_score`. |
-| Detail AML události (#17) | Událost, pravidlo a jeho verze, klient, spouštějící transakce s výsledkem pravidla a ostatní události klienta v běhu. |
+| Seznam AML událostí běhu (#17) | `AML_EVENT` s aktuálním návrhem triáže, filtr podle `alert_type` a klienta, řazení podle priority, pak `max_score`. |
+| Detail AML události (#17) | Událost, pravidlo a jeho verze, klient, spouštějící transakce s výsledkem pravidla, ostatní události klienta v běhu s triáží, všechny návrhy triáže s faktory a logem a volání LLM (prompt, odpověď, model, tokeny). |
+| Export CSV | Jeden řádek na alert ve sloupcích FINREG; `executive_role`, `executive_person` a `approver` zatím prázdné (#15). |
 
 ## Compliance poznámky
 
@@ -419,7 +451,9 @@ Před reálným nasazením je musí zkontrolovat compliance officer nebo právn�
 
 ### Vyhodnocení
 
-- **AML událost je podklad, ne AML rozhodnutí.** Triáž, priorita a rozhodnutí člověka přijdou s #14 a #17.
+- **AML událost i návrh triáže jsou podklad, ne AML rozhodnutí.** Rozhodnutí člověka přijde s #17. Pravidla pro návrh `FP` (V21), pojistky (V23), váhy priority (tabulka P) a prompt i model (V22) musí posoudit compliance officer. Hromadné uzavírání `FP` pod prioritou 40 (SVZ-03 čl. 8.3 bod 5) systém nedělá.
+- **Triáž počítá s CZK po přepočtu kurzem ČNB**, stejně jako pravidla. V PoC datech se `volume` chová jako CZK, proto přepočet nafukuje měsíční objemy a většina alertů R-01 vychází jako `REVIEW`. Rozhodnutí o přepočtu (spec/features.md, sekce 4) mění i triáž.
+- **Faktor „vztah delší než 5 let bez předchozího alertu“ (SVZ-06 čl. 16, −10)** chybí: data nemají historii alertů.
 - **Granularita AML událostí** (V18, V19) určuje, kolik alertů člověk dostane. R-07 a R-09 seskupujeme jinak než v příkladech pravidel (per klient a měsíc místo klient × příjemce, resp. účet příjemce × den). Granularita je na pravidle bez schvalování a změna platí pro další běhy. Obojí musí posoudit compliance.
 - **Transakce s `verdict = error` AML událost nevytváří.** Musí jít k člověku jinou cestou.
 - **`hit_threshold` na běhu** mění výsledek detekce. Uživatel ho může zvýšit a potlačit zásahy. Reálný provoz potřebuje schválenou hodnotu, ne volbu při spuštění.

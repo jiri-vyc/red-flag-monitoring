@@ -178,10 +178,17 @@ function createSubject(launcher?: EvaluationRunLauncher) {
   const evaluationInputRepository = new FakeEvaluationInputRepository();
   const evaluationRunRepository = new InMemoryEvaluationRunRepository();
   const amlEventRepository = new InMemoryAmlEventRepository(evaluationRunRepository);
+  const triagedRunIds: string[] = [];
   const executor = new EvaluationRunExecutor({
     evaluationInputRepository,
     evaluationRunRepository,
     amlEventRepository,
+    ruleBasedTriage: {
+      triageRunWithRules: (runId) => {
+        triagedRunIds.push(runId);
+        return Promise.resolve();
+      },
+    },
     clock: fixedClock,
   });
   const useCases = new EvaluationRunUseCases({
@@ -192,7 +199,14 @@ function createSubject(launcher?: EvaluationRunLauncher) {
     engineVersion: "test",
   });
 
-  return { evaluationInputRepository, evaluationRunRepository, amlEventRepository, executor, useCases };
+  return {
+    evaluationInputRepository,
+    evaluationRunRepository,
+    amlEventRepository,
+    executor,
+    useCases,
+    triagedRunIds,
+  };
 }
 
 const START_COMMAND = { scope: UNLIMITED_RUN_SCOPE, hitThreshold: 50, createdBy: ADMIN_ID };
@@ -270,6 +284,15 @@ describe("EvaluationRunExecutor.executeRun", () => {
     expect(amlEventRepository.createdAmlEvents).toMatchObject([
       { alertId: `R-LARGE-${LARGE_PAYMENT_ID}`, transactionId: LARGE_PAYMENT_ID, maxScore: 80 },
     ]);
+  });
+
+  it("proposes the rule-based triage of the run's AML events", async () => {
+    const { useCases, executor, triagedRunIds } = createSubject();
+    const run = await useCases.startRun(START_COMMAND);
+
+    await executor.executeRun(run.id);
+
+    expect(triagedRunIds).toEqual([run.id]);
   });
 
   it("fails the run when its AML events cannot be stored", async () => {

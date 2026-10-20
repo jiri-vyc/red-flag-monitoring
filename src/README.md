@@ -81,8 +81,8 @@ There is no auth yet (M12 in `spec/datovy-model.md`). Calls that create or revie
 | `/transactions`      | `GET /?clientId=&from=&to=&limit=&offset=`: transactions newest first; `clientId` must match `K000123`, `from` / `to` are local timestamps (from inclusive, to exclusive), invalid values return 400 (issue #9) |
 | `/reference-lists`   | `POST /`, `GET /`, `GET /:id`, `POST /:id/versions` (with `items`), `GET /:id/versions`, `GET /:id/versions/:versionId`                                                                               |
 | `/drafting-jobs`     | `POST /` (start, see below), `GET /?status=&kind=&regulationId=&policyVersionId=&limit=&offset=`, `GET /:jobId`, `POST /:jobId/retry`                                                                 |
-| `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&role=&limit=&offset=`, `GET /:runId/transactions/:transactionId?role=` (detail with trace), `GET /:runId/aml-events?alertType=&clientId=&limit=&offset=` (alerts, highest `maxScore` first) |
-| `/aml-events`        | `GET /:id`: an alert with its rule and version, the client, the triggering transactions with their rule result, and the client's other alerts in the run (issue #13)                                   |
+| `/evaluation-runs`   | `POST /` (start a run, see below), `GET /`, `GET /:runId` (summary), `GET /:runId/transactions?verdict=&ruleVersionId=&role=&limit=&offset=`, `GET /:runId/transactions/:transactionId?role=` (detail with trace), `GET /:runId/aml-events?alertType=&clientId=&limit=&offset=` (alerts with their current `triage`, highest priority first), `GET /:runId/aml-events.csv` (mandatory FINREG CSV), `POST /:runId/triage` (see below) |
+| `/aml-events`        | `GET /:id`: an alert with its rule and version, the client, the triggering transactions with their rule result, the client's other alerts in the run (issue #13), the current `triage`, every proposal in `triageHistory` (priority factors, log) and the `triageLlmCall` behind the model's proposal (issue #14)                                   |
 | `/database-status`   | `GET /`: the connected database (`current_database()`, `version()`, `aurora_version()` or `null`, server address and time, latest migration, `clients` count)                                         |
 
 ### Evaluation runs
@@ -123,6 +123,13 @@ The LLM steps of the wizard run as jobs, because one step can take minutes (desi
   "createdBy": "00000000-0000-4000-8000-000000000001"
 }
 ```
+
+### Alert triage (issue #14)
+
+- Every completed run stores a rule-based proposal per alert: priority 0–100 from table P of SVZ-03 with its factors, `FP` / `REVIEW` and a reason. For a run created before #14, `POST /api/evaluation-runs/:runId/triage {"source":"rules"}` fills them in.
+- `POST /api/evaluation-runs/:runId/triage` with `{"clientIds":["K000001"]}` (up to 20 clients) asks Claude on Bedrock within the request and returns `{ triagedClients, failedClients, skippedClients }`. Without `clientIds`, or with more, it returns `202` and triages in the background, highest priority first, at most `clientLimit` clients. Clients the model already triaged are skipped, so the same request continues an interrupted triage.
+- Env: `ALERT_TRIAGE=bedrock` turns the model on (default `off`), `TRIAGE_MODEL_ID` (default `eu.anthropic.claude-haiku-4-5-20251001-v1:0`), `TRIAGE_CONCURRENCY` (parallel calls, default 8). Bedrock auth and region as for drafting. One client takes ~7–10 s and ~3–4k input tokens; the whole PoC run is ~5.5k clients.
+- The background triage runs in the API process. On the deployed Lambda Web Function the environment can stop mid-way; repeat the request to continue.
 
 - `source` is `{ "kind": "text" | "markdown", "content" }` or `{ "kind": "url", "url" }`. A URL must be `https` on an allowed host (EUR-Lex, e-Sbírka, zakonyprolidi.cz, ČNB, FATF); the worker fetches it, converts HTML to text and stores it as a regulation version.
 - `regulation` is `{ "id" }`, new regulation metadata, or omitted for a URL: the worker then reuses the regulation with that `sourceUrl` or creates one with placeholder metadata (code `URL-<host>-<hash>`, the page title, kind `guidance`). `versionLabel`, `scope` and `createdBy` are optional.

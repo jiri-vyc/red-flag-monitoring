@@ -5,6 +5,7 @@ import { DEFAULT_HIT_THRESHOLD, VERDICTS } from "../../domain/evaluation";
 import { ESCALATION_ROLES } from "../../domain/rule";
 import { MAX_SCORE, MIN_SCORE } from "../../domain/score";
 import { DEMO_ADMIN_USER_ID } from "../../domain/user";
+import type { AlertTriageUseCases } from "../../application/alertTriage/alertTriageUseCases";
 import type { AmlEventQueries } from "../../application/amlEvents/amlEventQueries";
 import type { EvaluationRunQueries } from "../../application/evaluationRuns/evaluationRunQueries";
 import type { EvaluationRunUseCases } from "../../application/evaluationRuns/evaluationRunUseCases";
@@ -70,11 +71,29 @@ const amlEventListQuerySchema = pageQuerySchema.extend({
     .transform((value) => value ?? null),
 });
 
+const MAX_SYNC_TRIAGE_CLIENTS = 20;
+
+const triageBodySchema = z.object({
+  source: z.enum(["rules", "llm"]).default("llm"),
+  clientIds: z
+    .array(z.string().regex(CLIENT_ID_PATTERN))
+    .min(1)
+    .nullish()
+    .transform((value) => value ?? null),
+  clientLimit: z
+    .number()
+    .int()
+    .positive()
+    .nullish()
+    .transform((value) => value ?? null),
+});
+
 // Runs are immutable (V14): the API starts a run and reads its results, it never edits them.
 export function createEvaluationRunsRouter(
   evaluationRunQueries: EvaluationRunQueries,
   evaluationRunUseCases: EvaluationRunUseCases,
   amlEventQueries: AmlEventQueries,
+  alertTriageUseCases: AlertTriageUseCases,
 ): Router {
   const router = Router();
 
@@ -117,6 +136,36 @@ export function createEvaluationRunsRouter(
     const { alertType, clientId, limit, offset } = parseRequest(amlEventListQuerySchema, request.query);
 
     response.json(await amlEventQueries.listRunAmlEvents({ runId, alertType, clientId }, { limit, offset }));
+  });
+
+  // `rules` fills in the deterministic proposals of a run created before #14.
+  router.post("/:runId/triage", async (request, response) => {
+    const { runId } = parseRequest(runParamsSchema, request.params);
+    const { source, clientIds, clientLimit } = parseRequest(triageBodySchema, request.body ?? {});
+
+    if (source === "rules") {
+      response.json({ triagedAlerts: await alertTriageUseCases.retriageRunWithRules(runId) });
+      return;
+    }
+
+    const triageRequest = { runId, clientIds, clientLimit };
+
+    if (clientIds && clientIds.length <= MAX_SYNC_TRIAGE_CLIENTS) {
+      response.json(await alertTriageUseCases.triageClientsWithLlmNow(triageRequest));
+      return;
+    }
+
+    await alertTriageUseCases.startLlmTriage(triageRequest);
+    response.status(202).json({ status: "started" });
+  });
+
+  router.get("/:runId/aml-events.csv", async (request, response) => {
+    const { runId } = parseRequest(runParamsSchema, request.params);
+
+    response
+      .type("text/csv")
+      .attachment(`aml-events-${runId}.csv`)
+      .send(await amlEventQueries.exportRunAmlEventsCsv(runId));
   });
 
   router.get("/:runId/transactions/:transactionId", async (request, response) => {
