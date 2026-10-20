@@ -1,0 +1,936 @@
+{
+  "ruleVersions": [
+    {
+      "ruleVersionId": "rule-version-R-01",
+      "ruleId": "rule-R-01",
+      "ruleCode": "R-01",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "any",
+        "features": [
+          "day_volume_czk",
+          "client_projected_monthly_volume_czk",
+          "client_q2_daily_avg_volume_czk",
+          "tx_amount_czk",
+          "client_q2_max_tx_czk"
+        ],
+        "conditions": [
+          {
+            "id": "a",
+            "op": ">",
+            "left": {
+              "feature": "day_volume_czk"
+            },
+            "label": "Denní objem > 0,25 × očekávaný měsíční objem",
+            "right": {
+              "expr": "0.25 × client_projected_monthly_volume_czk"
+            }
+          },
+          {
+            "id": "b",
+            "op": ">",
+            "left": {
+              "feature": "day_volume_czk"
+            },
+            "label": "Denní objem > 3 × průměrný denní objem za 2Q2026",
+            "right": {
+              "expr": "3 × client_q2_daily_avg_volume_czk"
+            }
+          },
+          {
+            "id": "c",
+            "op": ">",
+            "left": {
+              "feature": "tx_amount_czk"
+            },
+            "label": "Transakce > 2 × největší transakce za 2Q2026",
+            "right": {
+              "expr": "2 × client_q2_max_tx_czk"
+            }
+          }
+        ]
+      },
+      "baseScore": 58,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-02",
+      "ruleId": "rule-R-02",
+      "ruleCode": "R-02",
+      "isWhitelistAllowed": false,
+      "definition": {
+        "match": "all",
+        "features": ["tx_amount_czk", "tx_payer_country", "tx_payee_country", "client_country"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": ">",
+            "left": {
+              "feature": "tx_amount_czk"
+            },
+            "label": "Částka > 10 000 CZK",
+            "right": {
+              "value": 10000
+            }
+          },
+          {
+            "id": "b",
+            "label": "Plátce, příjemce nebo klient z HRJ",
+            "match": "any",
+            "conditions": [
+              {
+                "id": "b1",
+                "op": "in",
+                "left": {
+                  "feature": "tx_payer_country"
+                },
+                "label": "Země plátce je v HRJ",
+                "right": {
+                  "list": "HRJ"
+                }
+              },
+              {
+                "id": "b2",
+                "op": "in",
+                "left": {
+                  "feature": "tx_payee_country"
+                },
+                "label": "Země příjemce je v HRJ",
+                "right": {
+                  "list": "HRJ"
+                }
+              },
+              {
+                "id": "b3",
+                "op": "in",
+                "left": {
+                  "feature": "client_country"
+                },
+                "label": "Země klienta je v HRJ",
+                "right": {
+                  "list": "HRJ"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "baseScore": 80,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-03",
+      "ruleId": "rule-R-03",
+      "ruleCode": "R-03",
+      "isWhitelistAllowed": false,
+      "definition": {
+        "match": "all",
+        "features": ["client_is_pep", "tx_is_outgoing", "tx_amount_czk"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": "=",
+            "left": {
+              "feature": "client_is_pep"
+            },
+            "label": "Klient je PEP",
+            "right": {
+              "value": true
+            }
+          },
+          {
+            "id": "b",
+            "op": "=",
+            "left": {
+              "feature": "tx_is_outgoing"
+            },
+            "label": "Transakce je odchozí",
+            "right": {
+              "value": true
+            }
+          },
+          {
+            "id": "c",
+            "op": ">",
+            "left": {
+              "feature": "tx_amount_czk"
+            },
+            "label": "Částka > 100 000 CZK",
+            "right": {
+              "value": 100000
+            }
+          }
+        ]
+      },
+      "baseScore": 80,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-04",
+      "ruleId": "rule-R-04",
+      "ruleCode": "R-04",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["passthrough_in_24h_czk", "passthrough_out_6h_czk", "passthrough_ratio"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": ">=",
+            "left": {
+              "feature": "passthrough_ratio"
+            },
+            "label": "Odesláno ≥ 80 % přijaté částky",
+            "right": {
+              "value": 0.8
+            }
+          }
+        ]
+      },
+      "baseScore": 78,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-05",
+      "ruleId": "rule-R-05",
+      "ruleCode": "R-05",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": [
+          "client_contract_channel",
+          "client_tenure_months_at_month_start",
+          "month_volume_czk",
+          "client_projected_monthly_volume_czk"
+        ],
+        "conditions": [
+          {
+            "id": "a",
+            "op": "=",
+            "left": {
+              "feature": "client_contract_channel"
+            },
+            "label": "Smlouva uzavřena na dálku",
+            "right": {
+              "value": "distant"
+            }
+          },
+          {
+            "id": "b",
+            "op": "<",
+            "left": {
+              "feature": "client_tenure_months_at_month_start"
+            },
+            "label": "Vztah k začátku měsíce < 6 měsíců",
+            "right": {
+              "value": 6
+            }
+          },
+          {
+            "id": "c",
+            "op": ">",
+            "left": {
+              "feature": "month_volume_czk"
+            },
+            "label": "Měsíční objem > 3 × očekávaný měsíční objem",
+            "right": {
+              "expr": "3 × client_projected_monthly_volume_czk"
+            }
+          }
+        ]
+      },
+      "baseScore": 68,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-06",
+      "ruleId": "rule-R-06",
+      "ruleCode": "R-06",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["tx_type", "day_distinct_payer_accounts"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": "=",
+            "left": {
+              "feature": "tx_type"
+            },
+            "label": "Příchozí platba",
+            "right": {
+              "value": "incoming"
+            }
+          },
+          {
+            "id": "b",
+            "op": ">=",
+            "left": {
+              "feature": "day_distinct_payer_accounts"
+            },
+            "label": "Aspoň 7 různých účtů plátců za den",
+            "right": {
+              "value": 7
+            }
+          }
+        ]
+      },
+      "baseScore": 68,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-07",
+      "ruleId": "rule-R-07",
+      "ruleCode": "R-07",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["payee_small_out_count_7d", "payee_small_out_sum_7d_czk"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": ">=",
+            "left": {
+              "feature": "payee_small_out_count_7d"
+            },
+            "label": "Aspoň 3 malé platby stejnému příjemci za 7 dní",
+            "right": {
+              "value": 3
+            }
+          },
+          {
+            "id": "b",
+            "op": ">=",
+            "left": {
+              "feature": "payee_small_out_sum_7d_czk"
+            },
+            "label": "Součet malých plateb ≥ 25 000 CZK",
+            "right": {
+              "value": 25000
+            }
+          }
+        ]
+      },
+      "baseScore": 70,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-08",
+      "ruleId": "rule-R-08",
+      "ruleCode": "R-08",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["near_limit_tx_count_7d"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": ">=",
+            "left": {
+              "feature": "near_limit_tx_count_7d"
+            },
+            "label": "Aspoň 3 transakce těsně pod limitem za 7 dní",
+            "right": {
+              "value": 3
+            }
+          }
+        ]
+      },
+      "baseScore": 65,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-09",
+      "ruleId": "rule-R-09",
+      "ruleCode": "R-09",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["payee_day_distinct_clients"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": ">=",
+            "left": {
+              "feature": "payee_day_distinct_clients"
+            },
+            "label": "Aspoň 40 různých klientů platí příjemci za den",
+            "right": {
+              "value": 40
+            }
+          }
+        ]
+      },
+      "baseScore": 65,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-10",
+      "ruleId": "rule-R-10",
+      "ruleCode": "R-10",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["tx_type", "day_distinct_payer_countries", "week_distinct_payer_countries"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": "=",
+            "left": {
+              "feature": "tx_type"
+            },
+            "label": "Příchozí platba",
+            "right": {
+              "value": "incoming"
+            }
+          },
+          {
+            "id": "b",
+            "label": "Mnoho zemí plátců",
+            "match": "any",
+            "conditions": [
+              {
+                "id": "b1",
+                "op": ">=",
+                "left": {
+                  "feature": "day_distinct_payer_countries"
+                },
+                "label": "Aspoň 5 zemí plátců za den",
+                "right": {
+                  "value": 5
+                }
+              },
+              {
+                "id": "b2",
+                "op": ">=",
+                "left": {
+                  "feature": "week_distinct_payer_countries"
+                },
+                "label": "Aspoň 7 zemí plátců za ISO týden",
+                "right": {
+                  "value": 7
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "baseScore": 68,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-11",
+      "ruleId": "rule-R-11",
+      "ruleCode": "R-11",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["quick_forward_match_count"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": ">=",
+            "left": {
+              "feature": "quick_forward_match_count"
+            },
+            "label": "Přeposlání příchozí platby do 2 hodin",
+            "right": {
+              "value": 1
+            }
+          }
+        ]
+      },
+      "baseScore": 75,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-12",
+      "ruleId": "rule-R-12",
+      "ruleCode": "R-12",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["round_trip_match_count_72h"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": ">=",
+            "left": {
+              "feature": "round_trip_match_count_72h"
+            },
+            "label": "Platba opačným směrem se stejnou protistranou za 72 hodin",
+            "right": {
+              "value": 1
+            }
+          }
+        ]
+      },
+      "baseScore": 70,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-13",
+      "ruleId": "rule-R-13",
+      "ruleCode": "R-13",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "any",
+        "features": [
+          "month_tx_count",
+          "client_q2_monthly_avg_tx_count",
+          "client_projected_monthly_tx_count",
+          "client_risk_score",
+          "client_is_pep"
+        ],
+        "conditions": [
+          {
+            "id": "a",
+            "label": "Pětinásobek obou základen",
+            "match": "all",
+            "conditions": [
+              {
+                "id": "a1",
+                "op": ">",
+                "left": {
+                  "feature": "month_tx_count"
+                },
+                "label": "Měsíční počet > 5 × průměr za 2Q2026",
+                "right": {
+                  "expr": "5 × client_q2_monthly_avg_tx_count"
+                }
+              },
+              {
+                "id": "a2",
+                "op": ">",
+                "left": {
+                  "feature": "month_tx_count"
+                },
+                "label": "Měsíční počet > 5 × očekávaný počet",
+                "right": {
+                  "expr": "5 × client_projected_monthly_tx_count"
+                }
+              }
+            ]
+          },
+          {
+            "id": "b",
+            "label": "Trojnásobek obou základen u klienta s vyšším rizikem",
+            "match": "all",
+            "conditions": [
+              {
+                "id": "b1",
+                "label": "Klient s vyšším rizikem (high nebo PEP)",
+                "match": "any",
+                "conditions": [
+                  {
+                    "id": "b11",
+                    "op": "=",
+                    "left": {
+                      "feature": "client_risk_score"
+                    },
+                    "label": "AML rizikový profil je high",
+                    "right": {
+                      "value": "high"
+                    }
+                  },
+                  {
+                    "id": "b12",
+                    "op": "=",
+                    "left": {
+                      "feature": "client_is_pep"
+                    },
+                    "label": "Klient je PEP",
+                    "right": {
+                      "value": true
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "b2",
+                "op": ">",
+                "left": {
+                  "feature": "month_tx_count"
+                },
+                "label": "Měsíční počet > 3 × průměr za 2Q2026",
+                "right": {
+                  "expr": "3 × client_q2_monthly_avg_tx_count"
+                }
+              },
+              {
+                "id": "b3",
+                "op": ">",
+                "left": {
+                  "feature": "month_tx_count"
+                },
+                "label": "Měsíční počet > 3 × očekávaný počet",
+                "right": {
+                  "expr": "3 × client_projected_monthly_tx_count"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "baseScore": 63,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-14",
+      "ruleId": "rule-R-14",
+      "ruleCode": "R-14",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["tx_type", "month_remittance_sum_czk", "client_risk_score", "client_is_pep"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": "=",
+            "left": {
+              "feature": "tx_type"
+            },
+            "label": "Remitence",
+            "right": {
+              "value": "remittance"
+            }
+          },
+          {
+            "id": "b",
+            "label": "Souhrn remitencí nad limitem",
+            "match": "any",
+            "conditions": [
+              {
+                "id": "b1",
+                "op": ">=",
+                "left": {
+                  "feature": "month_remittance_sum_czk"
+                },
+                "label": "Měsíční součet remitencí ≥ 375 000 CZK",
+                "right": {
+                  "value": 375000
+                }
+              },
+              {
+                "id": "b2",
+                "label": "Snížený limit u klienta s vyšším rizikem",
+                "match": "all",
+                "conditions": [
+                  {
+                    "id": "b2a",
+                    "label": "Klient s vyšším rizikem (high nebo PEP)",
+                    "match": "any",
+                    "conditions": [
+                      {
+                        "id": "b2a1",
+                        "op": "=",
+                        "left": {
+                          "feature": "client_risk_score"
+                        },
+                        "label": "AML rizikový profil je high",
+                        "right": {
+                          "value": "high"
+                        }
+                      },
+                      {
+                        "id": "b2a2",
+                        "op": "=",
+                        "left": {
+                          "feature": "client_is_pep"
+                        },
+                        "label": "Klient je PEP",
+                        "right": {
+                          "value": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "b2b",
+                    "op": ">=",
+                    "left": {
+                      "feature": "month_remittance_sum_czk"
+                    },
+                    "label": "Měsíční součet remitencí ≥ 187 500 CZK",
+                    "right": {
+                      "value": 187500
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "baseScore": 70,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-15",
+      "ruleId": "rule-R-15",
+      "ruleCode": "R-15",
+      "isWhitelistAllowed": true,
+      "definition": {
+        "match": "all",
+        "features": ["tx_type", "tx_payee_country", "tx_amount_czk", "client_tenure_months_at_tx"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": "=",
+            "left": {
+              "feature": "tx_type"
+            },
+            "label": "Remitence",
+            "right": {
+              "value": "remittance"
+            }
+          },
+          {
+            "id": "b",
+            "op": "not_in",
+            "left": {
+              "feature": "tx_payee_country"
+            },
+            "label": "Země příjemce mimo EHP",
+            "right": {
+              "list": "EEA"
+            }
+          },
+          {
+            "id": "c",
+            "op": ">=",
+            "left": {
+              "feature": "tx_amount_czk"
+            },
+            "label": "Částka ≥ 25 000 CZK",
+            "right": {
+              "value": 25000
+            }
+          },
+          {
+            "id": "d",
+            "op": "<",
+            "left": {
+              "feature": "client_tenure_months_at_tx"
+            },
+            "label": "Vztah ke dni transakce < 6 měsíců",
+            "right": {
+              "value": 6
+            }
+          }
+        ]
+      },
+      "baseScore": 68,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-16",
+      "ruleId": "rule-R-16",
+      "ruleCode": "R-16",
+      "isWhitelistAllowed": false,
+      "definition": {
+        "match": "any",
+        "features": ["tx_payer_country", "tx_payee_country"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": "in",
+            "left": {
+              "feature": "tx_payer_country"
+            },
+            "label": "Země plátce je v HRJ",
+            "right": {
+              "list": "HRJ"
+            }
+          },
+          {
+            "id": "b",
+            "op": "in",
+            "left": {
+              "feature": "tx_payee_country"
+            },
+            "label": "Země příjemce je v HRJ",
+            "right": {
+              "list": "HRJ"
+            }
+          }
+        ]
+      },
+      "baseScore": 85,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    },
+    {
+      "ruleVersionId": "rule-version-R-17",
+      "ruleId": "rule-R-17",
+      "ruleCode": "R-17",
+      "isWhitelistAllowed": false,
+      "definition": {
+        "match": "all",
+        "features": ["tx_type", "tx_payer_info_missing"],
+        "conditions": [
+          {
+            "id": "a",
+            "op": "=",
+            "left": {
+              "feature": "tx_type"
+            },
+            "label": "Příchozí platba",
+            "right": {
+              "value": "incoming"
+            }
+          },
+          {
+            "id": "b",
+            "op": "=",
+            "left": {
+              "feature": "tx_payer_info_missing"
+            },
+            "label": "Chybí údaje o plátci",
+            "right": {
+              "value": true
+            }
+          }
+        ]
+      },
+      "baseScore": 65,
+      "sensitivity": 100,
+      "riskProfiles": ["low", "medium", "high"]
+    }
+  ],
+  "referenceLists": {
+    "EEA": [
+      "AT",
+      "BE",
+      "BG",
+      "CY",
+      "CZ",
+      "DE",
+      "DK",
+      "EE",
+      "ES",
+      "FI",
+      "FR",
+      "GR",
+      "HR",
+      "HU",
+      "IE",
+      "IS",
+      "IT",
+      "LI",
+      "LT",
+      "LU",
+      "LV",
+      "MT",
+      "NL",
+      "NO",
+      "PL",
+      "PT",
+      "RO",
+      "SE",
+      "SI",
+      "SK"
+    ],
+    "EU_HRTC": [
+      "AF",
+      "AO",
+      "BO",
+      "CD",
+      "CI",
+      "CM",
+      "DZ",
+      "HT",
+      "IR",
+      "KE",
+      "KP",
+      "LA",
+      "LB",
+      "MC",
+      "MM",
+      "NA",
+      "NP",
+      "RU",
+      "SS",
+      "SY",
+      "TT",
+      "VE",
+      "VG",
+      "VN",
+      "VU",
+      "YE"
+    ],
+    "FATF_BLACK": ["IR", "KP", "MM"],
+    "FATF_GREY": [
+      "AO",
+      "BA",
+      "BG",
+      "BO",
+      "CD",
+      "CI",
+      "CM",
+      "HT",
+      "IQ",
+      "KE",
+      "KW",
+      "LA",
+      "LB",
+      "MC",
+      "NP",
+      "PG",
+      "SS",
+      "SY",
+      "VE",
+      "VG",
+      "VN",
+      "YE"
+    ],
+    "HRJ": [
+      "AF",
+      "AO",
+      "BA",
+      "BG",
+      "BO",
+      "CD",
+      "CI",
+      "CM",
+      "DZ",
+      "HT",
+      "IQ",
+      "IR",
+      "KE",
+      "KP",
+      "KW",
+      "LA",
+      "LB",
+      "MC",
+      "MM",
+      "NA",
+      "NP",
+      "PG",
+      "RU",
+      "SS",
+      "SY",
+      "TT",
+      "VE",
+      "VG",
+      "VN",
+      "VU",
+      "YE"
+    ]
+  }
+}
