@@ -48,6 +48,7 @@ const POLICY: Policy = {
   approvedBy: null,
   approvedAt: null,
   ruleIds: [],
+  versions: [],
 };
 
 const REGULATION: Regulation = {

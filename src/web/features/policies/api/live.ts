@@ -9,7 +9,7 @@ import { fetchRuleDtos, type RuleDto } from "@/features/rules/api/dto";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
 
-import type { Policy, PolicyStatus } from "../types";
+import type { Policy, PolicyStatus, PolicyVersion } from "../types";
 import type { PoliciesService } from "./contract";
 import {
   fetchPoliciesWithVersions,
@@ -34,6 +34,24 @@ function toPolicyStatus(latestVersion: InternalPolicyVersionDto | undefined): Po
   return latestVersion?.status === "approved" ? "approved" : "draft";
 }
 
+function toPolicyVersion(
+  version: InternalPolicyVersionDto,
+  regulationIdByVersionId: PolicyRelations["regulationIdByVersionId"],
+): PolicyVersion {
+  return {
+    versionNumber: version.versionNo,
+    state: version.status,
+    createdVia: version.createdVia,
+    text: version.body,
+    legalBases: toLegalBases(version.legalBases, regulationIdByVersionId),
+    createdBy: formatUserName(version.createdBy),
+    createdAt: version.createdAt,
+    reviewedBy: version.reviewedBy === null ? null : formatUserName(version.reviewedBy),
+    reviewedAt: version.reviewedAt,
+    reviewComment: version.reviewComment,
+  };
+}
+
 function toPolicy({ policy, versions }: InternalPolicyWithVersionsDto, relations: PolicyRelations): Policy {
   const firstVersion = versions.at(0);
   const latestVersion = versions.at(-1);
@@ -50,6 +68,7 @@ function toPolicy({ policy, versions }: InternalPolicyWithVersionsDto, relations
     approvedBy: isApproved && latestVersion.reviewedBy ? formatUserName(latestVersion.reviewedBy) : null,
     approvedAt: isApproved ? latestVersion.reviewedAt : null,
     ruleIds: relations.rules.filter((rule) => rule.policyId === policy.id).map((rule) => rule.id),
+    versions: versions.map((version) => toPolicyVersion(version, relations.regulationIdByVersionId)),
   };
 }
 

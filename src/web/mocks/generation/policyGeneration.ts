@@ -84,34 +84,52 @@ export function buildGeneratedPolicy({
   id,
   regulation,
   sourceLabel,
+  createdBy,
   now,
 }: {
   id: string;
   regulation: MockRegulationRecord;
   sourceLabel: string;
+  createdBy: string;
   now: string;
 }): MockPolicyRecord {
   const provisionRef = regulation.keyProvisions[1] ?? regulation.keyProvisions[0] ?? GENERAL_PROVISIONS_REF;
+  // M3: the wizard drafts the policy from one regulation, so it cites just that one.
+  const legalBases = [{ regulationId: regulation.id, ref: provisionRef }];
+  const text = [
+    `Zdroj: ${sourceLabel}.`,
+    `1. Účel. Tento předpis provádí povinnosti z regulace „${regulation.name}“, zejména ${provisionRef} (${regulation.shortName}).`,
+    "2. Monitoring. Instituce průběžně sleduje transakce klientů a porovnává je s jejich rizikovým profilem.",
+    "3. Vysoce rizikové země. Transakce nad 10 000 CZK s účastí vysoce rizikové země se předávají k posouzení.",
+    "4. PEP. Odchozí platby politicky exponovaných osob nad 100 000 CZK se posuzují jednotlivě.",
+    "5. Neobvyklé chování. Transakce neodpovídající profilu klienta posuzuje analytik s podporou AI agenta.",
+    "6. Záznamy. Každé rozhodnutí se zaznamenává do auditního logu s odůvodněním.",
+  ].join("\n");
   return {
     id,
     name: `Interní předpis: ${regulation.shortName}`,
-    // M3: the wizard drafts the policy from one regulation, so it cites just that one.
-    legalBases: [{ regulationId: regulation.id, ref: provisionRef }],
+    legalBases,
     status: "draft",
     origin: "generated",
-    text: [
-      `Zdroj: ${sourceLabel}.`,
-      `1. Účel. Tento předpis provádí povinnosti z regulace „${regulation.name}“, zejména ${provisionRef} (${regulation.shortName}).`,
-      "2. Monitoring. Instituce průběžně sleduje transakce klientů a porovnává je s jejich rizikovým profilem.",
-      "3. Vysoce rizikové země. Transakce nad 10 000 CZK s účastí vysoce rizikové země se předávají k posouzení.",
-      "4. PEP. Odchozí platby politicky exponovaných osob nad 100 000 CZK se posuzují jednotlivě.",
-      "5. Neobvyklé chování. Transakce neodpovídající profilu klienta posuzuje analytik s podporou AI agenta.",
-      "6. Záznamy. Každé rozhodnutí se zaznamenává do auditního logu s odůvodněním.",
-    ].join("\n"),
+    text,
     createdAt: now,
     updatedAt: now,
     approvedBy: null,
     approvedAt: null,
+    versions: [
+      {
+        versionNumber: 1,
+        state: "draft",
+        createdVia: "wizard",
+        text,
+        legalBases,
+        createdBy,
+        createdAt: now,
+        reviewedBy: null,
+        reviewedAt: null,
+        reviewComment: null,
+      },
+    ],
   };
 }
 

@@ -131,6 +131,11 @@ export const cs: Dictionary = {
     generated: "Vygenerováno AI",
     manual: "Ručně",
   },
+  versionOrigin: {
+    wizard: "Průvodce",
+    manual: "Ručně",
+    reg_update: "Aktualizace regulace",
+  },
   jurisdiction: {
     CZ: "Česká republika",
     EU: "Evropská unie",
@@ -199,6 +204,14 @@ export const cs: Dictionary = {
     rulesJobFailed: "Příprava návrhů pravidel z tohoto předpisu selhala.",
     reviewDraftedRules: "Zkontrolovat v Pravidlech",
     empty: "Zatím žádné interní předpisy.",
+    versionHistory: "Historie verzí",
+    createdVia: "Vznik",
+    createdBy: "Vytvořil(a)",
+    reviewedBy: "Posoudil(a)",
+    notReviewed: "Zatím neposouzeno",
+    reviewComment: "Komentář k posouzení",
+    viewing: "Zobrazeno",
+    olderVersionNote: "Zobrazujete starší verzi předpisu. Aktuální je verze {versionNumber}.",
   },
   rules: {
     title: "Pravidla",

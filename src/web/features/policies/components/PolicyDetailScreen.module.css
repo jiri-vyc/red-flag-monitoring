@@ -20,6 +20,16 @@
   font-weight: 600;
 }
 
+/* Same spacing as the card body; the card's own grid does not reach inside the wrapper. */
+.currentText {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.currentText[hidden] {
+  display: none;
+}
+
 .ruleList {
   display: grid;
   gap: var(--space-2);

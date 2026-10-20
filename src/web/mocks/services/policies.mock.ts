@@ -1,4 +1,6 @@
+import { getCurrentUser } from "@/config/currentUser";
 import type { PoliciesService } from "@/features/policies/api/contract";
+import type { PolicyVersion } from "@/features/policies/types";
 import { ApiError } from "@/lib/apiError";
 
 import { simulateLatency } from "../latency";
@@ -28,6 +30,33 @@ function persistPolicyRecord(updatedRecord: MockPolicyRecord) {
   return mapPolicyRecord(updatedRecord, updatedDatabase);
 }
 
+// M17, as in the live backend: versions are immutable, so an edited text becomes a new draft version.
+function appendDraftVersion(record: MockPolicyRecord, text: string, now: string): PolicyVersion[] {
+  const draftVersion: PolicyVersion = {
+    versionNumber: (record.versions.at(-1)?.versionNumber ?? 0) + 1,
+    state: "draft",
+    createdVia: "manual",
+    text,
+    legalBases: record.legalBases,
+    createdBy: getCurrentUser().name,
+    createdAt: now,
+    reviewedBy: null,
+    reviewedAt: null,
+    reviewComment: null,
+  };
+  return [...record.versions, draftVersion];
+}
+
+// Only drafts can be approved and an approved policy cannot be edited, so no earlier version is approved to supersede.
+function approveLatestVersion(record: MockPolicyRecord, approvedBy: string, now: string): PolicyVersion[] {
+  const latestVersionNumber = record.versions.at(-1)?.versionNumber;
+  return record.versions.map((version) =>
+    version.versionNumber === latestVersionNumber
+      ? { ...version, state: "approved", reviewedBy: approvedBy, reviewedAt: now }
+      : version,
+  );
+}
+
 export const mockPoliciesService: PoliciesService = {
   async loadPolicies() {
     await simulateLatency();
@@ -44,7 +73,13 @@ export const mockPoliciesService: PoliciesService = {
     await simulateLatency();
     const record = findPolicyRecord(policyId);
     assertPolicyIsDraft(record);
-    return persistPolicyRecord({ ...record, text, updatedAt: new Date().toISOString() });
+    const now = new Date().toISOString();
+    return persistPolicyRecord({
+      ...record,
+      text,
+      updatedAt: now,
+      versions: appendDraftVersion(record, text, now),
+    });
   },
 
   async approvePolicy({ policyId, approvedBy }) {
@@ -58,6 +93,7 @@ export const mockPoliciesService: PoliciesService = {
       approvedBy,
       approvedAt: now,
       updatedAt: now,
+      versions: approveLatestVersion(record, approvedBy, now),
     });
     const database = advanceMockDraftingJobs();
     const parentJob = database.draftingJobs.find(

@@ -54,7 +54,8 @@ const MOCK_KEY_PREFIX = "redflag.mock.";
 // v3: whitelist moved out of rule versions into rule-level entries with a reason (data model M16).
 // v4: policies cite 0..N regulations, rule versions carry their own legal bases, a rule's policy is optional (M3-M5).
 // v5: rule versions carry a nullable base score.
-const DATABASE_KEY = `${MOCK_KEY_PREFIX}database.v5`;
+// v6: policies carry their version history.
+const DATABASE_KEY = `${MOCK_KEY_PREFIX}database.v6`;
 const BATCH_ROWS_KEY_PREFIX = `${MOCK_KEY_PREFIX}batch-rows.v1.`;
 
 let cachedDatabase: MockDatabase | null = null;

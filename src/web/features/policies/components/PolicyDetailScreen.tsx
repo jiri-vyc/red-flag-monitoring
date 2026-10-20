@@ -31,10 +31,11 @@ import { useRolePermissions } from "@/features/users/api/hooks";
 import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import { usePolicy } from "../api/hooks";
-import type { Policy } from "../types";
+import type { Policy, PolicyVersion } from "../types";
 import { PolicyOriginBadge, PolicyStatusBadge } from "./PolicyBadges";
 import styles from "./PolicyDetailScreen.module.css";
 import { PolicyTextEditor } from "./PolicyTextEditor";
+import { PolicyVersionHistory } from "./PolicyVersionHistory";
 
 function RelatedRules({ policy }: { policy: Policy }) {
   const { t } = useI18n();
@@ -137,11 +138,61 @@ function RulesJobNotice({ jobId, onRetried }: { jobId: string; onRetried: (jobId
   );
 }
 
-function PolicyDetail({ policy }: { policy: Policy }) {
+/** The current text: editable while the policy is a draft. */
+function CurrentPolicyText({
+  policy,
+  onApproved,
+}: {
+  policy: Policy;
+  onApproved: (jobId: string | null) => void;
+}) {
   const { canApprovePolicy } = useRolePermissions();
+  const { t } = useI18n();
+  if (policy.status !== "draft") {
+    return <MarkdownText>{policy.text}</MarkdownText>;
+  }
+  return (
+    <>
+      <Notice tone="info">{t.policies.editDraftHint}</Notice>
+      <PolicyTextEditor
+        key={policy.updatedAt}
+        policy={policy}
+        showApprove={canApprovePolicy}
+        onApproved={({ rulesJob }) => onApproved(rulesJob?.id ?? null)}
+      />
+      {!canApprovePolicy && <RoleGateNotice requiredRole="compliance_officer" />}
+    </>
+  );
+}
+
+function OlderPolicyText({
+  version,
+  latestVersionNumber,
+}: {
+  version: PolicyVersion;
+  latestVersionNumber: number;
+}) {
+  const { t } = useI18n();
+  return (
+    <>
+      <Notice tone="info">
+        {formatMessage(t.policies.olderVersionNote, { versionNumber: latestVersionNumber })}
+      </Notice>
+      <MarkdownText>{version.text}</MarkdownText>
+    </>
+  );
+}
+
+function PolicyDetail({ policy }: { policy: Policy }) {
   const { t, locale } = useI18n();
   const [rulesJobId, setRulesJobId] = useState<string | null>(null);
-  const isDraft = policy.status === "draft";
+  // Null shows the latest version, so a new version saved from the editor is shown right away.
+  const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null);
+  const latestVersion = policy.versions.at(-1);
+  const selectedOlderVersion = policy.versions.find(
+    (version) => version !== latestVersion && version.versionNumber === selectedVersionNumber,
+  );
+  const shownVersionNumber = selectedOlderVersion?.versionNumber ?? latestVersion?.versionNumber;
   return (
     <>
       <PageHeader
@@ -182,25 +233,29 @@ function PolicyDetail({ policy }: { policy: Policy }) {
         title={
           <>
             <FileText aria-hidden="true" />
-            {t.policies.text}
+            {shownVersionNumber === undefined
+              ? t.policies.text
+              : `${t.policies.text} (v${shownVersionNumber})`}
           </>
         }
       >
-        {isDraft ? (
-          <>
-            <Notice tone="info">{t.policies.editDraftHint}</Notice>
-            <PolicyTextEditor
-              key={policy.updatedAt}
-              policy={policy}
-              showApprove={canApprovePolicy}
-              onApproved={({ rulesJob }) => setRulesJobId(rulesJob?.id ?? null)}
-            />
-            {!canApprovePolicy && <RoleGateNotice requiredRole="compliance_officer" />}
-          </>
-        ) : (
-          <MarkdownText>{policy.text}</MarkdownText>
+        {selectedOlderVersion && latestVersion && (
+          <OlderPolicyText version={selectedOlderVersion} latestVersionNumber={latestVersion.versionNumber} />
         )}
+        {/* Hidden, not unmounted, so unsaved edits of the draft survive viewing an older version. */}
+        <div className={styles.currentText} hidden={selectedOlderVersion !== undefined}>
+          <CurrentPolicyText policy={policy} onApproved={setRulesJobId} />
+        </div>
       </Card>
+      {latestVersion && (
+        <PolicyVersionHistory
+          versions={policy.versions}
+          selectedVersionNumber={selectedOlderVersion?.versionNumber ?? latestVersion.versionNumber}
+          onSelectVersion={(versionNumber) =>
+            setSelectedVersionNumber(versionNumber === latestVersion.versionNumber ? null : versionNumber)
+          }
+        />
+      )}
       <RelatedRules policy={policy} />
     </>
   );

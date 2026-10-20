@@ -129,6 +129,11 @@ export const en = {
     generated: "AI-generated",
     manual: "Manual",
   },
+  versionOrigin: {
+    wizard: "Wizard",
+    manual: "Manual",
+    reg_update: "Regulation update",
+  },
   jurisdiction: {
     CZ: "Czech Republic",
     EU: "European Union",
@@ -197,6 +202,15 @@ export const en = {
     rulesJobFailed: "Drafting the rules of this policy failed.",
     reviewDraftedRules: "Review them in Rules",
     empty: "No internal policies yet.",
+    versionHistory: "Version history",
+    createdVia: "Created via",
+    createdBy: "Created by",
+    reviewedBy: "Reviewed by",
+    notReviewed: "Not reviewed yet",
+    reviewComment: "Review comment",
+    viewing: "Viewing",
+    olderVersionNote:
+      "You are viewing an older version of the policy. The current one is version {versionNumber}.",
   },
   rules: {
     title: "Rules",

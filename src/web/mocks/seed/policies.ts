@@ -1,9 +1,81 @@
+import type { PolicyVersion } from "@/features/policies/types";
+
 import type { MockPolicyRecord } from "../store/mockDatabase";
 
 const APPROVER = "Petr Svoboda";
+const WIZARD_AUTHOR = "Jana Nováková";
+const MANUAL_AUTHOR = "Eva Dvořáková";
+
+type SeedPolicyRecord = Omit<MockPolicyRecord, "versions">;
+
+/** Versions before the current one, with the time the current one was created. Policies not listed have one version. */
+type SeedPolicyHistory = { previousVersions: PolicyVersion[]; currentVersionCreatedAt: string };
+
+const HIGH_RISK_COUNTRIES_V1_TEXT =
+  "1. Instituce sleduje každou transakci, kde plátce, příjemce nebo klient pochází ze země na seznamu vysoce rizikových třetích zemí EU nebo FATF.\n2. Transakce s takovou zemí se předává k posouzení AML analytikovi.";
+const PEP_V1_TEXT =
+  "1. U klientů, kteří jsou politicky exponovanými osobami, instituce uplatňuje zesílenou kontrolu.\n2. Odchozí platby PEP nad 100 000 CZK se posuzují jednotlivě.";
+
+const SEED_POLICY_HISTORIES: Record<string, SeedPolicyHistory> = {
+  "pol-high-risk-countries": {
+    previousVersions: [
+      {
+        versionNumber: 1,
+        state: "rejected",
+        createdVia: "wizard",
+        text: HIGH_RISK_COUNTRIES_V1_TEXT,
+        legalBases: [{ regulationId: "reg-amld", ref: "čl. 18a" }],
+        createdBy: WIZARD_AUTHOR,
+        createdAt: "2026-09-02T09:00:00.000Z",
+        reviewedBy: APPROVER,
+        reviewedAt: "2026-09-03T10:00:00.000Z",
+        reviewComment: "Chybí částkový práh pro předání analytikovi a frekvence aktualizace seznamu zemí.",
+      },
+    ],
+    currentVersionCreatedAt: "2026-09-03T14:00:00.000Z",
+  },
+  "pol-pep": {
+    previousVersions: [
+      {
+        versionNumber: 1,
+        state: "superseded",
+        createdVia: "manual",
+        text: PEP_V1_TEXT,
+        legalBases: [{ regulationId: "reg-amld", ref: "čl. 20" }],
+        createdBy: MANUAL_AUTHOR,
+        createdAt: "2026-08-20T10:00:00.000Z",
+        reviewedBy: APPROVER,
+        reviewedAt: "2026-08-20T16:00:00.000Z",
+        reviewComment: null,
+      },
+    ],
+    currentVersionCreatedAt: "2026-08-21T09:00:00.000Z",
+  },
+};
+
+/** The current version matches the record's status, text and legal bases, so the history agrees with the list. */
+function withVersionHistory(record: SeedPolicyRecord): MockPolicyRecord {
+  const history = SEED_POLICY_HISTORIES[record.id];
+  const previousVersions = history?.previousVersions ?? [];
+  const isFirstVersion = previousVersions.length === 0;
+  const createdVia = isFirstVersion && record.origin === "generated" ? "wizard" : "manual";
+  const currentVersion: PolicyVersion = {
+    versionNumber: previousVersions.length + 1,
+    state: record.status === "approved" ? "approved" : "draft",
+    createdVia,
+    text: record.text,
+    legalBases: record.legalBases,
+    createdBy: record.origin === "generated" ? WIZARD_AUTHOR : MANUAL_AUTHOR,
+    createdAt: history?.currentVersionCreatedAt ?? record.createdAt,
+    reviewedBy: record.approvedBy,
+    reviewedAt: record.approvedAt,
+    reviewComment: null,
+  };
+  return { ...record, versions: [...previousVersions, currentVersion] };
+}
 
 // Provision references are illustrative demo values and must be verified by compliance before real use.
-export const SEED_POLICIES: MockPolicyRecord[] = [
+const SEED_POLICY_RECORDS: SeedPolicyRecord[] = [
   {
     id: "pol-high-risk-countries",
     name: "Transakce s vysoce rizikovými zeměmi",
@@ -126,3 +198,5 @@ export const SEED_POLICIES: MockPolicyRecord[] = [
     approvedAt: "2026-09-12T10:00:00.000Z",
   },
 ];
+
+export const SEED_POLICIES: MockPolicyRecord[] = SEED_POLICY_RECORDS.map(withVersionHistory);

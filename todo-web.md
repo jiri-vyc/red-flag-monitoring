@@ -45,6 +45,12 @@ Průvodce v live režimu (`features/wizard/api/live.ts`) jde přes asynchronní 
 - **Detail předpisu** (`/policies/[policyId]`) ukazuje schválený text jako Markdown (GFM: nadpisy, seznamy, tabulky, zvýraznění, odkazy, kód) přes `components/ui/MarkdownText.tsx` (`react-markdown` + `remark-gfm`). Surové HTML se nevykresluje a nebezpečné URL (`javascript:`) zahodí výchozí `urlTransform`. Externí odkazy se otevírají v novém okně. Nadpisy z textu začínají na `h3`, aby nekonkurovaly titulku stránky.
 - [ ] Draft předpisu (editor v detailu i krok předpisu v průvodci) je dál textarea se surovým Markdownem, náhled formátovaného textu chybí.
 
+## Historie verzí předpisu (issue #5, web hotovo)
+
+- **Detail předpisu** (`/policies/[policyId]`) má kartu „Historie verzí“ (`features/policies/components/PolicyVersionHistory.tsx`) ve stylu historie verzí pravidla. U každé verze: číslo, stav (`draft`, `pending_review`, `approved`, `rejected`, `superseded`, odznak `VersionStateBadge` z pravidel), vznik (`wizard`, `manual`, `reg_update`), právní základ, autor a čas, posuzovatel a čas, komentář k posouzení. Výběrem starší verze se v kartě textu ukáže její text (Markdown, jen ke čtení) s upozorněním, že jde o starší verzi. Aktuální verze se dál edituje jako dřív.
+- **Model:** `Policy.versions` (`PolicyVersion`, nejstarší první). Live adapter mapuje `GET /api/internal-policies/:id/versions` (autor a posuzovatel přes `formatUserName`). Stav, text a právní základ předpisu se dál berou z poslední verze. Mock seed má u každého předpisu verze odpovídající jeho stavu (`pol-high-risk-countries` a `pol-pep` mají i starší verzi), úprava textu v mocku přidá novou draft verzi jako v live. Mock klíč je `database.v6`.
+- [ ] Porovnání dvou verzí (diff textu) chybí.
+
 ## Asynchronní schválení a polling (rozhodnutí 2026-10-19, hotovo)
 
 Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obojí přes polling v UI (varianta 1). Schválení předpisu běží přes drafting jobs ([spec/drafting-jobs.md](spec/drafting-jobs.md)), na webu to napojil commit `ad03408`.
@@ -76,7 +82,7 @@ Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obo
 - [x] **Návrhy klientů ve whitelistu** (`RuleWhitelistCard.tsx`): demo ID ze `SEED_CLIENTS` se nabízí jen při `rules.canSuggestWhitelistClients` (mock). Návrhy z API čekají na BE-06.
 - [ ] **Audit odebrání z whitelistu** (spec M16): odebrání se má zapsat do audit logu, který FE zatím nemá (BE-13). Schválení a pravidelná revize výjimek (benchmark ČNB 2/2023) taky chybí a musí je posoudit compliance.
 - [ ] **Načítání whitelistu u zakázaných pravidel**: `useRuleWhitelist` se volá i při `whitelistAllowed = false`. Přidat `enabled: rule.whitelistAllowed`.
-- [ ] **Další rozdíly proti `spec/datovy-model.md`**: risk profil `unknown` (M15 zná jen low/medium/high), verze předpisu, znění regulace (M1), referenční seznamy (M9), `base_score` (M7), `code` a `alert_type` u pravidla.
+- [ ] **Další rozdíly proti `spec/datovy-model.md`**: risk profil `unknown` (M15 zná jen low/medium/high), znění regulace (M1), referenční seznamy (M9), `base_score` (M7), `code` a `alert_type` u pravidla.
 - [x] **Vazby regulace, předpis a pravidlo (M3 až M5)**: předpis cituje 0..N regulací s volitelným `ref`, pravidlo nemusí mít předpis a každá verze pravidla má vlastní právní základ. Mock klíč je `database.v4`.
 - [ ] **Výběr znění regulace v právním základu**: ruční pravidlo vždy cituje nejnovější znění (M1). Výběr staršího znění a upozornění na pravidla stojící na starém znění zatím chybí.
 - [ ] **Úprava právního základu u nové verze pravidla**: nová verze přebírá právní základ verze, ze které vychází. Formulář nové verze ho změnit neumí.

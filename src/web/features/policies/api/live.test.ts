@@ -92,6 +92,66 @@ describe("livePoliciesService", () => {
     ]);
   });
 
+  it("maps the version history oldest first, with author and reviewer names (issue #5)", async () => {
+    serveEndpoints();
+    const fallbackImplementation = requestJsonMock.getMockImplementation()!;
+    const rejectedVersion: InternalPolicyVersionDto = {
+      ...MULTI_REGULATION_VERSION,
+      id: "policy-multi-v1",
+      status: "rejected",
+      createdVia: "wizard",
+      body: "Původní text",
+      reviewedBy: getCurrentUser().id,
+      reviewedAt: "2026-10-19T12:00:00.000Z",
+      reviewComment: "Chybí práh",
+    };
+    const draftVersion: InternalPolicyVersionDto = {
+      ...MULTI_REGULATION_VERSION,
+      id: "policy-multi-v2",
+      versionNo: 2,
+      createdBy: "unknown-user-id",
+      legalBases: [{ regulationVersionId: "decree-v1", ref: "§ 3" }],
+    };
+    requestJsonMock.mockImplementation(async (options) =>
+      options.path === "/internal-policies/policy-multi/versions"
+        ? [draftVersion, rejectedVersion]
+        : fallbackImplementation(options),
+    );
+
+    const policy = await livePoliciesService.loadPolicy("policy-multi");
+
+    expect(policy.versions).toEqual([
+      {
+        versionNumber: 1,
+        state: "rejected",
+        createdVia: "wizard",
+        text: "Původní text",
+        legalBases: [
+          { regulationId: "reg-aml", ref: "§ 21" },
+          { regulationId: "reg-decree", ref: null },
+        ],
+        createdBy: getCurrentUser().name,
+        createdAt: CREATED_AT,
+        reviewedBy: getCurrentUser().name,
+        reviewedAt: "2026-10-19T12:00:00.000Z",
+        reviewComment: "Chybí práh",
+      },
+      {
+        versionNumber: 2,
+        state: "draft",
+        createdVia: "manual",
+        text: "Text předpisu",
+        legalBases: [{ regulationId: "reg-decree", ref: "§ 3" }],
+        createdBy: "unknown-user-id",
+        createdAt: CREATED_AT,
+        reviewedBy: null,
+        reviewedAt: null,
+        reviewComment: null,
+      },
+    ]);
+    expect(policy).toMatchObject({ status: "draft", text: "Text předpisu", origin: "generated" });
+  });
+
   it("saves an edited text as a new draft version that keeps the legal bases", async () => {
     const requests = serveEndpoints();
 

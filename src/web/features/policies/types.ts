@@ -9,6 +9,35 @@ export type PolicyStatus = z.infer<typeof policyStatusSchema>;
 export const policyOriginSchema = z.enum(["generated", "manual"]);
 export type PolicyOrigin = z.infer<typeof policyOriginSchema>;
 
+/** Mirrors the backend version statuses; approving a version supersedes the previously approved one. */
+export const policyVersionStateSchema = z.enum([
+  "draft",
+  "pending_review",
+  "approved",
+  "rejected",
+  "superseded",
+]);
+export type PolicyVersionState = z.infer<typeof policyVersionStateSchema>;
+
+export const policyVersionOriginSchema = z.enum(["wizard", "manual", "reg_update"]);
+export type PolicyVersionOrigin = z.infer<typeof policyVersionOriginSchema>;
+
+/** One immutable wording of the policy (M17) with its own legal bases and review. */
+export const policyVersionSchema = z.object({
+  versionNumber: z.number().int().positive(),
+  state: policyVersionStateSchema,
+  createdVia: policyVersionOriginSchema,
+  text: z.string(),
+  legalBases: z.array(policyLegalBasisSchema),
+  /** Display name of the author. */
+  createdBy: z.string(),
+  createdAt: z.string(),
+  reviewedBy: z.string().nullable(),
+  reviewedAt: z.string().nullable(),
+  reviewComment: z.string().nullable(),
+});
+export type PolicyVersion = z.infer<typeof policyVersionSchema>;
+
 export const policySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -22,6 +51,8 @@ export const policySchema = z.object({
   approvedBy: z.string().nullable(),
   approvedAt: z.string().nullable(),
   ruleIds: z.array(z.string()),
+  /** Oldest first; the last one is the version status, text and legal bases come from. */
+  versions: z.array(policyVersionSchema),
 });
 export type Policy = z.infer<typeof policySchema>;
 

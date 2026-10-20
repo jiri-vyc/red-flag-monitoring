@@ -31,6 +31,7 @@ function createPolicy(id: string, status: Policy["status"]): Policy {
     approvedBy: null,
     approvedAt: null,
     ruleIds: [],
+    versions: [],
   };
 }
 

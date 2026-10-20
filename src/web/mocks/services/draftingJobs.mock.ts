@@ -91,7 +91,13 @@ function draftPolicy(
   if (!regulation) {
     return { database, errorMessage: `Regulation ${job.regulationId ?? "–"} no longer exists.` };
   }
-  const policy = buildGeneratedPolicy({ id: createMockId("pol"), regulation, sourceLabel, now });
+  const policy = buildGeneratedPolicy({
+    id: createMockId("pol"),
+    regulation,
+    sourceLabel,
+    createdBy: GENERATED_BY,
+    now,
+  });
   return {
     database: { ...database, policies: [...database.policies, policy] },
     output: { policyIds: [policy.id], ruleIds: [] },
