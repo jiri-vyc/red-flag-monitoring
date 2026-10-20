@@ -2,7 +2,7 @@ import type { BedrockConfig } from "../../../config";
 import { createBedrockClient } from "../createBedrockClient";
 import { BedrockFindingExplainer } from "./BedrockFindingExplainer";
 import { BedrockHypothesisExplorer } from "./BedrockHypothesisExplorer";
-import type { FindingExplainer, HypothesisExplorer } from "./contract";
+import type { FindingExplainer, HypothesisExplorer } from "../../../application/ruleReviews/ruleReviewPorts";
 
 export type RuleReviewLlm = { findingExplainer: FindingExplainer; hypothesisExplorer: HypothesisExplorer };
 

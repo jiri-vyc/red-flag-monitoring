@@ -1,4 +1,5 @@
-import type { LlmBudget, LlmCallAudit } from "./contract";
+import type { LlmBudget } from "../../../domain/ruleReview/ruleReviewParams";
+import type { LlmCallAudit } from "../../../domain/ruleReview/ruleReviewReport";
 
 export class ExplorationBudget {
   private toolCallCount = 0;

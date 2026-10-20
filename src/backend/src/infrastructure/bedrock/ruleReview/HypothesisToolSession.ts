@@ -4,7 +4,13 @@ import type { JsonValue } from "../../../domain/json";
 import type { RuleDefinition } from "../../../domain/ruleDefinition";
 import { findRuleDefinitionViolation } from "../../../domain/ruleDefinitionValidation";
 import { buildRuleDefinition, type FlatRuleDefinition } from "../flatRuleDefinition";
-import type { LlmBudget, RuleBacktest, RuleHypothesis, RuleReviewReport, RuleReviewTools } from "./contract";
+import type { RuleReviewTools } from "../../../application/ruleReviews/ruleReviewPorts";
+import type { LlmBudget } from "../../../domain/ruleReview/ruleReviewParams";
+import type {
+  RuleBacktest,
+  RuleHypothesis,
+  RuleReviewReport,
+} from "../../../domain/ruleReview/ruleReviewReport";
 import {
   addCritiqueInputSchema,
   backtestRuleInputSchema,

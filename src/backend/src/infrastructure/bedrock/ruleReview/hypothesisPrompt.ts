@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { describeFeatureCatalog, type FeatureDescription } from "../../../domain/features/featureCatalog";
 import { flatRuleDefinitionSchema } from "../flatRuleDefinition";
-import type { BacktestCaps, LlmBudget } from "./contract";
+import type { BacktestCaps, LlmBudget } from "../../../domain/ruleReview/ruleReviewParams";
 import { formatPercent } from "./hypothesisScreening";
 import type { ModelTool } from "./modelCall";
 import { NO_INPUT_SCHEMA, toToolInputSchema } from "./toolSchema";

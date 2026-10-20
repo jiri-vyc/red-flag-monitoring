@@ -1,4 +1,4 @@
-import type { RuleBacktest } from "./contract";
+import type { RuleBacktest } from "../../../domain/ruleReview/ruleReviewReport";
 
 // 1a's backtest applies the spec §4 caps (discardReason); code here adds what makes a hypothesis useless anyway.
 export function findDiscardReason(backtest: RuleBacktest): string | null {

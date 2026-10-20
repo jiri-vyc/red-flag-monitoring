@@ -1,11 +1,13 @@
 import type {
   FindingExplainer,
-  FindingExplanation,
   FindingExplanationContext,
   LlmAuditLog,
+} from "../../../application/ruleReviews/ruleReviewPorts";
+import type {
+  FindingExplanation,
   LlmCallAudit,
   RuleReviewFinding,
-} from "./contract";
+} from "../../../domain/ruleReview/ruleReviewReport";
 import { findUnverifiedCitations } from "./evidenceCitations";
 import {
   buildExplanationEvidence,

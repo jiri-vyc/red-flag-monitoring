@@ -6,7 +6,8 @@ import { systemClock } from "./application/clock";
 import { RuleReviewExecutor } from "./application/ruleReviews/ruleReviewExecutor";
 import type { FindingExplainer, HypothesisExplorer } from "./application/ruleReviews/ruleReviewPorts";
 import { RuleReviewUseCases } from "./application/ruleReviews/ruleReviewUseCases";
-import { type AppConfig, InvalidConfigError } from "./config";
+import { type AppConfig, InvalidConfigError, parseBedrockConfig } from "./config";
+import { createBedrockRuleReviewLlm } from "./infrastructure/bedrock/ruleReview/createBedrockRuleReviewLlm";
 import { FileSystemRuleReviewReportStore } from "./infrastructure/ruleReviews/FileSystemRuleReviewReportStore";
 import { InProcessRuleReviewLauncher } from "./infrastructure/ruleReviews/InProcessRuleReviewLauncher";
 import { NoopFindingExplainer, NoopHypothesisExplorer } from "./infrastructure/ruleReviews/NoopLlmPorts";
@@ -58,9 +59,7 @@ function createLlmPorts(config: RuleReviewConfig): {
   hypothesisExplorer: HypothesisExplorer;
 } {
   if (config.llmMode === "bedrock") {
-    throw new InvalidConfigError(
-      "RULE_REVIEW_LLM=bedrock needs the Bedrock adapters of step 1b, not wired yet",
-    );
+    return createBedrockRuleReviewLlm(parseBedrockConfig(process.env));
   }
 
   return { findingExplainer: new NoopFindingExplainer(), hypothesisExplorer: new NoopHypothesisExplorer() };

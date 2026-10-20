@@ -1,6 +1,6 @@
 import type { JsonValue } from "../../../domain/json";
 import { logTokenUsage, type TokenUsage } from "../modelResponse";
-import type { LlmCallAudit } from "./contract";
+import type { LlmCallAudit } from "../../../domain/ruleReview/ruleReviewReport";
 
 export type ModelResponseBlock = { type: string; text?: string; id?: string; name?: string; input?: unknown };
 export type ModelMessage = {

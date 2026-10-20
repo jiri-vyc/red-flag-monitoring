@@ -4,17 +4,18 @@ import { readFileSync } from "node:fs";
 import { AML_RISK_SCORES, CLIENT_TYPES } from "../../../../domain/client";
 import { describeFeatureCatalog } from "../../../../domain/features/featureCatalog";
 import { isConditionGroup, listConditionNodes, type RuleDefinition } from "../../../../domain/ruleDefinition";
+import type {
+  RuleCatalogueEntry,
+  RuleReviewTools,
+} from "../../../../application/ruleReviews/ruleReviewPorts";
+import type { CounterpartyStructure } from "../../../../domain/ruleReview/association";
+import type { ClientProfile } from "../../../../domain/ruleReview/clientProfiles";
+import type { RuleBacktest, RuleReviewReport } from "../../../../domain/ruleReview/ruleReviewReport";
 import {
-  type ClientProfile,
-  type CounterpartyStructure,
   PROFILE_DIMENSIONS,
   type ProfileDimension,
-  type RuleBacktest,
-  type RuleCatalogueEntry,
-  type RuleReviewReport,
-  type RuleReviewTools,
   type SegmentProfile,
-} from "../contract";
+} from "../../../../domain/ruleReview/segmentProfiles";
 import type { FixtureClient, FixtureDataset, FixtureTransaction } from "./fixtureDataset";
 
 // Fixture-only stand-ins for 1a's tools. backtestRule is a hash of the definition, not an evaluation.
@@ -29,21 +30,17 @@ const FAKE_BACKTEST_CLIENT_SPREAD = 140;
 const FAKE_MAX_OVERLAP_SHARE = 0.95;
 
 const COUNTERPARTY_STRUCTURE: CounterpartyStructure = {
-  externalAccountCount: 5380,
-  clientsPerAccount: { median: 9, p90: 75, p99: 1311 },
-  note: "Klienti si neplatí přímo; vazby vedou jen přes sdílené externí účty protistran (A…).",
-  linkedNonSeedClientsByAccountDegree: [
+  accountCount: 5380,
+  clientsPerAccount: { median: 9, p90: 75, p99: 1311, max: 1372 },
+  seedCount: 477,
+  linkTable: [
     { maxClientsPerAccount: 2, linkedClients: 60, linkedViaTwoOrMoreAccounts: 1 },
     { maxClientsPerAccount: 3, linkedClients: 192, linkedViaTwoOrMoreAccounts: 5 },
     { maxClientsPerAccount: 5, linkedClients: 834, linkedViaTwoOrMoreAccounts: 80 },
     { maxClientsPerAccount: 10, linkedClients: 2735, linkedViaTwoOrMoreAccounts: 931 },
     { maxClientsPerAccount: 50, linkedClients: 5013, linkedViaTwoOrMoreAccounts: 4989 },
   ],
-  flowsThroughIntermediaries: {
-    seedToAccountToClientWithin72hPrivateAccounts: 1,
-    seedToAccountToClientWithin72hAnyAccount: 1969,
-  },
-  seedCount: 477,
+  strongFlowClients: { privateAccounts: 1, anyAccount: 1969 },
 };
 
 export function loadRuleCatalogue(ruleCatalogueJsonPath: string): RuleCatalogueEntry[] {

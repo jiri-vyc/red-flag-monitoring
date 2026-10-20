@@ -1,4 +1,4 @@
-import type { CitedEvidence } from "./contract";
+import type { CitedEvidence } from "../../../domain/ruleReview/ruleReviewReport";
 
 // The model cites values as text, so the output schema needs no union type (Bedrock caps those).
 export type TextCitation = { path: string; value: string };

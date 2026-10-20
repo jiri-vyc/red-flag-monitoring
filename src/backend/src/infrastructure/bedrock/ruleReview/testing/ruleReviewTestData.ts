@@ -1,12 +1,14 @@
-import {
-  DEFAULT_RULE_REVIEW_PARAMS,
-  type FindingExplanationContext,
-  type LlmAuditLog,
-  type LlmCallAudit,
-  type RuleBacktest,
-  type RuleReviewFinding,
-  type RuleReviewReport,
-} from "../contract";
+import type {
+  FindingExplanationContext,
+  LlmAuditLog,
+} from "../../../../application/ruleReviews/ruleReviewPorts";
+import { DEFAULT_RULE_REVIEW_PARAMS } from "../../../../domain/ruleReview/ruleReviewParams";
+import type {
+  LlmCallAudit,
+  RuleBacktest,
+  RuleReviewFinding,
+  RuleReviewReport,
+} from "../../../../domain/ruleReview/ruleReviewReport";
 
 export const TOTAL_CLIENT_COUNT = 5493;
 

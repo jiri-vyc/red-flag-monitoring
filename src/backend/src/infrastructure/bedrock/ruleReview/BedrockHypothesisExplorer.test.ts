@@ -1,7 +1,9 @@
 import { describeFeatureCatalog } from "../../../domain/features/featureCatalog";
 import type { FlatRuleDefinition } from "../flatRuleDefinition";
 import { BedrockHypothesisExplorer } from "./BedrockHypothesisExplorer";
-import type { LlmBudget, RuleBacktest, RuleReviewTools } from "./contract";
+import type { RuleReviewTools } from "../../../application/ruleReviews/ruleReviewPorts";
+import type { LlmBudget } from "../../../domain/ruleReview/ruleReviewParams";
+import type { RuleBacktest } from "../../../domain/ruleReview/ruleReviewReport";
 import { HYPOTHESIS_TOOL_NAMES } from "./hypothesisPrompt";
 import type { ModelMessage, ModelRequestBody, ToolResultBlock } from "./modelCall";
 import { createBacktest, createReport } from "./testing/ruleReviewTestData";
@@ -68,7 +70,13 @@ function createTools(): { tools: RuleReviewTools; backtestedThresholds: string[]
     getCoverageMatrix: async () => REPORT.coverageMatrix,
     getGapFindings: async () => [],
     getSegmentProfiles: async () => [],
-    getCounterpartyStructure: async () => ({ externalAccountCount: 5380 }),
+    getCounterpartyStructure: async () => ({
+      accountCount: 5380,
+      clientsPerAccount: { median: 9, p90: 75, p99: 1311, max: 1372 },
+      seedCount: 477,
+      linkTable: [],
+      strongFlowClients: { privateAccounts: 1, anyAccount: 1969 },
+    }),
     backtestRule: async (definition) => {
       const condition = definition.conditions[0];
       const threshold =

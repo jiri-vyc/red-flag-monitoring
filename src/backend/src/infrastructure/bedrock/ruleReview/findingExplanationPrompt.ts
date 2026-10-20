@@ -1,12 +1,11 @@
 import { z } from "zod";
 
 import type {
-  ClientProfile,
-  FindingClient,
   FindingExplanationContext,
   RuleCatalogueEntry,
-  RuleReviewFinding,
-} from "./contract";
+} from "../../../application/ruleReviews/ruleReviewPorts";
+import type { ClientProfile } from "../../../domain/ruleReview/clientProfiles";
+import type { FindingClient, RuleReviewFinding } from "../../../domain/ruleReview/ruleReviewReport";
 import { toToolInputSchema } from "./toolSchema";
 
 // Spec §5.1 and §5.3: the model sees aggregates of at most 10 clients per finding, never their transactions.

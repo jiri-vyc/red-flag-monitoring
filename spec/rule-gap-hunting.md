@@ -1,6 +1,6 @@
 # Ruleset gap hunting (návrh)
 
-Status: **step 1a (deterministic part) built and checked locally, not on `main`**; see 6.7. Step 1b (Bedrock) runs in parallel. A triggered job that takes the active rules and looks for gaps in them. A gap is either a threshold that clients stay just under, sometimes on purpose, or behaviour no rule covers. Builds on [spec.md](spec.md), [features.md](features.md), [datovy-model.md](datovy-model.md) and the engine from #3.
+Status: **steps 1a (deterministic) and 1b (Bedrock) built, combined and checked locally on the branch `rule-gap-analysis-e2e`, not on `main`**; see 6.7 and 6.8. A triggered job that takes the active rules and looks for gaps in them. A gap is either a threshold that clients stay just under, sometimes on purpose, or behaviour no rule covers. Builds on [spec.md](spec.md), [features.md](features.md), [datovy-model.md](datovy-model.md) and the engine from #3.
 
 ## 1. Goal and boundaries
 

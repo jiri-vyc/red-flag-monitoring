@@ -1,11 +1,10 @@
 import type {
   HypothesisExploration,
   HypothesisExplorer,
-  LlmBudget,
-  LlmCallAudit,
-  RuleReviewReport,
   RuleReviewTools,
-} from "./contract";
+} from "../../../application/ruleReviews/ruleReviewPorts";
+import type { LlmBudget } from "../../../domain/ruleReview/ruleReviewParams";
+import type { LlmCallAudit, RuleReviewReport } from "../../../domain/ruleReview/ruleReviewReport";
 import { ExplorationBudget } from "./explorationBudget";
 import { createHypothesisSystemPrompt, HYPOTHESIS_TOOLS, HYPOTHESIS_USER_PROMPT } from "./hypothesisPrompt";
 import { HypothesisToolSession, type ToolExecution } from "./HypothesisToolSession";

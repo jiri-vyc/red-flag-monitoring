@@ -3,12 +3,12 @@ import path from "node:path";
 
 import { parseBedrockConfig } from "../../config";
 import { describeBedrockAuth } from "../../infrastructure/bedrock/createBedrockClient";
+import type { LlmAuditLog } from "../../application/ruleReviews/ruleReviewPorts";
 import type {
-  LlmAuditLog,
   LlmCallAudit,
   RuleReviewLlmSection,
   RuleReviewReport,
-} from "../../infrastructure/bedrock/ruleReview/contract";
+} from "../../domain/ruleReview/ruleReviewReport";
 import { createBedrockRuleReviewLlm } from "../../infrastructure/bedrock/ruleReview/createBedrockRuleReviewLlm";
 import { loadFixtureDataset } from "../../infrastructure/bedrock/ruleReview/fixtures/fixtureDataset";
 import {
