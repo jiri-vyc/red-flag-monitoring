@@ -86,7 +86,7 @@ export function RuleFindingCard({
 }) {
   const { t, locale } = useI18n();
   const parameterProposal = isParameterProposal(finding.proposal) ? finding.proposal : null;
-  const evidenceProposal = finding.evidence.parameter as Finding["proposal"];
+  const evidenceProposal = finding.evidence.parameter;
   const shownProposal =
     parameterProposal ?? (isParameterProposal(evidenceProposal) ? evidenceProposal : null);
   const addedHits = readNumber(finding.evidence, "addedHits");
@@ -153,7 +153,7 @@ export function RecalibrationTable({ findings }: { findings: Finding[] }) {
         </thead>
         <tbody>
           {findings.map((finding) => {
-            const evidenceProposal = finding.evidence.parameter as Finding["proposal"];
+            const evidenceProposal = finding.evidence.parameter;
             const proposal = isParameterProposal(evidenceProposal) ? evidenceProposal : null;
             return (
               <tr key={finding.id}>

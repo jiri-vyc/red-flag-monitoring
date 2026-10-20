@@ -17,6 +17,6 @@ export type FindingExplanation = FindingExplanationDto;
 export type RuleHypothesis = RuleHypothesisDto;
 export type ParameterProposal = Extract<NonNullable<Finding["proposal"]>, { parameter: string }>;
 
-export function isParameterProposal(proposal: Finding["proposal"]): proposal is ParameterProposal {
-  return proposal !== null && "parameter" in proposal;
+export function isParameterProposal(proposal: unknown): proposal is ParameterProposal {
+  return typeof proposal === "object" && proposal !== null && "parameter" in proposal;
 }
