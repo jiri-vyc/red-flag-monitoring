@@ -18,6 +18,8 @@ Regulation → Internal policy → Rule → Rule version
 Client → Transaction → Transaction evaluation → 1..N rule evaluations → AML event
 ```
 
+Alerts (issue #13, [V18–V20](spec/datovy-model.md#rozhodnutí-vyhodnocení)): after a run's transactions are stored, its hits are grouped into `aml_events` by the rule's `alert_granularity`: one event per hit transaction (`transaction`, rule B) or per client and calendar month (`client_month`, rules A and C). `aml_event_hits` links every hit to exactly one event. The `alert_id` is readable and unique within the run (`R-02-TX000012345`, `R-01-K000123-2026-07`). An event is a decision aid, not an AML determination; triage and priority come with #14.
+
 Relations (data model M3 to M5): a policy cites 0..N regulations through its legal bases, each with an optional provision `ref` (a purely internal policy cites none). A rule may have no policy. Each rule version has its own 1..N legal bases (regulation + required `ref`), not inherited from the policy. The web shows the legal basis of the running version, else of the newest one (`findRuleLegalBases`), and derives a regulation's related policies and rules from these legal bases. The live adapters map backend regulation wordings (`regulationVersionId`) to regulations, and a new manual rule cites the newest wording.
 
 Users and roles (issue #6): a user holds one or more of `compliance_analyst`, `compliance_officer`, `lawyer`, `contact_person` (AML zákon § 22) and `designated_person` (§ 22a). Each rule version names the role its hits are escalated to (`escalationRole`, default `contact_person`, set at version creation or changed at review). Run results read with `?role=` show only the hits escalated to that role. There is no auth: the web picks the user and active role, the backend trusts it and checks no permissions.
@@ -26,7 +28,7 @@ Rule statuses: `draft`, `pending_for_review`, `update_for_review`, `active`, `in
 
 ## Evaluation engine (`src/backend`)
 
-`POST /api/evaluation-runs` → `EvaluationRunUseCases.startRun` fixes the active deterministic rule versions and the latest reference lists, stores the run as `running` and hands it to an `EvaluationRunLauncher` (in the API process locally, a Lambda worker when `EVALUATION_WORKER_FUNCTION` is set). `EvaluationRunExecutor` loads clients, transactions and ČNB rates once (D18), evaluates the transactions in scope with the pure `domain/transactionEvaluator.ts` and stores them in batches of 1,000 with progress counters. Only rule results other than `pass` are stored (V16). Runs are read through `EvaluationRunQueries`.
+`POST /api/evaluation-runs` → `EvaluationRunUseCases.startRun` fixes the active deterministic rule versions and the latest reference lists, stores the run as `running` and hands it to an `EvaluationRunLauncher` (in the API process locally, a Lambda worker when `EVALUATION_WORKER_FUNCTION` is set). `EvaluationRunExecutor` loads clients, transactions and ČNB rates once (D18), evaluates the transactions in scope with the pure `domain/transactionEvaluator.ts` and stores them in batches of 1,000 with progress counters. Only rule results other than `pass` are stored (V16). It then loads the run's stored hits, groups them with the pure `domain/amlEvent.ts` (`groupRuleHitsIntoAmlEvents`) and writes the AML events through `AmlEventRepository` in one transaction before it marks the run `completed` (~7 s for the whole dataset locally). Runs are read through `EvaluationRunQueries`, their AML events through `AmlEventQueries`.
 
 ## Drafting jobs (`src/backend`)
 

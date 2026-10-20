@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import type { DataSource } from "typeorm";
 
+import { AmlEventQueries } from "./application/amlEvents/amlEventQueries";
 import { systemClock } from "./application/clock";
 import { DatabaseStatusQueries } from "./application/databaseStatus/databaseStatusQueries";
 import { EvaluationRunQueries } from "./application/evaluationRuns/evaluationRunQueries";
@@ -19,6 +20,7 @@ import { createEvaluationRunUseCases } from "./evaluationRunComposition";
 import { createDataSource } from "./infrastructure/database/createDataSource";
 import { memoizeInitialization } from "./infrastructure/database/memoizeInitialization";
 import { TypeOrmDatabaseStatusProbe } from "./infrastructure/database/TypeOrmDatabaseStatusProbe";
+import { TypeOrmAmlEventReadRepository } from "./infrastructure/database/repositories/TypeOrmAmlEventReadRepository";
 import { TypeOrmEvaluationRunReadRepository } from "./infrastructure/database/repositories/TypeOrmEvaluationRunReadRepository";
 import { TypeOrmInternalPolicyRepository } from "./infrastructure/database/repositories/TypeOrmInternalPolicyRepository";
 import { TypeOrmReferenceListRepository } from "./infrastructure/database/repositories/TypeOrmReferenceListRepository";
@@ -54,6 +56,7 @@ function createUseCases(dataSource: DataSource, appConfig: AppConfig): AppUseCas
   const regulations = new RegulationUseCases(new TypeOrmRegulationRepository(dataSource));
   const rules = new RuleUseCases(ruleRepository, systemClock);
   const draftingJobs = createDraftingJobUseCases(dataSource, appConfig, regulations);
+  const evaluationRunReadRepository = new TypeOrmEvaluationRunReadRepository(dataSource);
 
   return {
     regulations,
@@ -62,8 +65,12 @@ function createUseCases(dataSource: DataSource, appConfig: AppConfig): AppUseCas
     rules,
     whitelist: new WhitelistUseCases(new TypeOrmWhitelistRepository(dataSource), ruleRepository),
     referenceLists: new ReferenceListUseCases(new TypeOrmReferenceListRepository(dataSource)),
-    evaluationRuns: new EvaluationRunQueries(new TypeOrmEvaluationRunReadRepository(dataSource)),
+    evaluationRuns: new EvaluationRunQueries(evaluationRunReadRepository),
     evaluationRunUseCases: createEvaluationRunUseCases(dataSource, appConfig),
+    amlEvents: new AmlEventQueries({
+      amlEventReadRepository: new TypeOrmAmlEventReadRepository(dataSource),
+      evaluationRunReadRepository,
+    }),
     databaseStatus: new DatabaseStatusQueries(new TypeOrmDatabaseStatusProbe(dataSource)),
     users: new UserUseCases(new TypeOrmUserRepository(dataSource)),
     transactions: new TransactionQueries(new TypeOrmTransactionRepository(dataSource)),

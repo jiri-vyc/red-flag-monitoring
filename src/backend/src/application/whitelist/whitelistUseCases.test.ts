@@ -11,6 +11,7 @@ async function setUp({ isWhitelistAllowed }: { isWhitelistAllowed: boolean }) {
     policyId: null,
     code: "B",
     alertType: "high_risk_country",
+    alertGranularity: "transaction",
     kind: "deterministic",
     isWhitelistAllowed,
   });

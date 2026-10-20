@@ -126,6 +126,7 @@ function toRule(entity: RuleEntity): Rule {
     policyId: entity.policyId,
     code: entity.code,
     alertType: entity.alertType,
+    alertGranularity: entity.alertGranularity,
     kind: entity.kind,
     isEnabled: entity.enabled,
     activeVersionId: entity.activeVersionId,

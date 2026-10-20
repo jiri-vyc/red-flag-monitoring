@@ -1,5 +1,8 @@
 import request from "supertest";
 
+import { AmlEventQueries } from "../../application/amlEvents/amlEventQueries";
+import type { AmlEventFilter } from "../../application/amlEvents/amlEventReadModels";
+import type { EvaluationRunReadRepository } from "../../application/evaluationRuns/evaluationRunReadRepository";
 import { DatabaseStatusQueries } from "../../application/databaseStatus/databaseStatusQueries";
 import type { DatabaseStatus } from "../../application/databaseStatus/databaseStatusProbe";
 import { DraftingJobUseCases } from "../../application/drafting/draftingJobUseCases";
@@ -60,6 +63,7 @@ function createTestApp(ensureDatabaseReady = databaseReady) {
     policyId: null,
     code: "A",
     alertType: "unusual_amount",
+    alertGranularity: "transaction",
     kind: "deterministic",
     isEnabled: false,
     activeVersionId: null,
@@ -318,6 +322,68 @@ describe("HTTP app", () => {
 
       expect(response.status).toBe(400);
       expect(calls).toEqual([]);
+    });
+  });
+  describe("AML events", () => {
+    const RUN_ID = "0b6f7d1e-2c3a-4e5f-8a9b-1c2d3e4f5a6b";
+    const UNKNOWN_ID = "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b";
+
+    function createAmlEventsApp() {
+      const calls: { filter: AmlEventFilter; page: PageRequest }[] = [];
+      const amlEvents = new AmlEventQueries({
+        amlEventReadRepository: {
+          listAmlEvents: async (filter, page) => {
+            calls.push({ filter, page });
+            return { ...page, items: [], total: 0 };
+          },
+          findAmlEventDetail: async () => null,
+        },
+        evaluationRunReadRepository: {
+          hasRun: async (runId: string) => runId === RUN_ID,
+        } as EvaluationRunReadRepository,
+      });
+
+      return { app: createApp({ amlEvents } as AppUseCases, databaseReady), calls };
+    }
+
+    it("lists a run's events with the alert type and client filters", async () => {
+      const { app, calls } = createAmlEventsApp();
+
+      const response = await request(app).get(
+        `/api/evaluation-runs/${RUN_ID}/aml-events?alertType=profile_mismatch&clientId=K000123&limit=10`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(calls).toEqual([
+        {
+          filter: { runId: RUN_ID, alertType: "profile_mismatch", clientId: "K000123" },
+          page: { limit: 10, offset: 0 },
+        },
+      ]);
+    });
+
+    it("returns 404 for the events of an unknown run", async () => {
+      const { app, calls } = createAmlEventsApp();
+
+      const response = await request(app).get(`/api/evaluation-runs/${UNKNOWN_ID}/aml-events`);
+
+      expect(response.status).toBe(404);
+      expect(calls).toEqual([]);
+    });
+
+    it("rejects a malformed client filter with 400", async () => {
+      const { app } = createAmlEventsApp();
+
+      const response = await request(app).get(`/api/evaluation-runs/${RUN_ID}/aml-events?clientId=K12`);
+
+      expect(response.status).toBe(400);
+    });
+
+    it("returns 404 for an unknown event and 400 for a malformed ID", async () => {
+      const { app } = createAmlEventsApp();
+
+      expect((await request(app).get(`/api/aml-events/${UNKNOWN_ID}`)).status).toBe(404);
+      expect((await request(app).get("/api/aml-events/R-01-K000123-2026-07")).status).toBe(400);
     });
   });
 });

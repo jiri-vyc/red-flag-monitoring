@@ -273,9 +273,9 @@ Po uložení jde pravidlo do stavu `pending_for_review`.
 2. ~~**FK předpis → regulace.**~~ Vyřešeno: vazba M:N, nepovinná ([M3](datovy-model.md#rozhodnutí-pravidla)).
 3. ~~**Ruční pravidlo s odkazem na regulaci.**~~ Vyřešeno: FK na předpis je nepovinný, právní základ má každá verze pravidla ([M4, M5](datovy-model.md#rozhodnutí-pravidla)).
 4. ~~**Verze vs. stav.**~~ Vyřešeno: `update_for_review` je odvozený stav, mezitím se spouští aktivní verze ([M6](datovy-model.md#rozhodnutí-pravidla)).
-5. **Granularita AML události.** Zadání požaduje u pravidel A a C jednu událost na klienta, u pravidla B jednu na transakci. Náš model vyhodnocuje per transakce. Jak se vyhodnocení transakcí agregují do událostí per klient?
+5. ~~**Granularita AML události.**~~ Vyřešeno: po běhu se zásahy seskupí podle `alert_granularity` pravidla, per transakce nebo per klient a měsíc ([V18–V20](datovy-model.md#rozhodnutí-vyhodnocení)).
 6. **Vyhodnocení per transakce, nebo per klient.** Rozhovor se přiklonil k per transakce (P1 09:13–09:51). Varianta „vyhodnocení klienta v daném čase“ zůstala otevřená. Částečně rozhodnuto v D18: spouštěčem je transakce, kontextem celá historie klienta.
-7. ~~**Agregace skóre.**~~ Vyřešeno pro MVP: skóre transakce je maximum, hranici zásahu určuje `hit_threshold` na běhu ([V7](datovy-model.md#rozhodnutí-vyhodnocení)). Práh pro vznik AML události zůstává otevřený s otázkou 5.
+7. ~~**Agregace skóre.**~~ Vyřešeno pro MVP: skóre transakce je maximum, hranici zásahu určuje `hit_threshold` na běhu ([V7](datovy-model.md#rozhodnutí-vyhodnocení)). AML událost vzniká z každého zásahu (V18).
 8. **Výpočet citlivosti.** MVP používá `skóre × citlivost / 100` ([V7](datovy-model.md#rozhodnutí-vyhodnocení)), citlivost tedy skóre jen snižuje. Má jít skóre i zvýšit (P2 05:49)? Zůstává vedle toho globální koeficient z rozhovoru?
 9. **Technologie deterministických pravidel.** JavaScript, Python, nebo DSL? Kde a jak se kód spouští (sandbox)?
 10. **Kontrola aktualizací regulací.** V MVP se regulace zadává jako text a scraping je mimo rozsah. Jak tedy tlačítko „zkontrolovat aktualizace“ zjistí novou verzi? Uživatel vloží nový text, nebo systém použije zdroj (EUR-Lex, e-Sbírka, seznamy FATF)?

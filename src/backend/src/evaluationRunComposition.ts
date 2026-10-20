@@ -5,6 +5,7 @@ import { EvaluationRunExecutor } from "./application/evaluationRuns/evaluationRu
 import type { EvaluationRunLauncher } from "./application/evaluationRuns/evaluationRunPorts";
 import { EvaluationRunUseCases } from "./application/evaluationRuns/evaluationRunUseCases";
 import type { AppConfig } from "./config";
+import { TypeOrmAmlEventRepository } from "./infrastructure/database/repositories/TypeOrmAmlEventRepository";
 import { TypeOrmEvaluationInputRepository } from "./infrastructure/database/repositories/TypeOrmEvaluationInputRepository";
 import { TypeOrmEvaluationRunRepository } from "./infrastructure/database/repositories/TypeOrmEvaluationRunRepository";
 import { InProcessEvaluationRunLauncher } from "./infrastructure/evaluationRuns/InProcessEvaluationRunLauncher";
@@ -15,6 +16,7 @@ export function createEvaluationRunExecutor(dataSource: DataSource): EvaluationR
   return new EvaluationRunExecutor({
     evaluationInputRepository: new TypeOrmEvaluationInputRepository(dataSource),
     evaluationRunRepository: new TypeOrmEvaluationRunRepository(dataSource),
+    amlEventRepository: new TypeOrmAmlEventRepository(dataSource),
     clock: systemClock,
   });
 }

@@ -17,6 +17,7 @@ async function setUp() {
     policyId: null,
     code: "A",
     alertType: "unusual_amount",
+    alertGranularity: "transaction",
     kind: "deterministic",
     isWhitelistAllowed: true,
   });

@@ -2,7 +2,10 @@ import type { EscalationRole, Rule, RuleVersion } from "../../domain/rule";
 import type { VersionReview } from "../../domain/versionStatus";
 import type { VersionStatusChange } from "../versionReview";
 
-export type NewRule = Pick<Rule, "policyId" | "code" | "alertType" | "kind" | "isWhitelistAllowed">;
+export type NewRule = Pick<
+  Rule,
+  "policyId" | "code" | "alertType" | "alertGranularity" | "kind" | "isWhitelistAllowed"
+>;
 export type NewRuleVersion = Omit<
   RuleVersion,
   "id" | "versionNo" | "createdAt" | "reviewedBy" | "reviewedAt" | "reviewComment"

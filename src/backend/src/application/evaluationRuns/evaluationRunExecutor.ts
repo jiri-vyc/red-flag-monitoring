@@ -1,5 +1,7 @@
+import { groupRuleHitsIntoAmlEvents } from "../../domain/amlEvent";
 import type { EvaluationRun } from "../../domain/evaluation";
 import { createTransactionEvaluator, type EvaluatedTransaction } from "../../domain/transactionEvaluator";
+import type { AmlEventRepository } from "../amlEvents/amlEventRepository";
 import type { Clock } from "../clock";
 import { BusinessRuleViolationError, NotFoundError, toErrorMessage } from "../errors";
 import type {
@@ -14,13 +16,15 @@ export const EVALUATION_BATCH_SIZE = 1000;
 
 export class RunScopeChangedError extends Error {}
 
-// Evaluates a started run: loads the dataset once (D18), evaluates the transactions in scope chronologically
-// and stores them in batches. Runs in the API process or in a separate worker, see EvaluationRunLauncher.
+// Evaluates a started run: loads the dataset once (D18), evaluates the transactions in scope chronologically,
+// stores them in batches and groups the stored hits into AML events (#13). Runs in the API process or in a
+// separate worker, see EvaluationRunLauncher.
 export class EvaluationRunExecutor {
   constructor(
     private readonly dependencies: {
       evaluationInputRepository: EvaluationInputRepository;
       evaluationRunRepository: EvaluationRunRepository;
+      amlEventRepository: AmlEventRepository;
       clock: Clock;
     },
   ) {}
@@ -41,6 +45,7 @@ export class EvaluationRunExecutor {
 
     try {
       await this.evaluateRunTransactions(run);
+      await this.createRunAmlEvents(run.id);
       await evaluationRunRepository.markRunCompleted({ runId, finishedAt: clock() });
     } catch (error) {
       await evaluationRunRepository.markRunFailed({
@@ -82,6 +87,14 @@ export class EvaluationRunExecutor {
 
       await evaluationRunRepository.appendTransactionEvaluations({ runId: run.id, evaluations });
     }
+  }
+
+  // Events are grouped once all hits are stored, because a client_month event spans the whole run.
+  private async createRunAmlEvents(runId: string): Promise<void> {
+    const { amlEventRepository } = this.dependencies;
+    const ruleHits = await amlEventRepository.listRunRuleHits(runId);
+
+    await amlEventRepository.createAmlEvents({ runId, amlEvents: groupRuleHitsIntoAmlEvents(ruleHits) });
   }
 }
 

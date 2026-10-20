@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { RISK_PROFILES, RULE_KINDS } from "../../domain/rule";
+import { ALERT_GRANULARITIES, DEFAULT_ALERT_GRANULARITY, RISK_PROFILES, RULE_KINDS } from "../../domain/rule";
 import { DEFAULT_ESCALATION_ROLE, DEFAULT_SENSITIVITY, ESCALATION_ROLES } from "../../domain/rule";
 import { MAX_SCORE, MIN_SCORE } from "../../domain/score";
 import type { RuleUseCases } from "../../application/rules/ruleUseCases";
@@ -23,6 +23,7 @@ const createRuleSchema = z.object({
     .transform((value) => value ?? null),
   code: requiredText,
   alertType: requiredText,
+  alertGranularity: z.enum(ALERT_GRANULARITIES).default(DEFAULT_ALERT_GRANULARITY),
   kind: z.enum(RULE_KINDS),
   isWhitelistAllowed: z.boolean().default(true),
 });
