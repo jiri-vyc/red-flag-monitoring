@@ -29,44 +29,110 @@ The web works without the backend (default mock mode): `npm run dev -w web` is e
 
 The web proxies `/api/*` to the backend, so browser code calls relative `/api/...` URLs.
 
+### Set up AWS CLI access (once per machine)
+
+There are no access keys, only SSO. Full guide: the organisers' "AWS Participant Guide" on Notion.
+
+Add this to `~/.aws/config`, or run `aws configure sso` with the same values. The SSO region is `eu-north-1` on purpose; all work happens in `eu-central-1`.
+
+```ini
+[sso-session hackathon]
+sso_start_url = https://d-c3676ff6eb.awsapps.com/start
+sso_region = eu-north-1
+sso_registration_scopes = sso:account:access
+
+[profile hackathon]
+sso_session = hackathon
+sso_account_id = 526983806399
+sso_role_name = ai-hackathon-TeamAdmin
+region = eu-central-1
+output = json
+
+# For the Node.js backend: reuses the CLI's 12 h role credentials (see below).
+[profile hackathon-sdk]
+credential_process = aws configure export-credentials --profile hackathon --format process
+region = eu-central-1
+```
+
+The backend uses `hackathon-sdk`, not `hackathon`. With a plain SSO profile the AWS SDK for Node.js needs the SSO access token, which expires after 1 hour, and refreshing it fails for this directory (`InvalidGrantException`). The backend then answers 500 with `Token is expired` in its log, even though the AWS CLI still works. The `credential_process` profile makes the SDK take the CLI's role credentials, which last the whole 12 h session.
+
+Then log in and check the account. The login lasts 12 hours.
+
+```bash
+aws sso login --profile hackathon
+aws sts get-caller-identity --profile hackathon   # Account must be 526983806399
+```
+
 ### Against Aurora instead of Docker
 
-Only the backend talks to the database, so only `backend/.env` changes. The backend never runs migrations on start, so pointing it at the shared `main` database doesn't change the schema.
+The browser never talks to the database. The web proxies `/api/*` to the local backend, and the backend connects to Aurora with a fresh IAM token per connection. Only `backend/.env` changes. The backend never runs migrations on start, so pointing it at the shared `main` database doesn't change the schema.
 
-1. Sign in to the team account and check that it is `526983806399`:
+```
+browser → web (localhost:3000) → /api proxy → backend (localhost:4000) → Aurora database-1 / main
+```
 
-   ```bash
-   aws sso login --sso-session hackathon
-   AWS_PROFILE=hackathon aws sts get-caller-identity --query Account --output text
-   ```
-
+1. Log in to AWS (see [above](#set-up-aws-cli-access-once-per-machine)): `aws sso login --profile hackathon`
 2. In `backend/.env`, swap the Docker `DATABASE_URL` for the Aurora block (it's in `backend/.env.example`, commented out):
 
    ```dotenv
+   PORT=4000
    DATABASE_AUTH=iam
    DATABASE_URL=postgres://postgres@database-1.cluster-c9m6a2a047k1.eu-central-1.rds.amazonaws.com:5432/main
    AWS_REGION=eu-central-1
-   AWS_PROFILE=hackathon
+   AWS_PROFILE=hackathon-sdk
    ```
 
    The URL has no password. The backend signs a fresh IAM token for every connection and verifies TLS. Use `wip_<name>` instead of `main` for your own copy (`../db/create-wip.sh <name>`).
 
-3. Start it with `npm run dev`. You don't need `npm run db:up` or `npm run migration:run`.
+3. Create `web/.env.local`. Every section is live, including the wizard and the dashboard. Do not pin the wizard to mock: it is shown only when it shares the data source with regulations, policies and rules.
 
-4. Check it. The sidebar's **Database** panel is hidden for the demo (`IS_DATABASE_STATUS_VISIBLE = false` in `web/components/layout/Sidebar.tsx`). With it on, it should show `Aurora PostgreSQL <version>`, the database name, the `clients` row count (5,493), the latest applied migration and the server time of the check. Click the refresh icon to query again. Or call the endpoint directly:
-
-   ```bash
-   curl -s localhost:4000/api/database-status
+   ```env
+   NEXT_PUBLIC_API_MODE=live
+   BACKEND_URL=http://localhost:4000
    ```
 
-   A local Docker Postgres shows `PostgreSQL <version>, not Aurora`. A red "Database unreachable" means the backend or the database didn't answer.
+4. Start both with `npm run dev`. You don't need `npm run db:up` or `npm run migration:run`.
+
+5. Open http://localhost:3000. The screens now read from Aurora, and the sidebar no longer shows "Mock data, not connected to API". If the sidebar's **Data source** shows Mock, this browser remembers an earlier choice: switch it to Live. Check the backend alone with `curl -s localhost:4000/api/database-status`: Aurora shows its `auroraVersion`, a local Docker Postgres shows `null`. The sidebar's **Database** panel shows the same, but it is hidden for the demo (`IS_DATABASE_STATUS_VISIBLE = false` in `web/components/layout/Sidebar.tsx`).
 
 Things to know:
 
+- **Restart `npm run dev` after changing `.env.local`.** `NEXT_PUBLIC_*` values are read at start/build time.
+- **Writes go to `main`.** Creating, approving, whitelisting or running the wizard in the web writes to the shared team database through the API. For experiments use your own copy (`wip_<name>`, see above).
 - **Migrations:** while `.env` points at `main`, every `npm run migration:*` from `src/` hits `main` too. Use `migration:run` there only to apply reviewed migrations. Never run `migration:generate` against `main`, only against your `wip_<name>` (see `../AGENTS.md`).
-- **Slow first request:** the first database request can take up to 45 s while Aurora resumes. An expired SSO session shows up as a 500 on the first request that needs the database. Run `aws sso login` again.
-- **Mock screens:** the screens stay on mock data until you set `NEXT_PUBLIC_API_MODE=live` in `web/.env.local` (see [Web: mock and live data](#web-mock-and-live-data)). The Database panel (hidden by default) always calls the backend when shown.
+- **AI drafting:** the wizard's drafts come from a placeholder generator by default (titles start with `[DUMMY]`). Add `DRAFT_GENERATOR=bedrock` to `backend/.env` to draft with Claude on Amazon Bedrock. It uses the same `AWS_PROFILE`, costs Bedrock tokens, and a step can take minutes.
+- **Errors:** "Token for hackathon does not exist", "Token is expired" or a 500 from `/api/database-status` means the SSO session ended: run `aws sso login --profile hackathon` and restart `npm run dev`. If it happens about an hour after login, check that `backend/.env` uses `AWS_PROFILE=hackathon-sdk`.
+- **Slow first request:** the first database request can take up to 45 s while Aurora resumes.
+- **Stop `npm run dev` when done.** An open connection keeps the cluster billing.
 - **Switching back to Docker:** restore the Docker `DATABASE_URL` and drop `DATABASE_AUTH`.
+
+### Connect to the database with DBeaver
+
+The Aurora cluster `database-1` has no passwords, only short-lived IAM tokens.
+
+1. Log in to AWS: `aws sso login --profile hackathon` (first time: [set up AWS CLI access](#set-up-aws-cli-access-once-per-machine)).
+2. In DBeaver create a **PostgreSQL** connection:
+   - Host: `database-1.cluster-c9m6a2a047k1.eu-central-1.rds.amazonaws.com`
+   - Port: `5432`
+   - Database: `main`
+   - Username: `postgres`
+   - "Save password": off
+3. In the **Driver properties** tab set:
+   - `sslmode` = `verify-full`
+   - `sslfactory` = `org.postgresql.ssl.DefaultJavaSSLFactory`
+4. Generate a token. This copies it to the clipboard:
+
+   ```bash
+   aws rds generate-db-auth-token --profile hackathon --region eu-central-1 --hostname database-1.cluster-c9m6a2a047k1.eu-central-1.rds.amazonaws.com --port 5432 --username postgres | pbcopy
+   ```
+
+5. Connect and paste the token as the password.
+
+Notes:
+
+- **Token lifetime:** a token opens new connections for 15 minutes; open sessions stay up. When DBeaver asks again, repeat step 4. If the command fails, repeat step 1.
+- **Slow first connect:** the cluster auto-pauses when idle, so the first connect can take ~15 s.
+- **`main` is changed only via migrations** (see `../AGENTS.md`). Treat the DBeaver connection as read-only and disconnect when done, because an open connection keeps the cluster billing.
 
 ## API
 
@@ -258,7 +324,7 @@ npm run deploy:web               # web bundle → rfm-web, reads the rfm-api end
 - API bundle: `tsc` output plus a production-only `npm ci` in a `node:24` arm64 container. Env: `DATABASE_AUTH=iam`, `DATABASE_URL=postgres://postgres@<cluster endpoint>:5432/main` (`RFM_DATABASE=wip_<name> npm run deploy:api` for a work copy). The server listens before it touches the database; the DataSource initializes on the first request that needs it, because Web Functions require a listening server within 10 s and an Aurora resume takes ~15 s. Run `npm run migration:run` against `main` before deploying code that needs a new migration. `ALERT_TRIAGE=bedrock` and `BEDROCK_AUTH=iam` turn on the LLM alert triage (#14), signed with the execution role, which may invoke the EU Anthropic profiles.
 - Drafting worker: the same backend bundle zipped into a classic Lambda `rfm-drafting-worker` (Node 24, arm64, 900 s, handler `backend/dist/draftingWorker.handler`), with no Lambda retries (a failed job is retried by the user) and up to 3 reserved concurrent executions where the account quota allows. Its role may write `/aws/lambda/rfm-drafting-worker`, connect to Aurora and invoke Anthropic models through the EU profiles. Env `DRAFT_GENERATOR=bedrock` drafts with Claude on Bedrock (`BedrockDraftGenerator`), `BEDROCK_AUTH=iam` signs the calls with the role's credentials, so the role needs no `bedrock:CallWithBearerToken`. The API gets `DRAFTING_WORKER_FUNCTION=rfm-drafting-worker` and may invoke only this function. Deploy the worker before the API.
 - Web bundle: the `build` stage of `web/Dockerfile` for arm64, then `.next/standalone` plus static assets and `deploy/web/index.js`, which maps `AWS_LAMBDA_HTTP_ENDPOINT` to `HOSTNAME`/`PORT`. `BACKEND_URL` and `NEXT_PUBLIC_*` are baked in at build time, so redeploy the web after changing them or after the API endpoint changes. The deployed UI calls the real backend (`NEXT_PUBLIC_API_MODE` defaults to `live` here, unlike local dev); `NEXT_PUBLIC_API_MODE=mock npm run deploy:web` switches it to browser-only demo data.
-- Endpoints are public (`ApplicationManaged` auth) and the API has no authentication yet, so it only ever points at synthetic and organiser data.
+- Endpoints are public (`ApplicationManaged` auth) and the API has no authentication yet, so it only ever points at synthetic and organiser data. The URLs stay the same across redeploys.
 - Fallback: the `runtime` stage of `web/Dockerfile` is a plain container image for ECS Express.
 
 Endpoint URLs: `aws lambda-web get-web-function-endpoint --function-name rfm-web --endpoint-name dev --query domainName --output text` (same for `rfm-api`). Logs: CloudWatch log groups `/aws/lambda/web/rfm-api` and `/aws/lambda/web/rfm-web` (`aws logs tail /aws/lambda/web/rfm-api --follow`). The runtime also writes to a sibling `<group>.local`; if the execution role can't write to it, no logs arrive in either group. `deploy:roles` creates all four with 14-day retention. A role change reaches only new environments, so redeploy afterwards (`aws lambda-web deploy --name rfm-api` with no `--code` makes a config-only revision).
