@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { fieldStyles } from "@/components/ui/Field";
 import { MarkdownText } from "@/components/ui/MarkdownText";
@@ -17,15 +17,23 @@ type PolicyTextFieldProps = {
   value: string;
   onChange: (value: string) => void;
   textAreaClassName?: string;
+  /** Actions shown at the end of the edit/preview switch row, e.g. the wizard's selection toggle. */
+  toolbarEnd?: ReactNode;
 };
 
 /** Markdown text of a draft policy: a textarea with a formatted preview of the current (unsaved) text. */
-export function PolicyTextField({ id, value, onChange, textAreaClassName }: PolicyTextFieldProps) {
+export function PolicyTextField({
+  id,
+  value,
+  onChange,
+  textAreaClassName,
+  toolbarEnd,
+}: PolicyTextFieldProps) {
   const { t } = useI18n();
   const [mode, setMode] = useState<PolicyTextMode>("edit");
   return (
     <div className={styles.field}>
-      <div>
+      <div className={styles.toolbar}>
         <SegmentedControl
           label={t.policies.textView}
           options={[
@@ -35,6 +43,7 @@ export function PolicyTextField({ id, value, onChange, textAreaClassName }: Poli
           value={mode}
           onChange={setMode}
         />
+        {toolbarEnd}
       </div>
       {mode === "edit" ? (
         <>

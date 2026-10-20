@@ -70,26 +70,28 @@ function PolicyDraftEditor({
 }) {
   const { t } = useI18n();
   const [isRejecting, setIsRejecting] = useState(false);
-  return (
-    <>
-      <div className={styles.generatedRuleActions}>
-        {/* A toggle, not an immediate approval: it selects the draft for the bulk approval below. */}
-        <Button
-          variant={isSkipped ? "secondary" : "success"}
-          icon={isSkipped ? <Circle aria-hidden="true" /> : <CircleCheck aria-hidden="true" />}
-          aria-pressed={!isSkipped}
-          onClick={() => onSkippedChange(!isSkipped)}
-        >
-          {t.wizard.includePolicy}
+  const actions = (
+    <div className={styles.generatedRuleActions}>
+      {/* A toggle, not an immediate approval: it selects the draft for the bulk approval below. */}
+      <Button
+        variant={isSkipped ? "secondary" : "success"}
+        icon={isSkipped ? <Circle aria-hidden="true" /> : <CircleCheck aria-hidden="true" />}
+        aria-pressed={!isSkipped}
+        onClick={() => onSkippedChange(!isSkipped)}
+      >
+        {t.wizard.includePolicy}
+        <span className="visually-hidden">: {policy.name}</span>
+      </Button>
+      {canReject && !isRejecting && (
+        <Button variant="danger" icon={<CircleX aria-hidden="true" />} onClick={() => setIsRejecting(true)}>
+          {t.wizard.rejectPolicy}
           <span className="visually-hidden">: {policy.name}</span>
         </Button>
-        {canReject && !isRejecting && (
-          <Button variant="danger" icon={<CircleX aria-hidden="true" />} onClick={() => setIsRejecting(true)}>
-            {t.wizard.rejectPolicy}
-            <span className="visually-hidden">: {policy.name}</span>
-          </Button>
-        )}
-      </div>
+      )}
+    </div>
+  );
+  return (
+    <>
       {/* The stored draft is rejected, not unsaved wizard edits; the rejected card then shows that wording. */}
       {isRejecting && (
         <RejectPolicyPanel
@@ -103,13 +105,18 @@ function PolicyDraftEditor({
       )}
       {/* A skipped draft is not saved, so it is read-only; its edits come back when it is selected again. */}
       {isSkipped ? (
-        <MarkdownText>{text}</MarkdownText>
+        <>
+          {actions}
+          <MarkdownText>{text}</MarkdownText>
+        </>
       ) : (
+        // The selection toggle sits on the edit/preview switch row, at its end.
         <PolicyTextField
           id={`wizard-policy-text-${policy.id}`}
           value={text}
           onChange={onTextChange}
           textAreaClassName={styles.policyText}
+          toolbarEnd={actions}
         />
       )}
     </>
