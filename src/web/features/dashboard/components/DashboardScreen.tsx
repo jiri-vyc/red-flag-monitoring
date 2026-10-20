@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
 import { EmptyState, QueryView } from "@/components/ui/StateViews";
 import { useBatchesCapabilities } from "@/features/batches/api/hooks";
+import { batchPath } from "@/features/batches/batchPaths";
 import { BucketCountsInline } from "@/features/batches/components/BucketCountsInline";
 import { formatLegalBasisRefs } from "@/features/regulations/types";
 import { RuleStatusBadge, RuleTypeBadge } from "@/features/rules/components/RuleBadges";
@@ -120,7 +121,7 @@ function DashboardContent({ summary }: { summary: DashboardSummary }) {
             <ul className={styles.list}>
               {summary.recentBatches.map((batch) => (
                 <li key={batch.id}>
-                  <Link href={`/batches/${batch.id}`} className={styles.listItem}>
+                  <Link href={batchPath(batch.id)} className={styles.listItem}>
                     <span className={styles.listMain}>
                       <strong>{batch.fileName}</strong>
                       <small>{formatDateTime(batch.uploadedAt, locale)}</small>

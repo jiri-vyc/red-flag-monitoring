@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { DraftingJob } from "@/features/draftingJobs/types";
 import { policyLegalBasisSchema } from "@/features/regulations/types";
 
+import { findCurrentVersion } from "./domain/currentVersion";
+
 export const policyStatusSchema = z.enum(["draft", "approved"]);
 export type PolicyStatus = z.infer<typeof policyStatusSchema>;
 
@@ -41,7 +43,7 @@ export type PolicyVersion = z.infer<typeof policyVersionSchema>;
 export const policySchema = z.object({
   id: z.string(),
   name: z.string(),
-  /** Legal bases of the latest version (M3). Empty for a purely internal policy. */
+  /** Legal bases of the current version (M3, see `findCurrentPolicyVersion`). Empty for a purely internal policy. */
   legalBases: z.array(policyLegalBasisSchema),
   status: policyStatusSchema,
   origin: policyOriginSchema,
@@ -51,10 +53,15 @@ export const policySchema = z.object({
   approvedBy: z.string().nullable(),
   approvedAt: z.string().nullable(),
   ruleIds: z.array(z.string()),
-  /** Oldest first; the last one is the version status, text and legal bases come from. */
+  /** Oldest first. Status, text and legal bases come from the current version (`findCurrentPolicyVersion`). */
   versions: z.array(policyVersionSchema),
 });
 export type Policy = z.infer<typeof policySchema>;
+
+/** The version the policy's status, text and legal bases come from (see `findCurrentVersion`). */
+export function findCurrentPolicyVersion(policy: Pick<Policy, "versions">): PolicyVersion | undefined {
+  return findCurrentVersion(policy.versions, (version) => version.state);
+}
 
 export type UpdatePolicyTextInput = { policyId: string; text: string };
 

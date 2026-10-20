@@ -12,6 +12,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
 import { useBatch } from "../api/hooks";
+import { batchPath } from "../batchPaths";
 import { BUCKETS, type Batch, type Bucket } from "../types";
 import { BatchStatusBadge } from "./BatchesScreen";
 import { BatchProgressView } from "./BatchProgressView";
@@ -29,7 +30,7 @@ function BucketCards({ batch, selectedBucket }: { batch: Batch; selectedBucket: 
         return (
           <Link
             key={bucket}
-            href={`/batches/${batch.id}?bucket=${bucket}`}
+            href={batchPath(batch.id, bucket)}
             scroll={false}
             className={`${styles.bucketCard} ${styles[bucket]} ${isSelected ? styles.bucketCardSelected : ""}`}
             aria-current={isSelected ? "true" : undefined}

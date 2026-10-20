@@ -1,6 +1,5 @@
-import { z } from "zod";
-
 import type { RegulationKind } from "@/features/regulations/api/dto";
+import { isHttpUrl } from "@/lib/url";
 
 import type { WizardCapabilities } from "./api/contract";
 import type { DraftPoliciesInput, RegulationSource, RegulationTarget } from "./types";
@@ -37,8 +36,6 @@ type SourceCapabilities = Pick<WizardCapabilities, "canFetchUrl">;
 
 const MIN_TEXT_LENGTH = 50;
 const MARKDOWN_FILE_PATTERN = /\.(md|markdown)$/i;
-// `z.url()` alone also accepts e.g. `javascript:` URLs.
-const httpUrlSchema = z.url({ protocol: /^https?$/ });
 
 export const MARKDOWN_FILE_ACCEPT = ".md,.markdown,text/markdown";
 
@@ -52,10 +49,6 @@ export function isSourceKindSupported(kind: SourceKind, { canFetchUrl }: SourceC
 /** A URL source carries its own metadata (derived by the implementation), so the form asks only for the URL. */
 export function areRegulationFieldsShown(kind: SourceKind): boolean {
   return kind !== "url";
-}
-
-export function isHttpUrl(value: string): boolean {
-  return httpUrlSchema.safeParse(value).success;
 }
 
 function buildSource(

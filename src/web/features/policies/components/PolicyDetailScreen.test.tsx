@@ -27,6 +27,7 @@ jest.mock("@/features/rules/api/hooks", () => ({
 }));
 jest.mock("@/features/regulations/api/hooks", () => ({
   useRegulations: () => ({ data: [], error: null, isPending: false, isError: false, refetch: jest.fn() }),
+  useRegulationNames: () => ({ data: {} }),
 }));
 jest.mock("@/features/users/api/hooks", () => ({ useRolePermissions: () => ({ canApprovePolicy: true }) }));
 jest.mock("@/features/draftingJobs/api/hooks", () => ({}));
@@ -127,6 +128,37 @@ describe("PolicyDetailScreen version history (issue #5)", () => {
     fireEvent.click(screen.getByRole("button", { name: en.common.open }));
 
     expect(screen.getByRole<HTMLTextAreaElement>("textbox").value).toBe("Neuložená úprava");
+  });
+
+  it("shows the approved version as current when a newer version was rejected (BE-11)", () => {
+    const approvedVersion: PolicyVersion = { ...REJECTED_VERSION, state: "approved", reviewComment: null };
+    const rejectedVersion: PolicyVersion = { ...DRAFT_VERSION, state: "rejected", reviewComment: "Ne" };
+    jest.mocked(usePolicy).mockReturnValue({
+      data: {
+        ...POLICY,
+        status: "approved",
+        text: approvedVersion.text,
+        versions: [approvedVersion, rejectedVersion],
+      },
+      error: null,
+      isPending: false,
+      isError: false,
+      refetch: jest.fn(),
+    } as unknown as ReturnType<typeof usePolicy>);
+    render(
+      <I18nProvider initialLocale="en">
+        <PolicyDetailScreen policyId="policy-1" />
+      </I18nProvider>,
+    );
+
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByText(`${en.policies.text} (v1)`)).toBeTruthy();
+    expect(screen.getByText("Původní text předpisu")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: en.common.open }));
+
+    expect(screen.getByText("Upravený text předpisu")).toBeTruthy();
+    expect(screen.getByText(/The current one is version 1/)).toBeTruthy();
   });
 
   it("shows the reviewer even when the review time is missing", () => {

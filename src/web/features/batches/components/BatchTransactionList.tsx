@@ -12,6 +12,7 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { useInfiniteScroll } from "@/lib/useInfiniteScroll";
 
 import { useBatchTransactions } from "../api/hooks";
+import { batchTransactionPath } from "../batchPaths";
 import type { Bucket } from "../types";
 import styles from "./BatchDetail.module.css";
 
@@ -61,7 +62,7 @@ export function BatchTransactionList({ batchId, bucket }: { batchId: string; buc
           </thead>
           <tbody>
             {transactions.map(({ transaction, failedRuleCount, maxAdjustedScore }) => {
-              const detailHref = `/batches/${batchId}/transactions/${transaction.transactionId}`;
+              const detailHref = batchTransactionPath(batchId, transaction.transactionId);
               return (
                 <tr key={transaction.transactionId} className={styles.clickableRow}>
                   <td>

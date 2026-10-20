@@ -38,7 +38,7 @@ Průvodce v live režimu (`features/wizard/api/live.ts`) jde přes asynchronní 
 - **Stránka `/transactions`** (`features/transactions`, služba `transactions`, `GET /api/transactions`, v mocku seed `mocks/seed/transactions.ts`). V sidebaru jako „Transakce“. Tabulka transakcí od nejnovější s nekonečným scrollováním, filtr podle ID klienta (formát `K000123`, prázdný filtr ukáže vše). Filtr je v URL (`/transactions?clientId=K000123`), takže jde sdílet. Bez filtru má tabulka sloupec Klient.
 - **Odkaz z detailu alertu:** karta nesplněného pravidla má odkaz „Kontext: zobrazit transakce klienta“ na `/transactions?clientId=…&highlight=…&from=…`. Vyhodnocovaná transakce je zvýrazněná. Seznam donačítá stránky, dokud se neobjeví (nejvýš 20 stránek), a posune se na ni. „Zpět na vyhodnocení transakce“ vede zpět na detail.
 - [ ] **Časové okno pravidla** v odkazu (`from` / `to`): API ho umí, web ho neposílá. Rozdíl v časové zóně: `occurredAt` přichází jako UTC z lokálního `ts` podle zóny procesu backendu, převod zpět na lokální čas v prohlížeči by nebyl spolehlivý. Navíc okna se liší podle pravidla.
-- [ ] Typ transakce se ukazuje surově (`incoming` v live, `incoming payment` v mocku), stejně jako v detailu transakce.
+- [x] **Typ transakce** se v seznamu transakcí a v detailu transakce ukazuje přeloženě (`transactionType` v i18n, `features/batches/domain/transactionType.ts`). Live posílá hodnoty backendu (`outgoing`, `incoming`, `remittance`), mock a nahrané CSV mají zápis datasetu (`incoming payment`, `outgoing payment`), web mapuje oba. Mock se nesjednotil, protože zápis datasetu používá i mock vyhodnocení a generování pravidel. Neznámá hodnota se ukáže surově. Seznam transakcí dávky typ nemá.
 
 ## Formátovaný text předpisu (issue #12, hotovo)
 
@@ -48,7 +48,7 @@ Průvodce v live režimu (`features/wizard/api/live.ts`) jde přes asynchronní 
 ## Historie verzí předpisu (issue #5, web hotovo)
 
 - **Detail předpisu** (`/policies/[policyId]`) má kartu „Historie verzí“ (`features/policies/components/PolicyVersionHistory.tsx`) ve stylu historie verzí pravidla. U každé verze: číslo, stav (`draft`, `pending_review`, `approved`, `rejected`, `superseded`, odznak `VersionStateBadge` z pravidel), vznik (`wizard`, `manual`, `reg_update`), právní základ, autor a čas, posuzovatel a čas, komentář k posouzení. Výběrem starší verze se v kartě textu ukáže její text (Markdown, jen ke čtení) s upozorněním, že jde o starší verzi. Aktuální verze se dál edituje jako dřív.
-- **Model:** `Policy.versions` (`PolicyVersion`, nejstarší první). Live adapter mapuje `GET /api/internal-policies/:id/versions` (autor a posuzovatel přes `formatUserName`). Stav, text a právní základ předpisu se dál berou z poslední verze. Mock seed má u každého předpisu verze odpovídající jeho stavu (`pol-high-risk-countries` a `pol-pep` mají i starší verzi), úprava textu v mocku přidá novou draft verzi jako v live. Mock klíč je `database.v6`.
+- **Model:** `Policy.versions` (`PolicyVersion`, nejstarší první). Live adapter mapuje `GET /api/internal-policies/:id/versions` (autor a posuzovatel přes `formatUserName`). Stav, text, právní základ a schválení předpisu se berou z aktuální verze: z poslední, pokud není zamítnutá (nebo superseded), jinak z poslední schválené (viz Live napojení, BE-11). Mock seed má u každého předpisu verze odpovídající jeho stavu (`pol-high-risk-countries` a `pol-pep` mají i starší verzi), úprava textu v mocku přidá novou draft verzi jako v live. Mock klíč je `database.v6`.
 - [ ] Porovnání dvou verzí (diff textu) chybí.
 
 ## Asynchronní schválení a polling (rozhodnutí 2026-10-19, hotovo)
@@ -65,23 +65,23 @@ Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obo
 
 - [ ] **Neznámá měna v mocku** (`mocks/evaluation/fxRates.ts`): `convertToCzk` měny mimo tabulku tiše přepočítá kurzem 1, takže prahová pravidla vyhodnotí částku špatně. Takový řádek označit jako neplatný, nebo ho dát do TO CHECK s poznámkou „neznámý kurz“. Na živém API je potřeba oficiální kurz (ČNB fixing), to je otevřená otázka pro compliance.
 - [ ] **Prázdná částka** (`mocks/evaluation/csvTransactions.ts`): `Number("")` dává `0`, takže řádek projde jako transakce s nulovou částkou. Má se počítat do `invalidRowCount`.
-- [ ] **Odkaz na detail transakce** (`features/batches/components/BatchTransactionList.tsx`): `detailHref` neobaluje transactionId do `encodeURIComponent`. ID se znaky `/`, `?` nebo `#` rozbije routu.
+- [x] **Odkaz na detail transakce** (`features/batches/components/BatchTransactionList.tsx`): opraveno, `detailHref` obaluje ID běhu i transakce do `encodeURIComponent`. Jiný builder odkazu na detail transakce web nemá (API cesta v `features/batches/api/live.ts` už ID kóduje).
 - [ ] **Duplicitní ID transakcí v jednom CSV**: vznikají duplicitní React klíče a detail vždy otevře první shodu. Duplicity odhalit při parsování.
-- [ ] **`formatDate`** (`lib/format.ts`): chybí kontrola na `NaN`, jakou už má `formatDateTime`.
+- [x] **`formatDate`** (`lib/format.ts`): opraveno, neplatné nebo prázdné datum vrátí beze změny jako `formatDateTime`. Pokrývá test.
 - [ ] **4-eyes princip** (`features/rules/domain/ruleLifecycle.ts`, `config/currentUser.ts`): uživatele a roli lze přepnout (issue #6), ale web nebrání schválit vlastní návrh a draft se dá schválit napřímo bez `submit_for_review`. Pro MVP bez loginu to stačí, ale před ostrým nasazením to musí posoudit compliance (kdo smí schválit pravidlo, oddělení rolí).
-- [ ] **Zablokovaný localStorage** (`mocks/store/mockDatabase.ts`): `readStorageItem` volá `getItem()` mimo try/catch. V privátním režimu nebo při SecurityError proto letí obecná `Error` místo `ApiError` typu `storage`. Aplikace nepadá, jen se ukáže jiná chyba.
-- [ ] **URL regulace** (`features/wizard/sourceForm.ts`, `features/regulations/types.ts`): `z.url()` pustí i `javascript:`. Omezit protokol na http/https ve formuláři i v `regulationSchema.sourceUrl`.
+- [x] **Zablokovaný localStorage** (`mocks/store/mockDatabase.ts`): opraveno, chyba `getItem()` (privátní režim, SecurityError) se vrátí jako `ApiError` typu `storage`, stejně jako při zápisu.
+- [x] **URL regulace** (`features/wizard/sourceForm.ts`, `lib/url.ts`): opraveno, formulář bere jen http/https (sdílené `isHttpUrl` v `lib/url.ts`). Live i mock adaptér posílají `sourceUrl` přes `toSafeSourceUrl`, který jinou URL zahodí, takže se nevykreslí jako odkaz. `regulationSchema.sourceUrl` je jen `string` s odkazem na tento helper.
 - [ ] **Neexistující datum v CSV**: už opraveno (`31.02.` se odmítne). Ověřit, že stejná kontrola platí i na živém API.
 - [ ] **Schválení reaktivuje vypnuté pravidlo** (`ruleLifecycle.ts`, `approveRule`): nová verze vypnutého pravidla jde do `pending_for_review` a po schválení je pravidlo vždy `active`. Rozhodnout s compliance, jestli má zůstat vypnuté, nebo jestli tlačítko má říct, že pravidlo i zapne.
 - [ ] **Předvyplnění nové verze** (`RuleDetailScreen.tsx`, `NewVersionEditor`): formulář bere poslední verzi, i když je zamítnutá. Má brát běžící verzi (`findRunningVersion(rule) ?? latestVersion`), jinak se dají omylem znovu poslat zamítnuté hodnoty.
 - [ ] **Konfigurace draftu**: u pravidla ve stavu `draft` (výstup wizardu) jde upravit jen obsah. Citlivost a risk profily se před prvním review změnit nedají.
-- [ ] **Odkaz uvnitř `<summary>`** (`TransactionEvaluationScreen.tsx`, splněná pravidla): screen readery ho nemusí ohlásit (axe `nested-interactive`). Odkaz přesunout do rozbaleného panelu nebo vedle `<details>`.
+- [x] **Odkaz uvnitř `<summary>`** (`TransactionEvaluationScreen.tsx`, splněná pravidla): opraveno, odkaz „Otevřít pravidlo“ je v rozbaleném panelu a dál vede zpět na transakci (`from=`).
 - [ ] **Focus ring klikacího řádku** (`BatchDetail.module.css`): spoléhá na `:has()`. Bezpečnější je outline na `.rowLink:focus-visible::after`.
 - [ ] **Kopírování z řádku transakce**: odkaz přes celý řádek brání označit a zkopírovat ID klienta nebo částku. Pokud to analytici potřebují, dát buňkám `position: relative; z-index: 1`.
 - [ ] **Kontrakt `passedRules`**: API výsledky `pass` neukládá ([V16](spec/datovy-model.md#rozhodnutí-vyhodnocení)). `ruleEvaluations` v detailu obsahuje jen `hit`, `error` a `not_applicable`. Splněná pravidla odvodit ze souhrnu běhu (`ruleVersions`) jako „prošla“, bez trace.
 - [x] **Návrhy klientů ve whitelistu** (`RuleWhitelistCard.tsx`): demo ID ze `SEED_CLIENTS` se nabízí jen při `rules.canSuggestWhitelistClients` (mock). Návrhy z API čekají na BE-06.
 - [ ] **Audit odebrání z whitelistu** (spec M16): odebrání se má zapsat do audit logu, který FE zatím nemá (BE-13). Schválení a pravidelná revize výjimek (benchmark ČNB 2/2023) taky chybí a musí je posoudit compliance.
-- [ ] **Načítání whitelistu u zakázaných pravidel**: `useRuleWhitelist` se volá i při `whitelistAllowed = false`. Přidat `enabled: rule.whitelistAllowed`.
+- [x] **Načítání whitelistu u zakázaných pravidel**: opraveno, `useRuleWhitelist` dostává `enabled: rule.whitelistAllowed`.
 - [ ] **Další rozdíly proti `spec/datovy-model.md`**: risk profil `unknown` (M15 zná jen low/medium/high), znění regulace (M1), referenční seznamy (M9), `base_score` (M7), `code` a `alert_type` u pravidla.
 - [x] **Vazby regulace, předpis a pravidlo (M3 až M5)**: předpis cituje 0..N regulací s volitelným `ref`, pravidlo nemusí mít předpis a každá verze pravidla má vlastní právní základ. Mock klíč je `database.v4`.
 - [ ] **Výběr znění regulace v právním základu**: ruční pravidlo vždy cituje nejnovější znění (M1). Výběr staršího znění a upozornění na pravidla stojící na starém znění zatím chybí.
@@ -101,9 +101,9 @@ Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obo
 - [ ] `mockDatabase.ts`: `isMockDatabase` kontroluje jen klíče `rules` a `batches`. Při každé změně tvaru dat zvýšit verzi klíče v localStorage.
 - [ ] `wizard.mock.ts`: texty generované mockem jsou natvrdo česky („RedFlag AI (návrh)“, poznámka ke změně). Jsou to data, ne UI, takže se nepřekládají. Případně sjednotit jazyk mock dat.
 - [ ] `ScoreBar.tsx`: `findScoreTone` má natvrdo prahy 75 a 40, které duplikují konstanty v `mocks/evaluation/evaluateTransaction.ts`. Dát je do sdílené konfigurace mimo `mocks/`.
-- [ ] `TransactionEvaluationScreen.tsx`: klíč kroku trace je `condition`, takže při stejném textu podmínky vzniknou duplicitní klíče. Přidat index.
-- [ ] `TransactionEvaluationScreen.tsx`: `aria-label` u dlaždice se skóre je na `div` bez role. Přidat `role="img"` nebo visually-hidden text.
-- [ ] Seznam pravidel ukazuje ve sloupcích Policy a Regulation ID (`pol-pep`, `reg-amld`) místo názvů.
+- [x] `TransactionEvaluationScreen.tsx`: klíč kroku trace obsahuje index, stejný text podmínky už nedá duplicitní klíč.
+- [x] `TransactionEvaluationScreen.tsx`: dlaždice se skóre má `role="img"`, takže se `aria-label` ohlásí.
+- [x] **Názvy předpisů a regulací** v seznamu pravidel (a všude, kde jsou `PolicyLink` a `RegulationLink`): odkazy berou název z levného indexu názvů (`usePolicyNames`, `useRegulationNames`, jeden request `GET /internal-policies` a `GET /regulations` bez verzí) místo celých seznamů, které v live dělaly N+1. ID se ukáže jen během načítání nebo u neznámého názvu.
 
 ## Chybějící funkce
 
@@ -120,11 +120,12 @@ Vyhodnocovací běh i schválení předpisu s návrhy pravidel jsou hotové, obo
 - [ ] **Test, že schválení znovu nezapne vypnuté pravidlo**: namockovat `requestJson` a ověřit, že při `activeVersionId != null` se nevolá `/enable`. Zároveň sjednotit mock (`ruleLifecycle.approveRule` pravidlo zapíná vždy).
 - [ ] **Dvojí načtení pravidla v `approveRule`**: stačí jedno `fetchRuleWithVersions`.
 - [ ] **Ruční pravidlo bez verze** (`createManualRule`): když po `POST /rules` selže vytvoření verze, zůstane v `main` pravidlo bez verze. Seznam ho jen skryje.
-- [ ] **Stav předpisu** (`policies/api/live.ts`): bere se jen poslední verze. Když je v1 approved a v2 rejected, předpis se ukáže jako draft. Doplnit fallback na poslední schválenou verzi (BE-11).
+- [x] **Stav předpisu** (`policies/domain/currentVersion.ts`, `findCurrentVersion`, sdílené live adaptérem i detailem): po zamítnuté (nebo superseded) poslední verzi se stav, text, právní základ a schválení berou z poslední schválené verze, která dál platí. Draft a pending_review poslední verze zůstávají draftem k práci. Předpis bez schválené verze zůstane draft se zamítnutým textem. Detail ukazuje jako aktuální tuto verzi (`findCurrentPolicyVersion`), historie verzí je beze změny. Schválený předpis po zamítnutí nové verze nejde v UI upravit (jako každý schválený předpis).
+- [ ] **Přepracování zamítnuté verze schváleného předpisu**: rozhodnout s produktem a compliance, jestli má jít ze zamítnuté novější verze založit nový draft. Dnes schválený předpis v UI upravit nejde, takže zamítnuté znění nejde přepracovat.
 - [ ] **Agentní pravidlo**: při úpravě promptu zůstává `humanText` ze staré verze.
 - [ ] **N+1 requesty** při načítání regulací, předpisů a pravidel (každá položka se načítá s verzemi zvlášť). Při velkém objemu dat a studeném startu Aurory to bude pomalé, vyřešit agregovaným endpointem na backendu (BE-12). Live dashboard načítá verze jen u pravidel (kvůli stavům), takže N+1 platí i pro něj.
 - [ ] **Cursor u dávek**: `Number(cursor)` dá u nevalidní hodnoty NaN a backend vrátí 400.
-- [ ] **Zpráva u chyby 400** (`httpClient.ts`): zahazují se `issues` z backendu a uživatel vidí jen „Invalid request“.
+- [x] **Zpráva u chyby 400** (`httpClient.ts`): `issues` z backendu se přidají do zprávy `ApiError` jako `pole.cesta: zpráva` oddělené středníkem, takže je ukáže `ErrorState` i chyby mutací. Poškozené položky `issues` se zahodí jednotlivě (platné zůstanou) a vždy zůstane `error`.
 - [x] **Komentář k zamítnutí**: zamítnutí pravidla (detail i průvodce) otevře panel s povinným důvodem (`RejectRulePanel.tsx`). Důvod jde přes `rejectRule({ ruleId, comment })` do live jako `reviewComment`. Mock ho jen validuje, protože webový model verze komentář nemá. Konstanta `REJECTION_COMMENT` je pryč. Zobrazení komentáře v historii verzí zatím chybí.
 - [x] **Dashboard na mocku**: `NEXT_PUBLIC_API_MODE_DASHBOARD=mock` už v doporučeném nastavení není. Live dashboard se skládá z live endpointů (viz odstavec pod tabulkou nahoře), test `features/dashboard/api/live.test.ts`.
 - [x] **Úprava draftu pravidla a ruční deterministické pravidlo**: v live módu jsou skryté přes `rules.canEditDraftContent` a `rules.canCreateDeterministicRule` (viz tabulka nahoře, BE-04 a BE-05). Live adapter dál hází `unsupported` jako pojistku.

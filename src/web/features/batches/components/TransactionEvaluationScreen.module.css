@@ -333,6 +333,7 @@
 
 .inlineRuleLink {
   display: inline-flex;
+  justify-self: start;
   align-items: center;
   gap: var(--space-1);
   font-size: var(--font-size-sm);

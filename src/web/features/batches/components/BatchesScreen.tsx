@@ -12,6 +12,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
 import { useBatches, useBatchesCapabilities } from "../api/hooks";
+import { batchPath } from "../batchPaths";
 import type { Batch, BatchStatus } from "../types";
 import { BucketCountsInline } from "./BucketCountsInline";
 import { RunEvaluationPanel } from "./RunEvaluationPanel";
@@ -51,7 +52,7 @@ function BatchHistoryTable({ batches }: { batches: Batch[] }) {
           {batches.map((batch) => (
             <tr key={batch.id}>
               <td>
-                <Link href={`/batches/${batch.id}`} className={tableStyles.primaryCell}>
+                <Link href={batchPath(batch.id)} className={tableStyles.primaryCell}>
                   {batch.fileName}
                   <span className={`${tableStyles.secondaryText} ${tableStyles.mono}`}>{batch.id}</span>
                 </Link>

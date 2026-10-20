@@ -7,7 +7,23 @@ const VALIDATION_STATUSES = [400, 409, 422];
 // 501: the endpoint exists but the backend has no implementation yet (NotImplementedError).
 const NOT_IMPLEMENTED_STATUS = 501;
 
-const backendErrorBodySchema = z.object({ error: z.string() });
+// A 400 from request validation also lists the zod issues (backend errorHandler.ts, RequestValidationError).
+// A JSON path element that was a symbol arrives as null, hence `unknown`.
+const backendErrorIssueSchema = z.object({ path: z.array(z.unknown()).default([]), message: z.string() });
+type BackendErrorIssue = z.infer<typeof backendErrorIssueSchema>;
+
+// Malformed issues must not hide the error message itself or the valid issues, so each is parsed on its own.
+const backendErrorBodySchema = z.object({
+  error: z.string(),
+  issues: z.array(z.unknown()).optional().catch(undefined),
+});
+
+function parseValidIssues(issues: unknown[]): BackendErrorIssue[] {
+  return issues.flatMap((issue) => {
+    const parseResult = backendErrorIssueSchema.safeParse(issue);
+    return parseResult.success ? [parseResult.data] : [];
+  });
+}
 
 type RequestOptions<TSchema extends z.ZodType> = {
   path: string;
@@ -42,11 +58,25 @@ async function sendRequest(path: string, init: RequestInit): Promise<Response> {
   }
 }
 
-/** The backend error handler answers `{ error }`; anything else (e.g. a proxy error page) yields null. */
+/** One issue as `field.path: message`; an issue of the whole body has no path. */
+function formatIssue({ path, message }: BackendErrorIssue): string {
+  return path.length === 0 ? message : `${path.map(String).join(".")}: ${message}`;
+}
+
+/**
+ * The backend error handler answers `{ error }`, a validation error adds `issues`, which are appended so the
+ * user sees which field is wrong instead of a bare "Invalid request". Anything else (e.g. a proxy error page)
+ * yields null.
+ */
 async function readBackendErrorMessage(response: Response): Promise<string | null> {
   const responseBody: unknown = await response.json().catch(() => undefined);
   const parseResult = backendErrorBodySchema.safeParse(responseBody);
-  return parseResult.success ? parseResult.data.error : null;
+  if (!parseResult.success) {
+    return null;
+  }
+  const { error, issues: rawIssues = [] } = parseResult.data;
+  const issues = parseValidIssues(rawIssues);
+  return issues.length === 0 ? error : `${error}: ${issues.map(formatIssue).join("; ")}`;
 }
 
 function findErrorKind(status: number): ApiErrorKind {

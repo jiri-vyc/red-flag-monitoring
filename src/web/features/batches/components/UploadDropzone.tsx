@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/ui/StateViews";
 import { useI18n } from "@/i18n/I18nProvider";
 
 import { useUploadBatch } from "../api/hooks";
+import { batchPath } from "../batchPaths";
 import styles from "./UploadDropzone.module.css";
 
 /** Uploads a transactions CSV and navigates to the new batch, where the evaluation progress is shown. */
@@ -23,7 +24,7 @@ export function UploadDropzone() {
     if (!file) {
       return;
     }
-    uploadMutation.mutate(file, { onSuccess: (batch) => router.push(`/batches/${batch.id}`) });
+    uploadMutation.mutate(file, { onSuccess: (batch) => router.push(batchPath(batch.id)) });
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {

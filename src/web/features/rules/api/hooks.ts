@@ -130,11 +130,13 @@ export function useUpdateDraftContent() {
   });
 }
 
-export function useRuleWhitelist(ruleId: string) {
+/** `enabled: false` for a rule that does not allow a whitelist, so its entries are not fetched. */
+export function useRuleWhitelist(ruleId: string, { enabled }: { enabled: boolean }) {
   useServiceUsage("rules");
   return useQuery({
     queryKey: ruleQueryKeys.whitelist(ruleId),
     queryFn: () => rulesService.getWhitelist(ruleId),
+    enabled,
   });
 }
 

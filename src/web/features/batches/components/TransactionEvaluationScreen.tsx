@@ -27,6 +27,8 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { withReturnPath } from "@/lib/returnPath";
 
 import { useTransactionEvaluation } from "../api/hooks";
+import { batchPath } from "../batchPaths";
+import { formatTransactionType } from "../domain/transactionType";
 import type { RuleEvaluation, TransactionEvaluation } from "../types";
 import { BucketBadge } from "./BucketBadge";
 import styles from "./TransactionEvaluationScreen.module.css";
@@ -42,8 +44,12 @@ function useRuleDetailHref(): (ruleId: string) => string {
 function TraceTimeline({ evaluation }: { evaluation: RuleEvaluation }) {
   return (
     <ol className={styles.trace}>
-      {evaluation.trace.map((traceStep) => (
-        <li key={traceStep.condition} className={traceStep.isMet ? styles.traceMet : styles.traceNotMet}>
+      {evaluation.trace.map((traceStep, index) => (
+        // Two steps can share a condition text, so the index keeps the keys unique.
+        <li
+          key={`${index}-${traceStep.condition}`}
+          className={traceStep.isMet ? styles.traceMet : styles.traceNotMet}
+        >
           <span className={styles.traceIcon} aria-hidden="true">
             {traceStep.isMet ? <Check /> : <Circle />}
           </span>
@@ -136,6 +142,7 @@ function FailedRuleCard({
       <header className={styles.ruleHeader}>
         <div
           className={`${styles.scoreTile} ${scoreTileClass}`}
+          role="img"
           aria-label={`${t.transactionDetail.adjustedScore}: ${evaluation.adjustedScore} / 100`}
         >
           <strong>{evaluation.adjustedScore}</strong>
@@ -190,12 +197,13 @@ function PassedRuleList({ evaluations }: { evaluations: RuleEvaluation[] }) {
                     {t.transactionDetail.adjustedScore} {evaluation.adjustedScore}
                   </small>
                 </span>
+              </summary>
+              <div className={styles.passedRuleTrace}>
+                {/* Not inside <summary>: an interactive element there is not announced by screen readers. */}
                 <Link href={ruleDetailHref(evaluation.ruleId)} className={styles.inlineRuleLink}>
                   {t.transactionDetail.openRule}
                   <ArrowRight aria-hidden="true" />
                 </Link>
-              </summary>
-              <div className={styles.passedRuleTrace}>
                 <TraceTimeline evaluation={evaluation} />
                 {baseScore !== null && (
                   <div className={styles.scorePanel}>
@@ -220,7 +228,7 @@ function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEv
     <>
       <PageHeader
         backLink={{
-          href: `/batches/${evaluation.batchId}?bucket=${evaluation.bucket}`,
+          href: batchPath(evaluation.batchId, evaluation.bucket),
           label: t.transactionDetail.backToBatch,
         }}
         title={transaction.transactionId}
@@ -243,7 +251,10 @@ function TransactionEvaluationDetail({ evaluation }: { evaluation: TransactionEv
                     ? t.common.noData
                     : formatAmount({ amount: transaction.amountCzk, currency: "CZK", locale }),
               },
-              { label: t.transactionDetail.type, value: transaction.transactionType },
+              {
+                label: t.transactionDetail.type,
+                value: formatTransactionType(transaction.transactionType, t.transactionType),
+              },
               {
                 label: t.batches.route,
                 value: `${transaction.payerCountry || "–"} → ${transaction.payeeCountry || "–"}`,

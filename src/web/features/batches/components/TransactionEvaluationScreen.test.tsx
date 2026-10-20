@@ -7,6 +7,9 @@ import { useTransactionEvaluation } from "../api/hooks";
 import type { RuleEvaluation, TransactionEvaluation } from "../types";
 import { TransactionEvaluationScreen } from "./TransactionEvaluationScreen";
 
+const PATHNAME = "/batches/run-1/transactions/TX000000001";
+
+jest.mock("next/navigation", () => ({ usePathname: () => PATHNAME }));
 jest.mock("../api/hooks", () => ({ useTransactionEvaluation: jest.fn() }));
 
 const RULE_EVALUATION: RuleEvaluation = {
@@ -23,7 +26,10 @@ const RULE_EVALUATION: RuleEvaluation = {
   trace: [{ condition: "Částka", isMet: true, detail: "amount_czk (1000) > 500" }],
 };
 
-function buildEvaluation(failedRules: RuleEvaluation[]): TransactionEvaluation {
+function buildEvaluation(
+  failedRules: RuleEvaluation[],
+  passedRules: RuleEvaluation[] = [],
+): TransactionEvaluation {
   return {
     batchId: "run-1",
     transaction: {
@@ -42,14 +48,14 @@ function buildEvaluation(failedRules: RuleEvaluation[]): TransactionEvaluation {
     client: { id: "K000001", riskProfile: "high", isPep: false, country: "CZ" },
     bucket: "alert",
     failedRules,
-    passedRules: [],
+    passedRules,
     skippedRules: [],
   };
 }
 
-function renderScreen(failedRules: RuleEvaluation[]) {
+function renderScreen(failedRules: RuleEvaluation[], passedRules: RuleEvaluation[] = []) {
   jest.mocked(useTransactionEvaluation).mockReturnValue({
-    data: buildEvaluation(failedRules),
+    data: buildEvaluation(failedRules, passedRules),
     error: null,
     isPending: false,
     isError: false,
@@ -60,12 +66,20 @@ function renderScreen(failedRules: RuleEvaluation[]) {
       <TransactionEvaluationScreen batchId="run-1" transactionId="TX000000001" />
     </I18nProvider>,
   );
-  return screen.getByRole("article");
+  return screen.queryByRole("article");
+}
+
+function renderRuleCard(failedRules: RuleEvaluation[]): HTMLElement {
+  const ruleCard = renderScreen(failedRules);
+  if (ruleCard === null) {
+    throw new Error("Expected a failed rule card.");
+  }
+  return ruleCard;
 }
 
 describe("TransactionEvaluationScreen score calculation", () => {
   it("explains that a matching rule gets its whole base score", () => {
-    const ruleCard = renderScreen([RULE_EVALUATION]);
+    const ruleCard = renderRuleCard([RULE_EVALUATION]);
 
     expect(within(ruleCard).getByText(en.transactionDetail.baseScore)).toBeTruthy();
     expect(within(ruleCard).getByText(en.transactionDetail.baseScoreHint)).toBeTruthy();
@@ -78,7 +92,7 @@ describe("TransactionEvaluationScreen score calculation", () => {
   });
 
   it("keeps the plain score layout when the base score is unknown", () => {
-    const ruleCard = renderScreen([{ ...RULE_EVALUATION, ruleType: "agentic", baseScore: 80, score: 64 }]);
+    const ruleCard = renderRuleCard([{ ...RULE_EVALUATION, ruleType: "agentic", baseScore: 80, score: 64 }]);
 
     expect(within(ruleCard).queryByText(en.transactionDetail.baseScore)).toBeNull();
     expect(
@@ -89,10 +103,45 @@ describe("TransactionEvaluationScreen score calculation", () => {
 
 describe("TransactionEvaluationScreen client transactions", () => {
   it("links a failed rule to the client's transactions with this transaction highlighted", () => {
-    const ruleCard = renderScreen([RULE_EVALUATION]);
+    const ruleCard = renderRuleCard([RULE_EVALUATION]);
 
     const link = within(ruleCard).getByRole("link", { name: en.transactionDetail.showClientTransactions });
 
     expect(link.getAttribute("href")).toMatch(/^\/transactions\?clientId=K000001&highlight=TX000000001/);
+  });
+});
+
+describe("TransactionEvaluationScreen rule cards", () => {
+  it("names the adjusted score tile for assistive technology", () => {
+    const ruleCard = renderRuleCard([RULE_EVALUATION]);
+
+    expect(
+      within(ruleCard).getByRole("img", { name: `${en.transactionDetail.adjustedScore}: 80 / 100` }),
+    ).toBeTruthy();
+  });
+
+  it("renders trace steps that share a condition text", () => {
+    const sameCondition = { condition: "Částka", isMet: false, detail: "amount_czk (1000) > 5000" };
+    const ruleCard = renderRuleCard([
+      { ...RULE_EVALUATION, trace: [...RULE_EVALUATION.trace, sameCondition] },
+    ]);
+
+    expect(within(ruleCard).getAllByText("Částka")).toHaveLength(2);
+  });
+});
+
+describe("TransactionEvaluationScreen passed rules", () => {
+  it("puts the rule link in the expanded panel, not in the summary, with a return path", () => {
+    const passedRule = { ...RULE_EVALUATION, ruleId: "rule-2", isFailed: false, score: 0, adjustedScore: 0 };
+    renderScreen([], [passedRule]);
+
+    const details = screen.getByText(passedRule.ruleName).closest("details");
+    if (details === null) {
+      throw new Error("Expected the passed rule disclosure.");
+    }
+    const link = within(details).getByRole("link", { name: en.transactionDetail.openRule, hidden: true });
+
+    expect(link.closest("summary")).toBeNull();
+    expect(link.getAttribute("href")).toBe(`/rules/rule-2?from=${encodeURIComponent(PATHNAME)}`);
   });
 });

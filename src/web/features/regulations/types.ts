@@ -9,6 +9,10 @@ export const regulationSchema = z.object({
   shortName: z.string(),
   jurisdiction: jurisdictionSchema,
   description: z.string(),
+  /**
+   * An http(s) URL, or empty when the regulation has none. Not validated here: both adapters pass it through
+   * `toSafeSourceUrl` (lib/url.ts) before it reaches the UI.
+   */
   sourceUrl: z.string(),
   version: z.string(),
   lastCheckedAt: z.string(),

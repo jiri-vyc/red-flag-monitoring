@@ -152,6 +152,111 @@ describe("livePoliciesService", () => {
     expect(policy).toMatchObject({ status: "draft", text: "Text předpisu", origin: "generated" });
   });
 
+  it("loads policy names for links with a single request", async () => {
+    const requests = serveEndpoints();
+
+    const names = await livePoliciesService.loadPolicyNames();
+
+    expect(names).toEqual({
+      "policy-multi": "Systém vnitřních zásad",
+      "policy-internal": "Interní eskalace",
+    });
+    expect(requests.map(({ path }) => path)).toEqual(["/internal-policies"]);
+  });
+
+  describe("current version (BE-11)", () => {
+    const APPROVED_AT = "2026-10-19T12:00:00.000Z";
+    const REJECTED_AT = "2026-10-20T09:00:00.000Z";
+
+    function createVersion(
+      versionNo: number,
+      status: InternalPolicyVersionDto["status"],
+      overrides: Partial<InternalPolicyVersionDto> = {},
+    ): InternalPolicyVersionDto {
+      return {
+        ...MULTI_REGULATION_VERSION,
+        id: `policy-multi-v${versionNo}`,
+        versionNo,
+        status,
+        body: `Text v${versionNo}`,
+        ...overrides,
+      };
+    }
+
+    function serveVersions(versions: InternalPolicyVersionDto[]) {
+      serveEndpoints();
+      const fallbackImplementation = requestJsonMock.getMockImplementation()!;
+      requestJsonMock.mockImplementation(async (options) =>
+        options.path === "/internal-policies/policy-multi/versions"
+          ? versions
+          : fallbackImplementation(options),
+      );
+    }
+
+    const APPROVED_V1 = createVersion(1, "approved", {
+      reviewedBy: getCurrentUser().id,
+      reviewedAt: APPROVED_AT,
+    });
+
+    it("keeps the latest approved version in force when a newer one is rejected", async () => {
+      serveVersions([
+        APPROVED_V1,
+        createVersion(2, "rejected", {
+          legalBases: [{ regulationVersionId: "decree-v1", ref: "§ 3" }],
+          reviewedBy: "unknown-user-id",
+          reviewedAt: REJECTED_AT,
+          reviewComment: "Nesouhlasí",
+        }),
+      ]);
+
+      const policy = await livePoliciesService.loadPolicy("policy-multi");
+
+      expect(policy).toMatchObject({
+        status: "approved",
+        text: "Text v1",
+        legalBases: [
+          { regulationId: "reg-aml", ref: "§ 21" },
+          { regulationId: "reg-decree", ref: null },
+        ],
+        approvedBy: getCurrentUser().name,
+        approvedAt: APPROVED_AT,
+        updatedAt: REJECTED_AT,
+      });
+      expect(policy.versions.map(({ versionNumber, state }) => ({ versionNumber, state }))).toEqual([
+        { versionNumber: 1, state: "approved" },
+        { versionNumber: 2, state: "rejected" },
+      ]);
+    });
+
+    it("falls back past a superseded latest version to the latest approved one", async () => {
+      serveVersions([
+        createVersion(1, "superseded"),
+        createVersion(2, "approved", { reviewedBy: getCurrentUser().id, reviewedAt: APPROVED_AT }),
+        createVersion(3, "superseded"),
+      ]);
+
+      const policy = await livePoliciesService.loadPolicy("policy-multi");
+
+      expect(policy).toMatchObject({ status: "approved", text: "Text v2", approvedAt: APPROVED_AT });
+    });
+
+    it("shows a newer draft or pending version as the draft being worked on", async () => {
+      serveVersions([APPROVED_V1, createVersion(2, "pending_review")]);
+
+      const policy = await livePoliciesService.loadPolicy("policy-multi");
+
+      expect(policy).toMatchObject({ status: "draft", text: "Text v2", approvedBy: null, approvedAt: null });
+    });
+
+    it("keeps a rejected policy that was never approved a draft with the rejected text", async () => {
+      serveVersions([createVersion(1, "rejected", { reviewedAt: REJECTED_AT })]);
+
+      const policy = await livePoliciesService.loadPolicy("policy-multi");
+
+      expect(policy).toMatchObject({ status: "draft", text: "Text v1", approvedBy: null, approvedAt: null });
+    });
+  });
+
   it("saves an edited text as a new draft version that keeps the legal bases", async () => {
     const requests = serveEndpoints();
 
@@ -164,6 +269,28 @@ describe("livePoliciesService", () => {
       body: "Nový text",
       legalBases: MULTI_REGULATION_VERSION.legalBases,
     });
+  });
+
+  it("takes the legal bases of the version in force, not of a newer rejected one", async () => {
+    const requests = serveEndpoints();
+    const fallbackImplementation = requestJsonMock.getMockImplementation()!;
+    const rejectedVersion = {
+      ...MULTI_REGULATION_VERSION,
+      id: "policy-multi-v2",
+      versionNo: 2,
+      status: "rejected" as const,
+      legalBases: [{ regulationVersionId: "decree-v1", ref: "§ 3" }],
+    };
+    requestJsonMock.mockImplementation(async (options) =>
+      options.path === "/internal-policies/policy-multi/versions" && (options.method ?? "GET") === "GET"
+        ? [{ ...MULTI_REGULATION_VERSION, status: "approved" }, rejectedVersion]
+        : fallbackImplementation(options),
+    );
+
+    await livePoliciesService.updatePolicyText({ policyId: "policy-multi", text: "Nový text" });
+
+    const writes = requests.filter(({ method }) => method !== "GET");
+    expect(writes[0]?.jsonBody).toMatchObject({ legalBases: MULTI_REGULATION_VERSION.legalBases });
   });
 });
 

@@ -1,8 +1,11 @@
 import { fetchPoliciesWithVersions } from "@/features/policies/api/dto";
 import { fetchRulesWithVersions, findDescribingVersionDto } from "@/features/rules/api/dto";
+import { toSafeSourceUrl } from "@/lib/url";
+
 import type { Regulation } from "../types";
 import type { RegulationsService } from "./contract";
 import {
+  fetchRegulationDtos,
   fetchRegulationWithVersions,
   fetchRegulationsWithVersions,
   toJurisdiction,
@@ -42,7 +45,8 @@ function toRegulation(
     jurisdiction: toJurisdiction(regulation.kind),
     // The backend stores the full text per version, not a summary.
     description: "",
-    sourceUrl: regulation.sourceUrl ?? "",
+    // The URL is rendered as a link, so anything but http(s) (e.g. `javascript:`) is dropped.
+    sourceUrl: toSafeSourceUrl(regulation.sourceUrl),
     version: latestVersion?.label ?? "",
     lastCheckedAt: regulation.checkedAt ?? "",
     keyProvisions: [...new Set(keyProvisions)],
@@ -85,5 +89,11 @@ export const liveRegulationsService: RegulationsService = {
       loadCitations(),
     ]);
     return toRegulation(regulationWithVersions, citations);
+  },
+
+  // A single request: the short name is the regulation code, as in `toRegulation`.
+  async loadRegulationNames() {
+    const regulations = await fetchRegulationDtos();
+    return Object.fromEntries(regulations.map((regulation) => [regulation.id, regulation.code]));
   },
 };

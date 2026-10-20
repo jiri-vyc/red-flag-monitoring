@@ -183,7 +183,7 @@ function AddWhitelistEntryForm({ ruleId }: { ruleId: string }) {
 export function RuleWhitelistCard({ rule }: { rule: Rule }) {
   const { t } = useI18n();
   const { canManageRules } = useRolePermissions();
-  const whitelistQuery = useRuleWhitelist(rule.id);
+  const whitelistQuery = useRuleWhitelist(rule.id, { enabled: rule.whitelistAllowed });
   return (
     <Card
       title={

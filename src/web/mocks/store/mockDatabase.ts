@@ -81,8 +81,20 @@ function writeStorageItem(key: string, value: unknown): void {
   }
 }
 
+/** Blocked storage (private mode, SecurityError) surfaces as a storage ApiError, like a failed write. */
+function getStorageItem(key: string): string | null {
+  try {
+    return getStorage().getItem(key);
+  } catch (cause) {
+    throw new ApiError({
+      kind: "storage",
+      message: `Mock storage (localStorage) is unavailable. ${cause instanceof Error ? cause.message : ""}`,
+    });
+  }
+}
+
 function readStorageItem(key: string): unknown {
-  const storedValue = getStorage().getItem(key);
+  const storedValue = getStorageItem(key);
   if (storedValue === null) {
     return null;
   }

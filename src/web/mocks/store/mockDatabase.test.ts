@@ -1,3 +1,5 @@
+import { ApiError } from "@/lib/apiError";
+
 import { buildSeedDatabase } from "../seed/buildSeedDatabase";
 import { readMockDatabase, resetMockDatabase, writeMockDatabase } from "./mockDatabase";
 
@@ -86,6 +88,19 @@ describe("mockDatabase", () => {
 
     expect(readMockDatabase().rules).toHaveLength(seed.rules.length);
     expect(readMockDatabase().whitelistEntries).toEqual(seed.whitelistEntries);
+  });
+
+  it("reports blocked localStorage as a storage error", () => {
+    const getItem = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    });
+
+    try {
+      expect(() => readMockDatabase()).toThrow(expect.objectContaining({ kind: "storage" }));
+      expect(() => readMockDatabase()).toThrow(ApiError);
+    } finally {
+      getItem.mockRestore();
+    }
   });
 });
 

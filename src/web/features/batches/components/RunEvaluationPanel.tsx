@@ -14,6 +14,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { formatNumber } from "@/lib/format";
 
 import { useBatches, useBatchesMode, useStartEvaluationRun } from "../api/hooks";
+import { batchPath } from "../batchPaths";
 import { estimateThroughput, findFullDatasetTxCount } from "../domain/runDuration";
 import type { RunScope } from "../types";
 import { RunDurationEstimate } from "./RunDurationEstimate";
@@ -71,7 +72,7 @@ export function RunEvaluationPanel() {
       to: toOptionalDate(scopeForm.to),
     };
     startRunMutation.mutate(scope, {
-      onSuccess: (batch) => router.push(`/batches/${encodeURIComponent(batch.id)}`),
+      onSuccess: (batch) => router.push(batchPath(batch.id)),
     });
   };
 

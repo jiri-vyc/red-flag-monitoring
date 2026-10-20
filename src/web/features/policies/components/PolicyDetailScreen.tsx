@@ -31,7 +31,7 @@ import { useRolePermissions } from "@/features/users/api/hooks";
 import { RoleGateNotice } from "@/features/users/components/RoleGateNotice";
 
 import { usePolicy } from "../api/hooks";
-import type { Policy, PolicyVersion } from "../types";
+import { findCurrentPolicyVersion, type Policy, type PolicyVersion } from "../types";
 import { PolicyOriginBadge, PolicyStatusBadge } from "./PolicyBadges";
 import styles from "./PolicyDetailScreen.module.css";
 import { PolicyTextEditor } from "./PolicyTextEditor";
@@ -167,16 +167,16 @@ function CurrentPolicyText({
 
 function OlderPolicyText({
   version,
-  latestVersionNumber,
+  currentVersionNumber,
 }: {
   version: PolicyVersion;
-  latestVersionNumber: number;
+  currentVersionNumber: number;
 }) {
   const { t } = useI18n();
   return (
     <>
       <Notice tone="info">
-        {formatMessage(t.policies.olderVersionNote, { versionNumber: latestVersionNumber })}
+        {formatMessage(t.policies.olderVersionNote, { versionNumber: currentVersionNumber })}
       </Notice>
       <MarkdownText>{version.text}</MarkdownText>
     </>
@@ -186,13 +186,13 @@ function OlderPolicyText({
 function PolicyDetail({ policy }: { policy: Policy }) {
   const { t, locale } = useI18n();
   const [rulesJobId, setRulesJobId] = useState<string | null>(null);
-  // Null shows the latest version, so a new version saved from the editor is shown right away.
+  // Null shows the current version, so a new version saved from the editor is shown right away.
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null);
-  const latestVersion = policy.versions.at(-1);
+  const currentVersion = findCurrentPolicyVersion(policy);
   const selectedOlderVersion = policy.versions.find(
-    (version) => version !== latestVersion && version.versionNumber === selectedVersionNumber,
+    (version) => version !== currentVersion && version.versionNumber === selectedVersionNumber,
   );
-  const shownVersionNumber = selectedOlderVersion?.versionNumber ?? latestVersion?.versionNumber;
+  const shownVersionNumber = selectedOlderVersion?.versionNumber ?? currentVersion?.versionNumber;
   return (
     <>
       <PageHeader
@@ -239,20 +239,23 @@ function PolicyDetail({ policy }: { policy: Policy }) {
           </>
         }
       >
-        {selectedOlderVersion && latestVersion && (
-          <OlderPolicyText version={selectedOlderVersion} latestVersionNumber={latestVersion.versionNumber} />
+        {selectedOlderVersion && currentVersion && (
+          <OlderPolicyText
+            version={selectedOlderVersion}
+            currentVersionNumber={currentVersion.versionNumber}
+          />
         )}
         {/* Hidden, not unmounted, so unsaved edits of the draft survive viewing an older version. */}
         <div className={styles.currentText} hidden={selectedOlderVersion !== undefined}>
           <CurrentPolicyText policy={policy} onApproved={setRulesJobId} />
         </div>
       </Card>
-      {latestVersion && (
+      {currentVersion && (
         <PolicyVersionHistory
           versions={policy.versions}
-          selectedVersionNumber={selectedOlderVersion?.versionNumber ?? latestVersion.versionNumber}
+          selectedVersionNumber={selectedOlderVersion?.versionNumber ?? currentVersion.versionNumber}
           onSelectVersion={(versionNumber) =>
-            setSelectedVersionNumber(versionNumber === latestVersion.versionNumber ? null : versionNumber)
+            setSelectedVersionNumber(versionNumber === currentVersion.versionNumber ? null : versionNumber)
           }
         />
       )}

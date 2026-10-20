@@ -69,6 +69,12 @@ export const mockPoliciesService: PoliciesService = {
     return mapPolicyRecord(findPolicyRecord(policyId), readMockDatabase());
   },
 
+  async loadPolicyNames() {
+    await simulateLatency();
+    const { policies } = readMockDatabase();
+    return Object.fromEntries(policies.map((policy) => [policy.id, policy.name]));
+  },
+
   async updatePolicyText({ policyId, text }) {
     await simulateLatency();
     const record = findPolicyRecord(policyId);

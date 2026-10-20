@@ -9,10 +9,12 @@ import { fetchRuleDtos, type RuleDto } from "@/features/rules/api/dto";
 import { ApiError } from "@/lib/apiError";
 import { requestJson } from "@/lib/httpClient";
 
+import { findCurrentVersion } from "../domain/currentVersion";
 import type { Policy, PolicyStatus, PolicyVersion } from "../types";
 import type { PoliciesService } from "./contract";
 import {
   fetchPoliciesWithVersions,
+  fetchPolicyDtos,
   fetchPolicyWithVersions,
   internalPolicyPath,
   internalPolicyVersionDtoSchema,
@@ -29,9 +31,13 @@ function throwValidation(message: string): never {
   throw new ApiError({ kind: "validation", message });
 }
 
-/** The web knows draft and approved only: anything not approved yet (draft, pending, rejected) is a draft. */
-function toPolicyStatus(latestVersion: InternalPolicyVersionDto | undefined): PolicyStatus {
-  return latestVersion?.status === "approved" ? "approved" : "draft";
+/** The web knows draft and approved only: a current version that is not approved (draft, pending, rejected) is a draft. */
+function toPolicyStatus(currentVersion: InternalPolicyVersionDto | undefined): PolicyStatus {
+  return currentVersion?.status === "approved" ? "approved" : "draft";
+}
+
+function findCurrentVersionDto(versions: InternalPolicyVersionDto[]): InternalPolicyVersionDto | undefined {
+  return findCurrentVersion(versions, (version) => version.status);
 }
 
 function toPolicyVersion(
@@ -55,18 +61,20 @@ function toPolicyVersion(
 function toPolicy({ policy, versions }: InternalPolicyWithVersionsDto, relations: PolicyRelations): Policy {
   const firstVersion = versions.at(0);
   const latestVersion = versions.at(-1);
-  const isApproved = latestVersion?.status === "approved";
+  const currentVersion = findCurrentVersionDto(versions);
+  const isApproved = currentVersion?.status === "approved";
   return {
     id: policy.id,
     name: policy.title,
-    legalBases: toLegalBases(latestVersion?.legalBases ?? [], relations.regulationIdByVersionId),
-    status: toPolicyStatus(latestVersion),
+    legalBases: toLegalBases(currentVersion?.legalBases ?? [], relations.regulationIdByVersionId),
+    status: toPolicyStatus(currentVersion),
     origin: firstVersion?.createdVia === "manual" ? "manual" : "generated",
-    text: latestVersion?.body ?? "",
+    text: currentVersion?.body ?? "",
     createdAt: firstVersion?.createdAt ?? "",
+    // A rejection is the latest change, even when an older approved version stays in force.
     updatedAt: latestVersion?.reviewedAt ?? latestVersion?.createdAt ?? "",
-    approvedBy: isApproved && latestVersion.reviewedBy ? formatUserName(latestVersion.reviewedBy) : null,
-    approvedAt: isApproved ? latestVersion.reviewedAt : null,
+    approvedBy: isApproved && currentVersion.reviewedBy ? formatUserName(currentVersion.reviewedBy) : null,
+    approvedAt: isApproved ? currentVersion.reviewedAt : null,
     ruleIds: relations.rules.filter((rule) => rule.policyId === policy.id).map((rule) => rule.id),
     versions: versions.map((version) => toPolicyVersion(version, relations.regulationIdByVersionId)),
   };
@@ -109,6 +117,12 @@ export const livePoliciesService: PoliciesService = {
 
   loadPolicy,
 
+  // A single request: the name is the policy title, as in `toPolicy`.
+  async loadPolicyNames() {
+    const policies = await fetchPolicyDtos();
+    return Object.fromEntries(policies.map((policy) => [policy.id, policy.title]));
+  },
+
   // M17: versions are immutable, so an edited text is saved as a new draft version with the same legal basis.
   async updatePolicyText({ policyId, text }) {
     const { versions } = await fetchPolicyWithVersions(policyId);
@@ -120,7 +134,7 @@ export const livePoliciesService: PoliciesService = {
         createdVia: "manual",
         createdBy: getCurrentUser().id,
         body: text,
-        legalBases: versions.at(-1)?.legalBases ?? [],
+        legalBases: findCurrentVersionDto(versions)?.legalBases ?? [],
       },
       schema: internalPolicyVersionDtoSchema,
     });

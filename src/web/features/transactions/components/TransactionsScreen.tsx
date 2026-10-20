@@ -10,6 +10,7 @@ import { Field, fieldStyles } from "@/components/ui/Field";
 import { LoadingRing } from "@/components/ui/LoadingRing";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, ErrorState } from "@/components/ui/StateViews";
+import { formatTransactionType } from "@/features/batches/domain/transactionType";
 import type { TransactionView } from "@/features/batches/types";
 import { formatMessage } from "@/i18n/dictionaries";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -98,7 +99,7 @@ function TransactionRow({
       </td>
       {showsClient && <td className={tableStyles.mono}>{transaction.clientId}</td>}
       <td>{formatDateTime(transaction.bookedAt, locale)}</td>
-      <td>{transaction.transactionType}</td>
+      <td>{formatTransactionType(transaction.transactionType, t.transactionType)}</td>
       <td className={tableStyles.numeric}>
         {formatAmount({ amount: transaction.amount, currency: transaction.currency, locale })}
       </td>

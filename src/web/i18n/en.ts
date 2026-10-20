@@ -139,6 +139,11 @@ export const en = {
     EU: "European Union",
     INTL: "International",
   },
+  transactionType: {
+    outgoing: "Outgoing payment",
+    incoming: "Incoming payment",
+    remittance: "Remittance",
+  },
   bucket: {
     ok: "OK",
     to_check: "To check",
@@ -210,7 +215,7 @@ export const en = {
     reviewComment: "Review comment",
     viewing: "Viewing",
     olderVersionNote:
-      "You are viewing an older version of the policy. The current one is version {versionNumber}.",
+      "You are viewing a version of the policy that is not the current one. The current one is version {versionNumber}.",
   },
   rules: {
     title: "Rules",

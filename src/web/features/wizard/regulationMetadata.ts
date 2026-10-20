@@ -1,7 +1,8 @@
 import type { RegulationKind } from "@/features/regulations/api/dto";
 import type { Regulation } from "@/features/regulations/types";
+import { isHttpUrl } from "@/lib/url";
 
-import { isHttpUrl, type SourceFormValues } from "./sourceForm";
+import type { SourceFormValues } from "./sourceForm";
 
 /** Regulation metadata found in the header of an uploaded or pasted regulation text. */
 export type DetectedRegulationMetadata = {

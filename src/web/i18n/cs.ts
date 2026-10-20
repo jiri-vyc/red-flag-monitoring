@@ -141,6 +141,11 @@ export const cs: Dictionary = {
     EU: "Evropská unie",
     INTL: "Mezinárodní",
   },
+  transactionType: {
+    outgoing: "Odchozí platba",
+    incoming: "Příchozí platba",
+    remittance: "Remitence",
+  },
   bucket: {
     ok: "OK",
     to_check: "Ke kontrole",
@@ -211,7 +216,7 @@ export const cs: Dictionary = {
     notReviewed: "Zatím neposouzeno",
     reviewComment: "Komentář k posouzení",
     viewing: "Zobrazeno",
-    olderVersionNote: "Zobrazujete starší verzi předpisu. Aktuální je verze {versionNumber}.",
+    olderVersionNote: "Zobrazujete jinou než aktuální verzi předpisu. Aktuální je verze {versionNumber}.",
   },
   rules: {
     title: "Pravidla",

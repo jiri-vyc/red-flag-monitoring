@@ -12,11 +12,19 @@ import { policiesService } from "./service";
 export const policyQueryKeys = {
   all: ["policies"] as const,
   detail: (policyId: string) => ["policies", policyId] as const,
+  // An object segment cannot collide with a policy id; the `all` prefix still invalidates it.
+  names: ["policies", { view: "names" }] as const,
 };
 
 export function usePolicies() {
   useServiceUsage("policies");
   return useQuery({ queryKey: policyQueryKeys.all, queryFn: () => policiesService.loadPolicies() });
+}
+
+/** Names by policy id, for links that must not load the full policy list. */
+export function usePolicyNames() {
+  useServiceUsage("policies");
+  return useQuery({ queryKey: policyQueryKeys.names, queryFn: () => policiesService.loadPolicyNames() });
 }
 
 export function usePolicy(policyId: string) {

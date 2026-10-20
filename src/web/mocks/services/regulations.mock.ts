@@ -21,4 +21,10 @@ export const mockRegulationsService: RegulationsService = {
     }
     return mapRegulationRecord(record, database);
   },
+
+  async loadRegulationNames() {
+    await simulateLatency();
+    const { regulations } = readMockDatabase();
+    return Object.fromEntries(regulations.map((regulation) => [regulation.id, regulation.shortName]));
+  },
 };
