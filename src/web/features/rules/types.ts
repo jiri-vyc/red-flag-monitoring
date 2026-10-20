@@ -112,7 +112,8 @@ export type CreateRuleVersionInput = {
   config: RuleConfig;
   changeNote: string;
 };
-export type UpdateDraftContentInput = { ruleId: string; content: RuleContent };
+/** Edits an unreviewed version in place; without config the version keeps its own (a partial update, issue #8). */
+export type UpdateDraftContentInput = { ruleId: string; content: RuleContent; config?: RuleConfig };
 
 export type AddWhitelistEntryInput = { ruleId: string; clientId: string; reason: string };
 export type RemoveWhitelistEntryInput = { ruleId: string; clientId: string };

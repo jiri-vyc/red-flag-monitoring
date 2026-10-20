@@ -53,7 +53,7 @@ function runRuleTransition({
 }: {
   ruleId: string;
   action: RuleTransitionAction;
-  /** Only for approve: the escalation role picked at review (issue #6); null keeps the version's role. */
+  /** Only for approve: the role picked at review while a draft can't be edited (until issue #8); null keeps the version's role. */
   escalationRole?: UserRole | null;
 }): Promise<Rule> {
   switch (action) {

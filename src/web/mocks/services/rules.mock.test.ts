@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/config/currentUser";
-import { canDeleteRule } from "@/features/rules/domain/ruleLifecycle";
+import { canDeleteRule, getLatestVersion } from "@/features/rules/domain/ruleLifecycle";
 import { ApiError } from "@/lib/apiError";
 
 import { readMockDatabase, resetMockDatabase } from "../store/mockDatabase";
@@ -45,5 +45,44 @@ describe("mock rules deletion", () => {
       }),
     );
     expect(readMockDatabase().rules.some((rule) => rule.id === approvedRule.id)).toBe(true);
+  });
+});
+
+describe("mock rules draft edit", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetMockDatabase();
+  });
+
+  const findDraftRule = () => readMockDatabase().rules.find((rule) => rule.status === "draft")!;
+
+  it("saves the draft version's content and config in place", async () => {
+    const draftRule = findDraftRule();
+    const draftVersion = getLatestVersion(draftRule);
+    const config = {
+      sensitivity: 42,
+      riskProfiles: ["low" as const],
+      escalationRole: "contact_person" as const,
+    };
+
+    await mockRulesService.updateDraftContent({
+      ruleId: draftRule.id,
+      content: draftVersion.content,
+      config,
+    });
+
+    const savedRule = readMockDatabase().rules.find((rule) => rule.id === draftRule.id)!;
+    expect(savedRule.versions).toHaveLength(draftRule.versions.length);
+    expect(getLatestVersion(savedRule).config).toEqual(config);
+  });
+
+  it("keeps the draft version's config when only the content is sent", async () => {
+    const draftRule = findDraftRule();
+    const draftVersion = getLatestVersion(draftRule);
+
+    await mockRulesService.updateDraftContent({ ruleId: draftRule.id, content: draftVersion.content });
+
+    const savedRule = readMockDatabase().rules.find((rule) => rule.id === draftRule.id)!;
+    expect(getLatestVersion(savedRule).config).toEqual(draftVersion.config);
   });
 });

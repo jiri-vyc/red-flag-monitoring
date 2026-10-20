@@ -500,7 +500,9 @@ export const liveRulesService: RulesService = {
     return loadRule(ruleId);
   },
 
-  // M17: versions are immutable, the backend has no draft edit. Hidden in the UI; this is the safety net.
+  // Issue #8 adds PATCH /api/rules/:ruleId/versions/:versionId for a draft version. Until then the edit is hidden in
+  // the UI and this is the safety net. With #8, map content like toRuleLogic and config like createRuleVersion
+  // (sensitivity, riskProfiles, escalationRole) into the PATCH body.
   updateDraftContent: () =>
     throwUnsupported(
       "Editing a saved rule version is not supported by the API (versions are immutable). Reject it and create a new version.",

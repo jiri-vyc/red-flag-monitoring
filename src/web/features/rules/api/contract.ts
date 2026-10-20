@@ -18,7 +18,7 @@ export type DeleteRuleInput = { ruleId: string; deletedBy: string };
 
 /** What the active implementation supports. The UI hides actions that are false instead of letting them fail. */
 export type RulesCapabilities = {
-  /** Change the content of a version that was not reviewed yet, without creating a new version. */
+  /** Change the content and config of a version that was not reviewed yet, without creating a new version. */
   canEditDraftContent: boolean;
   /** Create a deterministic rule from a description; the backend must generate its definition. */
   canCreateDeterministicRule: boolean;

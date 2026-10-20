@@ -131,7 +131,7 @@ export const cs: Dictionary = {
     escalationHits: "Zásahy pravidel, která compliance officer eskaloval na tuto roli.",
     escalationTitle: "Eskalace",
     escalationBody:
-      "Každá verze pravidla určuje roli, na kterou se eskalují její zásahy. Výchozí je {role}, compliance officer ji může změnit při vytvoření nebo schvalování pravidla, typicky na pověřenou osobu. Ve výsledcích dávky vidí každá role jen zásahy pravidel eskalovaných na ni.",
+      "Každá verze pravidla určuje roli, na kterou se eskalují její zásahy. Výchozí je {role}, compliance officer ji může změnit při vytvoření pravidla nebo jeho nové verze, typicky na pověřenou osobu. Ve výsledcích dávky vidí každá role jen zásahy pravidel eskalovaných na ni.",
     legalBasis: {
       compliance_officer: "vyhláška 67/2018 § 16 odst. 2, AMLR čl. 11, EBA/GL/2022/05",
       contact_person: "AML zákon § 22 (oznamuje podezřelé obchody FAÚ)",
@@ -291,6 +291,9 @@ export const cs: Dictionary = {
       "Verze čekající na schválení mění zvýrazněná pole. Do jejího schválení se vyhodnocuje se spouštěnou konfigurací.",
     sourceChain: "Zdroj",
     actions: "Akce",
+    reviewActions: "Schválení",
+    changeActions: "Úpravy",
+    openDetailInNewTab: "Otevřít detail pravidla v nové záložce",
     code: "Kód",
     explanation: "Lidský přepis (CZ)",
     ruleText: "Text pravidla (přirozený jazyk)",

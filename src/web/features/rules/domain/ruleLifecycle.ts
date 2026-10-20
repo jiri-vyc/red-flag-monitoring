@@ -208,14 +208,15 @@ export function addRuleVersion(
 
 export function updateDraftContent(
   rule: Rule,
-  { content, now }: { content: RuleContent; now: string },
+  { content, config, now }: { content: RuleContent; config?: RuleConfig; now: string },
 ): Rule {
   const latestVersion = getLatestVersion(rule);
   const isEditable = REVIEWABLE_STATUSES.includes(rule.status) && latestVersion.state !== "approved";
   if (!isEditable) {
     throw new Error(`Rule ${rule.id} has no unapproved version to edit.`);
   }
-  return { ...rule, versions: replaceLatestVersion(rule, { ...latestVersion, content }), updatedAt: now };
+  const editedVersion = { ...latestVersion, content, config: config ?? latestVersion.config };
+  return { ...rule, versions: replaceLatestVersion(rule, editedVersion), updatedAt: now };
 }
 
 /** The version that describes the rule: the running one, else the newest (it awaits review or was rejected). */

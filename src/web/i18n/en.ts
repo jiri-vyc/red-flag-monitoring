@@ -128,7 +128,7 @@ export const en = {
     escalationHits: "Hits of rules the compliance officer escalated to this role.",
     escalationTitle: "Escalation",
     escalationBody:
-      "Each rule version names the role its hits are escalated to. The default is {role}; the compliance officer can change it when creating or reviewing the rule, typically to the designated person. In batch results, every role sees only the hits of rules escalated to it.",
+      "Each rule version names the role its hits are escalated to. The default is {role}; the compliance officer can change it when creating the rule or a new version of it, typically to the designated person. In batch results, every role sees only the hits of rules escalated to it.",
     legalBasis: {
       compliance_officer: "Decree 67/2018 § 16(2), AMLR Art. 11, EBA/GL/2022/05",
       contact_person: "AML Act § 22 (reports suspicious transactions to the FAU)",
@@ -289,6 +289,9 @@ export const en = {
       "A version awaiting review changes the highlighted fields. Evaluations keep using the running configuration until it is approved.",
     sourceChain: "Source",
     actions: "Actions",
+    reviewActions: "Review",
+    changeActions: "Changes",
+    openDetailInNewTab: "Open the rule detail in a new tab",
     code: "Code",
     explanation: "Human-readable explanation (CZ)",
     ruleText: "Rule text (natural language)",

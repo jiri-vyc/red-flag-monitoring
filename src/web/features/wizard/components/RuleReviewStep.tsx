@@ -1,6 +1,7 @@
 "use client";
 
-import { CircleCheck, CircleX, Pencil } from "lucide-react";
+import { CircleCheck, CircleX, ExternalLink, Pencil } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
@@ -17,6 +18,7 @@ import { RuleTypeBadge } from "@/features/rules/components/RuleBadges";
 import { RuleContentEditor } from "@/features/rules/components/RuleContentEditor";
 import { RuleContentView } from "@/features/rules/components/RuleContentView";
 import { findRuleLegalBases, getLatestVersion } from "@/features/rules/domain/ruleLifecycle";
+import { ruleDetailPath } from "@/features/rules/rulePaths";
 import type { Rule } from "@/features/rules/types";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useRolePermissions } from "@/features/users/api/hooks";
@@ -54,7 +56,20 @@ function GeneratedRuleCard({ rule, onRuleChange }: { rule: Rule; onRuleChange: (
     <article className={`${styles.generatedRule} rf-slide-up`}>
       <header className={styles.generatedRuleHeader}>
         <div className={styles.generatedRuleTitle}>
-          <h3>{rule.name}</h3>
+          <h3 className={styles.generatedRuleName}>
+            {rule.name}
+            {/* A new tab keeps the in-progress wizard open. */}
+            <Link
+              href={ruleDetailPath(rule.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.ruleDetailLink}
+              aria-label={t.rules.openDetailInNewTab}
+              title={t.rules.openDetailInNewTab}
+            >
+              <ExternalLink aria-hidden="true" />
+            </Link>
+          </h3>
           <div className={styles.provenance}>
             <RuleTypeBadge type={rule.type} />
             <Badge tone="ai">
