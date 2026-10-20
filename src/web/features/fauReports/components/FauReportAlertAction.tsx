@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, FileWarning } from "lucide-react";
+import { FileWarning } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { ButtonLink } from "@/components/ui/Button";
@@ -54,7 +54,6 @@ function PrepareReportButton({ evaluation }: { evaluation: TransactionEvaluation
         }
       >
         {createMutation.isPending ? t.fauReports.preparing : t.fauReports.prepare}
-        <ArrowRight aria-hidden="true" />
       </RoleGatedButton>
       {createMutation.error && <ErrorState error={createMutation.error} />}
     </div>
