@@ -109,11 +109,11 @@ export const cs: Dictionary = {
     compliance_analyst: "Compliance analytik",
     compliance_officer: "Compliance officer",
     lawyer: "Právník",
-    contact_person: "Kontaktní osoba (§ 22)",
-    designated_person: "Pověřená osoba (§ 22a)",
+    contact_person: "Kontaktní osoba",
+    designated_person: "Pověřená osoba",
   },
   roleGate: {
-    requires: "Tuto akci může provést jen role {role}. Roli přepnete v postranním panelu.",
+    requires: "Tuto akci může provést jen role {role}.",
   },
   versionState: {
     draft: "Koncept",
@@ -224,7 +224,7 @@ export const cs: Dictionary = {
     configColumn: "Konfigurace",
     pendingChange: "Čekající změna",
     escalationRole: "Eskalovat na",
-    escalationRoleHint: "Kdo řeší zásahy pravidla. Výchozí je kontaktní osoba.",
+    escalationRoleHint: "Kdo řeší vyhodnocení pravidla. Alert transakčního monitoringu je eskalován na tuto osobu, která je zodpovědná za jeho řešení. Výchozí je kontaktní osoba podle znění § 22 zákona o AML.",
     pendingConfigNote:
       "Verze čekající na schválení mění zvýrazněná pole. Do jejího schválení se vyhodnocuje se spouštěnou konfigurací.",
     sourceChain: "Zdroj",
