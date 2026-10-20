@@ -525,7 +525,7 @@ In CZK the same split is 13 gaps, 6 recalibrations, 11 noise, 1 no near miss: th
 
 **Cap corrections the engine data suggests** (proposals for the compliance officer, not applied; the caps live in `params` of each report):
 
-1. **Tenure in whole months is a count, not a window.** R-05 b and R-15 d compare `client_tenure_months_*`, an integer. The 5 % window steps (6 → 6.3 → 6.6 …) give the same result up to 15 % and then jump, so the proposed value 6.3 is false precision. Treat a `months` feature as a count: one unit (6 → 7), under the growth cap. On today's data both stay gaps (+22 of allowed 24, +23 of 38).
+1. **Tenure in whole months is a count, not a window.** Applied in 6.9. R-05 b and R-15 d compare `client_tenure_months_*`, an integer. The 5 % window steps (6 → 6.3 → 6.6 …) give the same result up to 15 % and then jump, so the proposed value 6.3 is false precision. Treat a `months` feature as a count: one unit (6 → 7), under the growth cap. On today's data both stay gaps (+22 of allowed 24, +23 of 38).
 2. **A constant shared by several conditions is one parameter.** R-13's F appears in a1 and a2 (5×), and in b2 and b3 (3×). Relaxed condition by condition, each adds less than the rule would with F relaxed (the Python probe's +23 at 5 % for F = 5, against +16 and +4 here). Relax shared constants together.
 3. **R-04 as a seed is too broad under FX.** With FX conversion R-04 hits 1,077 clients (20 % of the base), so seeds grow from 477 to 1,553 and association findings from 5 to 38. Either keep R-04 out of the seeds while its base is this large, or cap a seed rule at a share of clients (e.g. 5 %).
 4. **Repetition mostly rests on "several clients".** Most gap findings have clients with a single near-miss day; they pass because ≥ 3 clients share the parameter. For large bases (R-04, R-14) consider requiring ≥ 3 clients and at least one repeated client, or scaling `minClients` with the base.
@@ -576,6 +576,56 @@ Step 1b lives in `infrastructure/bedrock/ruleReview/` with the CLI `delivery/cli
   - `.rule-reviews/` in `.gitignore`;
   - the DSL guidance in `hypothesisPrompt.ts` repeats `ruleDraftingPrompt.ts`, so extract a shared module;
   - a hypothesis' Czech text can claim more than its DSL does (seen in the fixture run). The officer should read the definition, not only the description.
+
+### 6.9 Combined end-to-end runs and fix-ups (1a + 1b, 2026-10-20)
+
+Branch `rule-gap-analysis-e2e`, local only:
+
+- 1a's branch with 1b merged in;
+- 1b's copy of the types replaced by 1a's, and `RULE_REVIEW_LLM=bedrock` wired to `createBedrockRuleReviewLlm`;
+- run against the local Docker database, with `AWS_PROFILE=hackathon-sdk`.
+
+Two full reviews started from the page, with Opus 4.5 on Bedrock and FX conversion.
+
+**What the first run showed, and the fixes:**
+
+1. **The page crashed on a completed report.** Coverage-gap findings have no `evidence.parameter`, and `isParameterProposal` threw on `undefined`. The guard now accepts any value.
+2. **The Bedrock summary miscounted findings** (67 / 25 / 42 instead of 64 / 24 / 38).
+   - The summary input now carries exact counts from `countFindings`, and the prompt forbids counting.
+   - `findUnverifiedNumbers` checks every number the summary states against its input. Mismatches go to `llm.summaryUnverifiedNumbers`, and the page shows them.
+3. **Every hypothesis that fit the client cap was discarded for overlapping R-01**, which hits nearly every client. `BacktestCaps.overlapIgnoredRuleCodes` (default R-01) leaves it out of the overlap check. The overlap is still reported.
+4. **38 association findings, one per client.** They form 31 separate clusters around 77 seeds, so clustering would not help. Association leads are now **one finding per kind of link**: `strong_flow` (money from a seed through a private account) and `shared_accounts` (≥ 2 shared private accounts). The evidence holds aggregates and at most 10 client IDs, and each client keeps its seed links.
+5. **Tenure stepped as a window** (6 → 6.3). A `months` feature is now a count, stepping one month (6 → 7). The results are unchanged: R-05 +22, R-15 +23.
+6. **The hypothesis loop hit its 150k input-token budget after 5 turns.**
+   - `get_gap_findings` now sends only scalar evidence: no traces, no client lists.
+   - Each turn sets a cache breakpoint on the latest message. That saves cost and latency; the budget still counts cached tokens in full.
+   - The stop message says how far the loop got.
+7. **Raw IDs as card titles** (`coverage_gap:H-7`, `new_rule:H-6`). Coverage gaps and Bedrock new rules are now titled by their description, with indicator and missing-feature badges. Association groups get their own cards with the Bedrock explanation.
+
+**Before and after:**
+
+| | Run 1 (`50f92159`) | Run 2 (`45242848`) |
+| --- | --- | --- |
+| Duration | 596 s | 357 s |
+| Findings | 24 rule_adjustment, 38 association, 2 coverage_gap | 24 rule_adjustment, 2 association (3 + 35 clients), 1 new_rule |
+| Bedrock calls / tokens in / out | 68 / 329k / 91k | 34 / 249k / 45k |
+| Unverified citations in explanations | 16 | 0 |
+| Numbers in the summary not in its input | 3 (not checked at the time) | 0 |
+| Hypothesis loop | 5 turns, input per turn 6.6k → 36k, 0 accepted (4 over the cap, 2 R-01 overlap) | 7 turns and 11 tool calls, input per turn 6.7k → 25k, 1 accepted |
+
+**The accepted hypothesis (run 2):** partial pass-through.
+
+- **Rule:** inflow ≥ 150,000 CZK in 24 h, 60–79 % of it forwarded within 6 h to accounts the money did not come from, by a high-risk or PEP client.
+- **Covers:** indicator Z9.
+- **Backtest:** 23 clients, 30 hits. Overlap with R-04 is 17 %, with R-14 74 %, with R-01 100 % (ignored).
+- Like every hypothesis, it is a draft for the compliance officer.
+
+**Still open:**
+
+- **The new rule gets no explanation and the summary does not mention it.** Explanations and the summary run before the hypothesis loop, so an accepted `new_rule` finding gets neither. Either run the loop first, or explain the new findings afterwards.
+- **The loop still stops on the input budget**, now after 7 turns instead of 5. The budget (150k) or `maxHypotheses` may need tuning for the demo.
+- **Cap corrections 2–5 in 6.7** are not applied.
+- **Narrow screens:** in a pane narrower than about 600 px the desktop sidebar squeezes the content, and nested cards overflow. At desktop widths the page lays out cleanly.
 
 ## 7. Iteration 2: persistence, officer workflow, deployment (only after confirmation)
 

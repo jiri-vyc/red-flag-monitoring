@@ -90,7 +90,10 @@ export function RuleFindingCard({
   const shownProposal =
     parameterProposal ?? (isParameterProposal(evidenceProposal) ? evidenceProposal : null);
   const addedHits = readNumber(finding.evidence, "addedHits");
-  const title = finding.rule ? `${finding.rule.code} · ${finding.rule.label}` : finding.id;
+  const indicator = readString(finding.evidence, "indicator");
+  const title = finding.rule
+    ? `${finding.rule.code} · ${finding.rule.label}`
+    : (readString(finding.evidence, "descriptionCs") ?? finding.id);
 
   return (
     <Card title={title}>
@@ -107,7 +110,12 @@ export function RuleFindingCard({
               {formatStepPercent(shownProposal.step)})
             </span>
           )}
-          {finding.kind === "new_rule" && <Badge tone="warning">{t.ruleReviews.regulatory}</Badge>}
+          {finding.kind === "new_rule" && finding.rule !== null && (
+            <Badge tone="warning">{t.ruleReviews.regulatory}</Badge>
+          )}
+          {finding.kind === "new_rule" && finding.rule === null && indicator && (
+            <Badge tone="ai">{formatMessage(t.ruleReviews.indicatorCovered, { indicator })}</Badge>
+          )}
           {finding.growth?.capExceeded && <Badge tone="danger">{t.ruleReviews.capExceeded}</Badge>}
         </div>
         {finding.growth && (
