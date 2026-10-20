@@ -1,6 +1,6 @@
 import type { Transaction } from "@/features/batches/types";
 
-import { convertToCzk } from "./fxRates";
+import { convertToCzk, hasDemoCzkRate } from "./fxRates";
 
 export type CsvTransactionRow = {
   transactionId: string;
@@ -121,26 +121,36 @@ function normalizeTime(time: string): string | null {
   return isInRange ? `${hours}:${minutes}:${seconds}` : null;
 }
 
-/** Returns an ISO 4217-shaped code, or null when it is not three letters. Empty input defaults to CZK. */
+/**
+ * Returns an ISO 4217-shaped code the mock can convert to CZK, or null otherwise. Empty input defaults to CZK.
+ * A currency without a demo rate is rejected so its amount is never converted with a made-up rate.
+ */
 function normalizeCurrency(currency: string): string | null {
   if (currency === "") {
     return DEFAULT_CURRENCY;
   }
   const upperCaseCurrency = currency.toUpperCase();
-  return CURRENCY_PATTERN.test(upperCaseCurrency) ? upperCaseCurrency : null;
+  const isKnownCurrency = CURRENCY_PATTERN.test(upperCaseCurrency) && hasDemoCzkRate(upperCaseCurrency);
+  return isKnownCurrency ? upperCaseCurrency : null;
+}
+
+/** Returns the amount, or null when it is empty or not a finite number. Number("") would otherwise give 0. */
+function parseVolume(volume: string): number | null {
+  if (volume === "") {
+    return null;
+  }
+  const parsedVolume = Number(volume.replace(",", "."));
+  return Number.isFinite(parsedVolume) ? parsedVolume : null;
 }
 
 function mapFieldsToRow(fields: string[], columnIndexes: ColumnIndexes): CsvTransactionRow | null {
   const readField = (columnName: ColumnName) => fields[columnIndexes[columnName]] ?? "";
-  const volume = Number(readField("volume").replace(",", "."));
+  const volume = parseVolume(readField("volume"));
   const time = normalizeTime(readField("time"));
   const currency = normalizeCurrency(readField("currency"));
   const isValid =
-    readField("transactionId") !== "" &&
-    readField("clientId") !== "" &&
-    Number.isFinite(volume) &&
-    isValidDate(readField("date"));
-  if (!isValid || time === null || currency === null) {
+    readField("transactionId") !== "" && readField("clientId") !== "" && isValidDate(readField("date"));
+  if (!isValid || volume === null || time === null || currency === null) {
     return null;
   }
   return {
@@ -158,7 +168,10 @@ function mapFieldsToRow(fields: string[], columnIndexes: ColumnIndexes): CsvTran
   };
 }
 
-/** Parses the vendor transaction CSV format. Only the first `maxRows` data rows are mapped; all are counted. */
+/**
+ * Parses the vendor transaction CSV format. Only the first `maxRows` data rows are mapped; all are counted.
+ * A repeated transaction ID keeps its first row; later ones count as invalid.
+ */
 export function parseTransactionsCsv(
   csvText: string,
   { maxRows }: { maxRows: number },
@@ -172,10 +185,12 @@ export function parseTransactionsCsv(
   const nonEmptyLines = dataLines.filter((line) => line.trim() !== "");
 
   const rows: CsvTransactionRow[] = [];
+  const seenTransactionIds = new Set<string>();
   let invalidRowCount = 0;
   for (const line of nonEmptyLines.slice(0, maxRows)) {
     const row = mapFieldsToRow(parseCsvLine(line), columnIndexes);
-    if (row) {
+    if (row && !seenTransactionIds.has(row.transactionId)) {
+      seenTransactionIds.add(row.transactionId);
       rows.push(row);
     } else {
       invalidRowCount += 1;

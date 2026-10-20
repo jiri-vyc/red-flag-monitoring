@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type { TraceStep, Transaction } from "@/features/batches/types";
 import { assertUnreachable } from "@/lib/assertUnreachable";
 
@@ -8,15 +10,18 @@ import type { MockClient } from "./mockClient";
  * The mock cannot execute the displayed rule code, so each mock rule is bound to one of these hand-written checks.
  * Thresholds follow the FINREG ruleset (rules A–C) where possible.
  */
-export type MockCheckKind =
-  | "high_risk_jurisdiction"
-  | "pep_outgoing"
-  | "large_amount"
-  | "client_max_exceeded"
-  | "high_risk_remittance"
-  | "night_activity"
-  | "threshold_structuring"
-  | "agentic_context";
+export const MOCK_CHECK_KINDS = [
+  "high_risk_jurisdiction",
+  "pep_outgoing",
+  "large_amount",
+  "client_max_exceeded",
+  "high_risk_remittance",
+  "night_activity",
+  "threshold_structuring",
+  "agentic_context",
+] as const;
+export const mockCheckKindSchema = z.enum(MOCK_CHECK_KINDS);
+export type MockCheckKind = z.infer<typeof mockCheckKindSchema>;
 
 export type CheckResult = { score: number; trace: TraceStep[] };
 type CheckInput = { transaction: Transaction; client: MockClient; ruleId: string };

@@ -25,7 +25,14 @@ const DEMO_CZK_RATES: Record<string, number> = {
   ISK: 0.17,
 };
 
+export function hasDemoCzkRate(currency: string): boolean {
+  return Object.hasOwn(DEMO_CZK_RATES, currency);
+}
+
+/** Callers must pass a currency with a demo rate (the CSV parser rejects others), so a wrong amount never passes silently. */
 export function convertToCzk({ amount, currency }: { amount: number; currency: string }): number {
-  const rate = DEMO_CZK_RATES[currency] ?? 1;
-  return Math.round(amount * rate * 100) / 100;
+  if (!hasDemoCzkRate(currency)) {
+    throw new Error(`No demo CZK rate for currency "${currency}".`);
+  }
+  return Math.round(amount * DEMO_CZK_RATES[currency] * 100) / 100;
 }

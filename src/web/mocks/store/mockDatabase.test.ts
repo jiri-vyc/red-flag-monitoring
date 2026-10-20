@@ -1,9 +1,10 @@
 import { ApiError } from "@/lib/apiError";
 
 import { buildSeedDatabase } from "../seed/buildSeedDatabase";
-import { readMockDatabase, resetMockDatabase, writeMockDatabase } from "./mockDatabase";
+import { readBatchRows, readMockDatabase, resetMockDatabase, writeMockDatabase } from "./mockDatabase";
 
 const DATABASE_KEY = "redflag.mock.database.v6";
+const BATCH_ROWS_KEY_PREFIX = "redflag.mock.batch-rows.v1.";
 
 describe("mockDatabase", () => {
   beforeEach(() => {
@@ -90,6 +91,78 @@ describe("mockDatabase", () => {
     expect(readMockDatabase().whitelistEntries).toEqual(seed.whitelistEntries);
   });
 
+  it.each([
+    [
+      "a batch without a numeric start time",
+      (seed: SeedDatabase) => ({
+        batches: seed.batches.map((record) => ({ ...record, startedAtMs: "yesterday" })),
+      }),
+    ],
+    [
+      "an unknown rule check kind",
+      (seed: SeedDatabase) => ({
+        ruleCheckKinds: { ...seed.ruleCheckKinds, [seed.rules[0].id]: "unknown_check" },
+      }),
+    ],
+    [
+      "a rule snapshot without a check kind",
+      (seed: SeedDatabase) => ({
+        batches: seed.batches.map((record) => ({
+          ...record,
+          ruleSnapshots: record.ruleSnapshots.map((snapshot) => ({ ...snapshot, checkKind: undefined })),
+        })),
+      }),
+    ],
+  ])("restores the seed when stored data has %s", (_label, corrupt) => {
+    const seed = buildSeedDatabase().database;
+    window.localStorage.setItem(
+      DATABASE_KEY,
+      JSON.stringify({ ...seed, rules: seed.rules.slice(1), ...corrupt(seed) }),
+    );
+    resetModuleCacheOnly();
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      expect(readMockDatabase().rules).toHaveLength(seed.rules.length);
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("accepts the seeded batch rows after a reload", () => {
+    const seed = buildSeedDatabase();
+    readMockDatabase();
+    resetModuleCacheOnly();
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      for (const [batchId, rows] of Object.entries(seed.batchRows)) {
+        expect(readBatchRows(batchId)).toHaveLength(rows.length);
+      }
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("treats stored batch rows with an outdated shape as missing", () => {
+    const [batchId, rows] = Object.entries(buildSeedDatabase().batchRows)[0];
+    const outdatedRows = rows.map((row) => ({
+      ...row,
+      transaction: { ...row.transaction, amountCzk: null },
+    }));
+    window.localStorage.setItem(`${BATCH_ROWS_KEY_PREFIX}${batchId}`, JSON.stringify(outdatedRows));
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      expect(readBatchRows(batchId)).toEqual([]);
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("reports blocked localStorage as a storage error", () => {
     const getItem = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new DOMException("The operation is insecure.", "SecurityError");
@@ -104,11 +177,11 @@ describe("mockDatabase", () => {
   });
 });
 
+type SeedDatabase = ReturnType<typeof buildSeedDatabase>["database"];
+
 // Drops the in-memory cache while keeping localStorage, like a page reload.
 function resetModuleCacheOnly(): void {
-  const stored = window.localStorage.getItem(DATABASE_KEY);
+  const storedEntries = Object.entries(window.localStorage);
   resetMockDatabase();
-  if (stored !== null) {
-    window.localStorage.setItem(DATABASE_KEY, stored);
-  }
+  storedEntries.forEach(([key, value]) => window.localStorage.setItem(key, value));
 }
